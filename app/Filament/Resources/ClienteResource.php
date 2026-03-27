@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ClienteResource\Pages;
 use App\Filament\Resources\ClienteResource\RelationManagers\CuentasCobrarRelationManager;
 use App\Models\Cliente;
+use App\Models\Cobrador;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Actions;
 use Filament\Forms;
@@ -63,6 +64,18 @@ class ClienteResource extends Resource implements HasShieldPermissions
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
+            Section::make('Sucursal')
+                ->description('La sucursal a la que pertenece este cliente')
+                ->icon('heroicon-m-building-storefront')
+                ->hidden(fn (string $operation) => $operation === 'create')
+                ->components([
+                    Forms\Components\Select::make('sucursal_id')
+                        ->label('Sucursal')
+                        ->relationship('sucursal', 'nombre')
+                        ->disabled()
+                        ->dehydrated(),
+                ]),
+
             Tabs::make('Gestión de cliente')
                 ->columnSpanFull()
                 ->tabs([
@@ -143,8 +156,14 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                 ->icon('heroicon-m-phone')
                                 ->columns(2)
                                 ->components([
-                                    Forms\Components\TextInput::make('telefono')
-                                        ->label('Teléfono')
+                                    Forms\Components\TextInput::make('telefono_normal')
+                                        ->label('Teléfono normal')
+                                        ->placeholder('+(503) 1234-5678')
+                                        ->tel()
+                                        ->maxLength(30),
+
+                                    Forms\Components\TextInput::make('telefono_whatsapp')
+                                        ->label('Teléfono WhatsApp')
                                         ->placeholder('+(503) 1234-5678')
                                         ->tel()
                                         ->maxLength(30),
@@ -154,20 +173,72 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->placeholder('cliente@email.com')
                                         ->email()
                                         ->unique(Cliente::class, 'email', ignoreRecord: true)
-                                        ->maxLength(255),
+                                        ->maxLength(255)
+                                        ->columnSpanFull(),
+                                ]),
+
+                            Section::make('Ubicación')
+                                ->description('Información de ubicación del cliente (El Salvador)')
+                                ->icon('heroicon-m-map-pin')
+                                ->columns(3)
+                                ->components([
+                                    Forms\Components\TextInput::make('departamento')
+                                        ->label('Departamento')
+                                        ->placeholder('Ej: San Salvador')
+                                        ->maxLength(100),
+
+                                    Forms\Components\TextInput::make('municipio')
+                                        ->label('Municipio')
+                                        ->placeholder('Ej: San Salvador')
+                                        ->maxLength(100),
+
+                                    Forms\Components\TextInput::make('distrito')
+                                        ->label('Distrito')
+                                        ->placeholder('Ej: Distrito 1')
+                                        ->maxLength(100),
 
                                     Forms\Components\TextInput::make('direccion')
-                                        ->label('Dirección')
-                                        ->placeholder('Calle, colonia, municipio')
+                                        ->label('Dirección completa')
+                                        ->placeholder('Calle, número, colonia')
                                         ->maxLength(500)
                                         ->columnSpanFull(),
+
+                                    Forms\Components\TextInput::make('latitud')
+                                        ->label('Latitud')
+                                        ->placeholder('Ej: 13.693395')
+                                        ->regex('/^-?\d+(\.\d{1,8})?$/')
+                                        ->helperText('Formato: -90 a 90'),
+
+                                    Forms\Components\TextInput::make('longitud')
+                                        ->label('Longitud')
+                                        ->placeholder('Ej: -89.219541')
+                                        ->regex('/^-?\d+(\.\d{1,8})?$/')
+                                        ->helperText('Formato: -180 a 180'),
                                 ]),
                         ]),
 
-                    // ── Tab 2: Referencias ────────────────────────────────────
-                    Tabs\Tab::make('Referencias')
-                        ->icon('heroicon-m-users')
+                    // ── Tab 2: Otros datos ────────────────────────────────────
+                    Tabs\Tab::make('Otros datos')
+                        ->icon('heroicon-m-document-text')
                         ->components([
+                            Section::make('Asignación de ruta de cobro')
+                                ->description('Selecciona la ruta de cobro del cliente')
+                                ->icon('heroicon-m-map')
+                                ->columns(1)
+                                ->components([
+                                    Forms\Components\Select::make('ruta_cobro_id')
+                                        ->label('Ruta de cobro')
+                                        ->placeholder('Selecciona una ruta...')
+                                        ->options(fn() => \App\Models\RutaCobro::query()
+                                            ->where('sucursal_id', auth()->user()->current_team_id ?? 1)
+                                            ->where('activa', true)
+                                            ->orderBy('nombre')
+                                            ->get()
+                                            ->mapWithKeys(fn($ruta) => [$ruta->id => $ruta->nombre])
+                                            ->toArray())
+                                        ->searchable(),
+                                ]),
+
                             Section::make('Referencia familiar 1')
                                 ->description('Primera referencia de familiar directo')
                                 ->icon('heroicon-m-heart')
@@ -302,6 +373,12 @@ class ClienteResource extends Resource implements HasShieldPermissions
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('sucursal.nombre')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable()
+                    ->weight('semibold'),
+
                 Tables\Columns\TextColumn::make('nombre_completo')
                     ->label('Cliente')
                     ->searchable(['nombre', 'apellido'])
@@ -314,7 +391,7 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->placeholder('—')
                     ->copyable(),
 
-                Tables\Columns\TextColumn::make('telefono')
+                Tables\Columns\TextColumn::make('telefono_normal')
                     ->label('Teléfono')
                     ->placeholder('—')
                     ->icon('heroicon-m-phone'),

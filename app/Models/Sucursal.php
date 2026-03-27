@@ -5,6 +5,7 @@ namespace App\Models;
 use Filament\Models\Contracts\HasName;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Sucursal extends Model implements HasName
 {
@@ -33,5 +34,23 @@ class Sucursal extends Model implements HasName
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class);
+    }
+
+    /** Cobradores de esta sucursal */
+    public function cobradores(): HasMany
+    {
+        return $this->hasMany(Cobrador::class, 'sucursal_id');
+    }
+
+    /** Rutas de cobro de esta sucursal */
+    public function rutasCobro(): HasMany
+    {
+        return $this->hasMany(RutaCobro::class, 'sucursal_id');
+    }
+
+    /** Clientes de esta sucursal */
+    public function clientes(): HasMany
+    {
+        return $this->hasMany(Cliente::class, 'sucursal_id');
     }
 }

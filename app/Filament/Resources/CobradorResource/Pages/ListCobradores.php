@@ -1,15 +1,16 @@
 <?php
 
-namespace App\Filament\Resources\ClienteResource\Pages;
+namespace App\Filament\Resources\CobradorResource\Pages;
 
-use App\Filament\Resources\ClienteResource;
+use App\Filament\Resources\CobradorResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Resources\Pages\ListRecords\Concerns\HasFilters;
 use Illuminate\Database\Eloquent\Builder;
 
-class ListClientes extends ListRecords
+class ListCobradores extends ListRecords
 {
-    protected static string $resource = ClienteResource::class;
+    protected static string $resource = CobradorResource::class;
 
     protected function getHeaderActions(): array
     {

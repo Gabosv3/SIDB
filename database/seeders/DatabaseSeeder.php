@@ -11,6 +11,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // ── Generar permisos de Shield ────────────────────────────────────────
+        $this->call(ShieldSeeder::class);
+
         // ── Sucursal principal ────────────────────────────────────────────────
         $sucursal = Sucursal::firstOrCreate(
             ['codigo' => 'CENTRAL'],

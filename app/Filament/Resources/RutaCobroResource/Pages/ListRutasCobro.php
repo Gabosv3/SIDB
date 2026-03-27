@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Filament\Resources\ClienteResource\Pages;
+namespace App\Filament\Resources\RutaCobroResource\Pages;
 
-use App\Filament\Resources\ClienteResource;
+use App\Filament\Resources\RutaCobroResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
 
-class ListClientes extends ListRecords
+class ListRutasCobro extends ListRecords
 {
-    protected static string $resource = ClienteResource::class;
+    protected static string $resource = RutaCobroResource::class;
 
     protected function getHeaderActions(): array
     {

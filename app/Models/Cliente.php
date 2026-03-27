@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Cliente extends Model
 {
@@ -13,6 +14,7 @@ class Cliente extends Model
     protected $table = 'clientes';
 
     protected $fillable = [
+        'sucursal_id',
         'nombre',
         'apellido',
         'nombre_conyuge',
@@ -20,11 +22,18 @@ class Cliente extends Model
         'dui_foto_frente',
         'dui_foto_reverso',
         'nit',
-        'telefono',
+        'telefono_normal',
+        'telefono_whatsapp',
         'email',
         'direccion',
+        'departamento',
+        'municipio',
+        'distrito',
+        'latitud',
+        'longitud',
         'limite_credito',
         'saldo',
+        'ruta_cobro_id',
         'activo',
         // Referencias familiares
         'ref_fam1_nombre',
@@ -49,6 +58,16 @@ class Cliente extends Model
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function rutaCobro(): BelongsTo
+    {
+        return $this->belongsTo(RutaCobro::class, 'ruta_cobro_id');
+    }
 
     public function cuentasCobrar(): HasMany
     {
