@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use BezhanSalleh\FilamentShield\Facades\FilamentShield;
 use Illuminate\Console\Command;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -9,28 +10,21 @@ use Spatie\Permission\Models\Role;
 class GeneratePermissions extends Command
 {
     protected $signature = 'permissions:generate';
-    protected $description = 'Generate permissions for all resources';
+    protected $description = 'Genera permisos Shield para todos los resources y asigna al rol super_admin';
 
-    public function handle()
+    public function handle(): int
     {
-        $resources = [
-            'App\Filament\Resources\ClienteResource',
-            'App\Filament\Resources\CobradorResource',
-            'App\Filament\Resources\RutaCobroResource',
-        ];
+        $this->info('Generando políticas y permisos Shield...');
 
-        foreach ($resources as $resource) {
-            $model = $resource::getModel();
-            $userModel = new $model();
-            $table = $userModel->getTable();
-
-            $this->info("Generando permisos para: $table");
-
-            foreach (['view', 'view_any', 'create', 'update', 'delete', 'delete_any'] as $permission) {
-                Permission::firstOrCreate(
-                    ['name' => "{$permission}_{$table}", 'guard_name' => 'web']
-                );
-            }
+        try {
+            $this->call('shield:generate', [
+                '--all'    => true,
+                '--option' => 'policies_and_permissions',
+                '--panel'  => 'administrativo',
+            ]);
+        } catch (\Exception $e) {
+            $this->error('Error en shield:generate: ' . $e->getMessage());
+            return 1;
         }
 
         // Asignar todos los permisos al rol super_admin
@@ -38,6 +32,8 @@ class GeneratePermissions extends Command
         $permissions = Permission::where('guard_name', 'web')->get();
         $superAdmin->syncPermissions($permissions);
 
-        $this->info('✅ Permisos generados exitosamente');
+        $this->info("✅ {$permissions->count()} permisos asignados al rol super_admin.");
+
+        return 0;
     }
 }

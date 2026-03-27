@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ProductoResource\Pages;
 use App\Models\Producto;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
+use Illuminate\Support\Str;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -75,18 +76,25 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->components([
                                     Forms\Components\TextInput::make('nombre')
                                         ->label('Nombre del producto')
-                                        ->placeholder('Ej: Aceite de motor 20W-50')
                                         ->required()
                                         ->maxLength(255)
                                         ->columnSpanFull(),
 
                                     Forms\Components\TextInput::make('codigo')
                                         ->label('Código')
-                                        ->placeholder('Ej: PROD-001')
+                                        ->default(function () {
+                                            $last = Producto::where('codigo', 'like', 'PROD-%')
+                                                ->orderByDesc('id')
+                                                ->value('codigo');
+                                            $num = $last ? ((int) substr($last, 5)) + 1 : 1;
+                                            return 'PROD-' . str_pad($num, 3, '0', STR_PAD_LEFT);
+                                        })
+                                        ->disabled()
+                                        ->dehydrated()
                                         ->required()
                                         ->unique(Producto::class, 'codigo', ignoreRecord: true)
                                         ->maxLength(60)
-                                        ->helperText('Código único del producto'),
+                                        ->helperText('Generado automáticamente'),
 
                                     Forms\Components\Select::make('unidad_medida')
                                         ->label('Unidad de medida')
@@ -104,7 +112,6 @@ class ProductoResource extends Resource implements HasShieldPermissions
 
                                     Forms\Components\Textarea::make('descripcion')
                                         ->label('Descripción')
-                                        ->placeholder('Describe el producto...')
                                         ->rows(3)
                                         ->maxLength(1000)
                                         ->columnSpanFull(),
@@ -162,6 +169,75 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->columnSpanFull(),
                                 ]),
                         ]),
+
+                    Tabs\Tab::make('Información Adicional')
+                        ->icon('heroicon-m-information-circle')
+                        ->components([
+                            Section::make('Dimensiones y Peso')
+                                ->description('Especificaciones físicas')
+                                ->icon('heroicon-m-scale')
+                                ->columns(2)
+                                ->components([
+                                    Forms\Components\Select::make('categoria_id')
+                                        ->label('Categoría')
+                                        ->relationship('categoria', 'nombre')
+                                        ->searchable()
+                                        ->preload()
+                                        ->createOptionForm([
+                                            Forms\Components\TextInput::make('nombre')
+                                                ->required()
+                                                ->maxLength(100),
+                                        ])
+                                        ->columnSpanFull(),
+
+                                    Forms\Components\TextInput::make('peso')
+                                        ->label('Peso (kg)')
+                                        ->numeric()
+                                        ->step(0.001)
+                                        ->minValue(0),
+
+                                    Forms\Components\TextInput::make('dimensiones')
+                                        ->label('Dimensiones')
+                                        ->maxLength(100),
+                                ]),
+                        ]),
+
+                    Tabs\Tab::make('Imagen')
+                        ->icon('heroicon-m-photo')
+                        ->components([
+                            Section::make('Imagen del producto')
+                                ->description('Fotografía o imagen representativa')
+                                ->icon('heroicon-m-camera')
+                                ->components([
+                                    Forms\Components\FileUpload::make('imagen')
+                                        ->label('Imagen')
+                                        ->image()
+                                        ->imageEditor()
+                                        ->disk('public')
+                                        ->directory('productos')
+                                        ->visibility('public')
+                                        ->maxSize(2048)
+                                        ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                                        ->helperText('JPG, PNG o WEBP. Máximo 2 MB.')
+                                        ->columnSpanFull(),
+                                ]),
+                        ]),
+
+                    Tabs\Tab::make('Proveedores')
+                        ->icon('heroicon-m-building-storefront')
+                        ->components([
+                            Section::make('Proveedores Disponibles')
+                                ->description('Gestionar proveedores para este producto')
+                                ->icon('heroicon-m-link')
+                                ->columnSpanFull()
+                                ->components([
+                                    Forms\Components\CheckboxList::make('proveedores')
+                                        ->relationship('proveedores', 'nombre')
+                                        ->searchable()
+                                        ->bulkToggleable()
+                                        ->columnSpanFull(),
+                                ]),
+                        ]),
                 ]),
         ]);
     }
@@ -172,6 +248,14 @@ class ProductoResource extends Resource implements HasShieldPermissions
     {
         return $table
             ->columns([
+                Tables\Columns\ImageColumn::make('imagen')
+                    ->label('Imagen')
+                    ->disk('public')
+                    ->width(60)
+                    ->height(60)
+                    ->defaultImageUrl(asset('images/no-image.png'))
+                    ->circular(false),
+
                 Tables\Columns\TextColumn::make('codigo')
                     ->label('Código')
                     ->searchable()
@@ -183,6 +267,13 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->searchable()
                     ->sortable()
                     ->weight('semibold'),
+
+                Tables\Columns\TextColumn::make('categoria.nombre')
+                    ->label('Categoría')
+                    ->badge()
+                    ->color('info')
+                    ->placeholder('—')
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('unidad_medida')
                     ->label('Unidad')

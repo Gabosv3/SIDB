@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cliente extends Model
 {
@@ -72,6 +72,16 @@ class Cliente extends Model
     public function cuentasCobrar(): HasMany
     {
         return $this->hasMany(CuentaCobrar::class, 'cliente_id');
+    }
+
+    public function ventas(): HasMany
+    {
+        return $this->hasMany(Venta::class, 'cliente_id');
+    }
+
+    public function pagosVenta(): HasMany
+    {
+        return $this->hasMany(PagoVenta::class, 'cliente_id');
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────

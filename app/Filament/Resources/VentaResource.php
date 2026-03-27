@@ -1,0 +1,467 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\VentaResource\Pages;
+use App\Filament\Resources\VentaResource\RelationManagers\PagosRelationManager;
+use App\Models\Cliente;
+use App\Models\Producto;
+use App\Models\Venta;
+use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
+use Carbon\Carbon;
+use Filament\Actions;
+use Filament\Forms;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+
+class VentaResource extends Resource implements HasShieldPermissions
+{
+    protected static ?string $model = Venta::class;
+
+    // ── Shield ────────────────────────────────────────────────────────────────
+
+    public static function getPermissionPrefixes(): array
+    {
+        return ['view', 'view_any', 'create', 'update', 'delete', 'delete_any'];
+    }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+
+    public static function getNavigationIcon(): string|\BackedEnum|null
+    {
+        return 'heroicon-o-shopping-bag';
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return 'Ventas';
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Venta';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return 'Ventas';
+    }
+
+    public static function getNavigationGroup(): string|\UnitEnum|null
+    {
+        return 'Ventas';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 1;
+    }
+
+    // ── Form (usado por EditVenta — Tabs) ────────────────────────────────────
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema->components([
+            Tabs::make('Gestión de Venta')
+                ->columnSpanFull()
+                ->tabs([
+                    Tabs\Tab::make('Cliente y Venta')
+                        ->icon('heroicon-m-user-circle')
+                        ->components([
+                            Section::make('Identificación')
+                                ->columns(2)
+                                ->components([
+                                    Forms\Components\TextInput::make('numero_venta')
+                                        ->label('Número de Venta')
+                                        ->disabled()
+                                        ->dehydrated(),
+
+                                    Forms\Components\DateTimePicker::make('fecha_venta')
+                                        ->label('Fecha de Venta')
+                                        ->required()
+                                        ->default(now()),
+                                ]),
+
+                            Section::make('Cliente')
+                                ->icon('heroicon-m-user')
+                                ->components([
+                                    Forms\Components\Select::make('cliente_id')
+                                        ->label('Cliente')
+                                        ->relationship('cliente', 'nombre')
+                                        ->getOptionLabelFromRecordUsing(fn (Cliente $record) =>
+                                            "{$record->nombre} {$record->apellido}"
+                                        )
+                                        ->searchable(['nombre', 'apellido', 'dui'])
+                                        ->preload()
+                                        ->required()
+                                        ->columnSpanFull()
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                            if ($state) {
+                                                $cliente = \App\Models\Cliente::find($state);
+                                                if ($cliente && $cliente->limite_credito > 0) {
+                                                    $set('tipo_pago', 'credito');
+                                                }
+                                            }
+                                        }),
+                                ]),
+
+                            Section::make('Condiciones de Pago')
+                                ->icon('heroicon-m-banknotes')
+                                ->columns(3)
+                                ->components([
+                                    Forms\Components\Select::make('tipo_pago')
+                                        ->label('Tipo de Pago')
+                                        ->options([
+                                            'contado' => 'Contado',
+                                            'credito' => 'Crédito (Fiado)',
+                                        ])
+                                        ->default('credito')
+                                        ->required()
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                            if ($state === 'contado') {
+                                                $set('dias_credito', 0);
+                                                $set('fecha_pago_limite', null);
+                                            }
+                                        }),
+
+                                    Forms\Components\TextInput::make('dias_credito')
+                                        ->label('Días de Crédito')
+                                        ->numeric()
+                                        ->default(30)
+                                        ->minValue(0)
+                                        ->live(onBlur: true)
+                                        ->hidden(fn (Forms\Get $get) => $get('tipo_pago') === 'contado')
+                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                            if ($state) {
+                                                $set('fecha_pago_limite', Carbon::now()->addDays((int)$state)->toDateString());
+                                            }
+                                        }),
+
+                                    Forms\Components\DatePicker::make('fecha_pago_limite')
+                                        ->label('Fecha Límite de Pago')
+                                        ->hidden(fn (Forms\Get $get) => $get('tipo_pago') === 'contado')
+                                        ->default(Carbon::now()->addDays(30)),
+                                ]),
+                        ]),
+
+                    Tabs\Tab::make('Productos')
+                        ->icon('heroicon-m-shopping-cart')
+                        ->components([
+                            Section::make('Detalle de Venta')
+                                ->columnSpanFull()
+                                ->components([
+                                    Forms\Components\Repeater::make('detalles')
+                                        ->relationship('detalles')
+                                        ->label('Productos')
+                                        ->columns(4)
+                                        ->defaultItems(1)
+                                        ->addActionLabel('Agregar producto')
+                                        ->schema([
+                                            Forms\Components\Select::make('producto_id')
+                                                ->label('Producto')
+                                                ->options(
+                                                    Producto::where('activo', true)
+                                                        ->where('stock', '>', 0)
+                                                        ->orderBy('nombre')
+                                                        ->pluck('nombre', 'id')
+                                                )
+                                                ->searchable()
+                                                ->required()
+                                                ->live()
+                                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                    $producto = Producto::find($state);
+                                                    if ($producto) {
+                                                        $set('precio_unitario', $producto->precio_venta);
+                                                    }
+                                                })
+                                                ->columnSpan(2),
+
+                                            Forms\Components\TextInput::make('cantidad')
+                                                ->label('Cantidad')
+                                                ->numeric()
+                                                ->default(1)
+                                                ->minValue(1)
+                                                ->required()
+                                                ->live(onBlur: true)
+                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                    $set('subtotal', round((float)$get('precio_unitario') * (float)$state * (1 - (float)$get('descuento_porcentaje') / 100), 2));
+                                                }),
+
+                                            Forms\Components\TextInput::make('precio_unitario')
+                                                ->label('Precio')
+                                                ->numeric()
+                                                ->prefix('$')
+                                                ->required()
+                                                ->live(onBlur: true)
+                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                    $set('subtotal', round((float)$state * (float)$get('cantidad') * (1 - (float)$get('descuento_porcentaje') / 100), 2));
+                                                }),
+
+                                            Forms\Components\TextInput::make('descuento_porcentaje')
+                                                ->label('Desc. (%)')
+                                                ->numeric()
+                                                ->default(0)
+                                                ->suffix('%')
+                                                ->live(onBlur: true)
+                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                    $set('subtotal', round((float)$get('precio_unitario') * (float)$get('cantidad') * (1 - (float)$state / 100), 2));
+                                                }),
+
+                                            Forms\Components\TextInput::make('subtotal')
+                                                ->label('Subtotal')
+                                                ->numeric()
+                                                ->prefix('$')
+                                                ->readOnly()
+                                                ->default(0)
+                                                ->columnSpan(2),
+                                        ]),
+                                ]),
+                        ]),
+
+                    Tabs\Tab::make('Totales')
+                        ->icon('heroicon-m-calculator')
+                        ->components([
+                            Section::make('Resumen Financiero')
+                                ->columns(2)
+                                ->components([
+                                    Forms\Components\TextInput::make('subtotal')
+                                        ->label('Subtotal')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->readOnly()
+                                        ->default(0),
+
+                                    Forms\Components\TextInput::make('descuento_porcentaje')
+                                        ->label('Descuento Global (%)')
+                                        ->numeric()
+                                        ->suffix('%')
+                                        ->default(0)
+                                        ->minValue(0)
+                                        ->maxValue(100),
+
+                                    Forms\Components\TextInput::make('descuento_monto')
+                                        ->label('Monto Descuento')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->readOnly()
+                                        ->default(0),
+
+                                    Forms\Components\TextInput::make('impuesto_porcentaje')
+                                        ->label('Impuesto (%)')
+                                        ->numeric()
+                                        ->suffix('%')
+                                        ->default(0)
+                                        ->minValue(0),
+
+                                    Forms\Components\TextInput::make('impuesto_monto')
+                                        ->label('Monto Impuesto')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->readOnly()
+                                        ->default(0),
+
+                                    Forms\Components\TextInput::make('total')
+                                        ->label('Total')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->readOnly()
+                                        ->default(0),
+
+                                    Forms\Components\TextInput::make('monto_pagado')
+                                        ->label('Abono Inicial')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->default(0)
+                                        ->minValue(0),
+
+                                    Forms\Components\TextInput::make('saldo_pendiente')
+                                        ->label('Saldo Pendiente')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->readOnly()
+                                        ->default(0),
+                                ]),
+                        ]),
+
+                    Tabs\Tab::make('Estado y Notas')
+                        ->icon('heroicon-m-document-text')
+                        ->components([
+                            Section::make()
+                                ->columns(1)
+                                ->components([
+                                    Forms\Components\Select::make('estado')
+                                        ->label('Estado')
+                                        ->options([
+                                            'pendiente'  => 'Pendiente',
+                                            'completada' => 'Completada',
+                                            'cancelada'  => 'Cancelada',
+                                            'devuelta'   => 'Devuelta',
+                                        ])
+                                        ->default('pendiente')
+                                        ->required(),
+
+                                    Forms\Components\Textarea::make('observaciones')
+                                        ->label('Observaciones')
+                                        ->rows(4)
+                                        ->maxLength(1000)
+                                        ->placeholder('Notas importantes sobre la venta...'),
+                                ]),
+                        ]),
+                ]),
+        ]);
+    }
+
+    // ── Table ─────────────────────────────────────────────────────────────────
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('numero_venta')
+                    ->label('N° Venta')
+                    ->searchable()
+                    ->badge()
+                    ->color('primary'),
+
+                Tables\Columns\TextColumn::make('fecha_venta')
+                    ->label('Fecha')
+                    ->dateTime('d/m/Y')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('cliente.nombre')
+                    ->label('Cliente')
+                    ->formatStateUsing(fn ($record) =>
+                        ($record->cliente?->nombre ?? '') . ' ' . ($record->cliente?->apellido ?? '')
+                    )
+                    ->searchable(['clientes.nombre', 'clientes.apellido'])
+                    ->sortable()
+                    ->weight('semibold'),
+
+                Tables\Columns\TextColumn::make('tipo_pago')
+                    ->label('Pago')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'contado' => 'success',
+                        'credito' => 'warning',
+                        default   => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'contado' => 'Contado',
+                        'credito' => 'Crédito',
+                        default   => $state,
+                    }),
+
+                Tables\Columns\TextColumn::make('fecha_pago_limite')
+                    ->label('Vence')
+                    ->date('d/m/Y')
+                    ->placeholder('—')
+                    ->color(fn ($record): string =>
+                        $record->tipo_pago === 'credito' && $record->saldo_pendiente > 0 && $record->fecha_pago_limite && $record->fecha_pago_limite->isPast()
+                            ? 'danger' : 'gray'
+                    ),
+
+                Tables\Columns\TextColumn::make('estado')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'pendiente'  => 'warning',
+                        'completada' => 'success',
+                        'cancelada'  => 'danger',
+                        'devuelta'   => 'info',
+                        default      => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'pendiente'  => 'Pendiente',
+                        'completada' => 'Completada',
+                        'cancelada'  => 'Cancelada',
+                        'devuelta'   => 'Devuelta',
+                        default      => $state,
+                    }),
+
+                Tables\Columns\TextColumn::make('total')
+                    ->label('Total')
+                    ->money('USD')
+                    ->sortable()
+                    ->weight('semibold'),
+
+                Tables\Columns\TextColumn::make('saldo_pendiente')
+                    ->label('Saldo')
+                    ->money('USD')
+                    ->color(fn ($state): string => (float) $state > 0 ? 'danger' : 'success'),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Vendedor')
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('estado')
+                    ->label('Estado')
+                    ->options([
+                        'pendiente'  => 'Pendiente',
+                        'completada' => 'Completada',
+                        'cancelada'  => 'Cancelada',
+                        'devuelta'   => 'Devuelta',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('tipo_pago')
+                    ->label('Tipo de Pago')
+                    ->options([
+                        'contado' => 'Contado',
+                        'credito' => 'Crédito (Fiado)',
+                    ]),
+
+                Tables\Filters\Filter::make('con_saldo')
+                    ->label('Con saldo pendiente')
+                    ->query(fn (Builder $query) => $query->where('saldo_pendiente', '>', 0))
+                    ->toggle(),
+
+                Tables\Filters\Filter::make('vencidas')
+                    ->label('Créditos vencidos')
+                    ->query(fn (Builder $query) => $query
+                        ->where('tipo_pago', 'credito')
+                        ->where('saldo_pendiente', '>', 0)
+                        ->where('fecha_pago_limite', '<', now())
+                    )
+                    ->toggle(),
+            ])
+            ->actions([
+                Actions\ViewAction::make(),
+                Actions\EditAction::make(),
+                Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Actions\BulkActionGroup::make([
+                    Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('fecha_venta', 'desc');
+    }
+
+    // ── Relation Managers ─────────────────────────────────────────────────────
+
+    public static function getRelations(): array
+    {
+        return [
+            PagosRelationManager::class,
+        ];
+    }
+
+    // ── Pages ─────────────────────────────────────────────────────────────────
+
+    public static function getPages(): array
+    {
+        return [
+            'index'  => Pages\ListVentas::route('/'),
+            'create' => Pages\CreateVenta::route('/create'),
+            'view'   => Pages\ViewVenta::route('/{record}'),
+            'edit'   => Pages\EditVenta::route('/{record}/edit'),
+        ];
+    }
+}

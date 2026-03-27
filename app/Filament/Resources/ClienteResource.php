@@ -4,6 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ClienteResource\Pages;
 use App\Filament\Resources\ClienteResource\RelationManagers\CuentasCobrarRelationManager;
+use App\Filament\Resources\ClienteResource\RelationManagers\VentasRelationManager;
+use App\Filament\Resources\ClienteResource\RelationManagers\PagosVentaRelationManager;
 use App\Models\Cliente;
 use App\Models\Cobrador;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
@@ -424,6 +426,7 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->falseLabel('Solo inactivos'),
             ])
             ->actions([
+                Actions\ViewAction::make(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])
@@ -441,6 +444,8 @@ class ClienteResource extends Resource implements HasShieldPermissions
     {
         return [
             CuentasCobrarRelationManager::class,
+            VentasRelationManager::class,
+            PagosVentaRelationManager::class,
         ];
     }
 
@@ -451,6 +456,7 @@ class ClienteResource extends Resource implements HasShieldPermissions
         return [
             'index'  => Pages\ListClientes::route('/'),
             'create' => Pages\CreateCliente::route('/create'),
+            'view'   => Pages\ViewCliente::route('/{record}'),
             'edit'   => Pages\EditCliente::route('/{record}/edit'),
         ];
     }
