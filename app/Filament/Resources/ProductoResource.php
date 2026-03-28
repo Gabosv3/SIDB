@@ -80,6 +80,23 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->maxLength(255)
                                         ->columnSpanFull(),
 
+                                    Forms\Components\Select::make('categoria_id')
+                                        ->label('Categoría')
+                                        ->relationship('categoria', 'nombre')
+                                        ->searchable()
+                                        ->preload()
+                                        ->createOptionForm([
+                                            Forms\Components\TextInput::make('nombre')
+                                                ->label('Nombre de la categoría')
+                                                ->required()
+                                                ->maxLength(100),
+                                            Forms\Components\Textarea::make('descripcion')
+                                                ->label('Descripción')
+                                                ->rows(2),
+                                        ])
+                                        ->placeholder('Seleccione o cree una categoría')
+                                        ->helperText('Puede crear una categoría nueva directamente aquí'),
+
                                     Forms\Components\TextInput::make('codigo')
                                         ->label('Código')
                                         ->default(function () {
@@ -178,18 +195,6 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->icon('heroicon-m-scale')
                                 ->columns(2)
                                 ->components([
-                                    Forms\Components\Select::make('categoria_id')
-                                        ->label('Categoría')
-                                        ->relationship('categoria', 'nombre')
-                                        ->searchable()
-                                        ->preload()
-                                        ->createOptionForm([
-                                            Forms\Components\TextInput::make('nombre')
-                                                ->required()
-                                                ->maxLength(100),
-                                        ])
-                                        ->columnSpanFull(),
-
                                     Forms\Components\TextInput::make('peso')
                                         ->label('Peso (kg)')
                                         ->numeric()

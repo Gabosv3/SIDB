@@ -9,6 +9,8 @@ use Filament\Forms;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\Concerns\HasWizard;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard\Step;
 
 class CreateCompra extends CreateRecord
@@ -22,7 +24,7 @@ class CreateCompra extends CreateRecord
     public function getSteps(): array
     {
         return [
-            // ── Paso 1: Proveedor ─────────────────────────────────────────────
+            // â”€â”€ Paso 1: Proveedor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Step::make('Proveedor')
                 ->icon('heroicon-m-building-storefront')
                 ->description('Proveedor, fechas y responsable')
@@ -74,7 +76,7 @@ class CreateCompra extends CreateRecord
                         ]),
                 ]),
 
-            // ── Paso 2: Artículos ─────────────────────────────────────────────
+            // â”€â”€ Paso 2: ArtÃ­culos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Step::make('Artículos')
                 ->icon('heroicon-m-inbox-stack')
                 ->description('Productos incluidos en la compra')
@@ -100,7 +102,7 @@ class CreateCompra extends CreateRecord
                                         ->required()
                                         ->columnSpanFull()
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Set $set) {
                                             if ($state) {
                                                 $producto = \App\Models\Producto::find($state);
                                                 if ($producto) {
@@ -115,7 +117,7 @@ class CreateCompra extends CreateRecord
                                         ->required()
                                         ->minValue(1)
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                             $set('subtotal', ((float)$get('precio_unitario') - (float)$get('descuento_unitario')) * (int)$state);
                                         }),
 
@@ -125,7 +127,7 @@ class CreateCompra extends CreateRecord
                                         ->required()
                                         ->step(0.01)
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                             $set('subtotal', ((float)$state - (float)$get('descuento_unitario')) * (int)$get('cantidad'));
                                         }),
 
@@ -135,7 +137,7 @@ class CreateCompra extends CreateRecord
                                         ->step(0.01)
                                         ->default(0)
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                             $set('subtotal', ((float)$get('precio_unitario') - (float)$state) * (int)$get('cantidad'));
                                         }),
 
@@ -160,7 +162,7 @@ class CreateCompra extends CreateRecord
                         ]),
                 ]),
 
-            // ── Paso 3: Totales y Pago ────────────────────────────────────────
+            // â”€â”€ Paso 3: Totales y Pago â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Step::make('Totales y Pago')
                 ->icon('heroicon-m-banknotes')
                 ->description('Montos, impuestos y condiciones de pago')
@@ -182,7 +184,7 @@ class CreateCompra extends CreateRecord
                                 ->step(0.01)
                                 ->default(0)
                                 ->live(onBlur: true)
-                                ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set) {
+                                ->afterStateUpdated(function (Get $get, Set $set) {
                                     $subtotal = (float)($get('subtotal') ?? 0);
                                     $descuento = (float)($get('descuento_monto') ?? 0);
                                     $pct = (float)($get('impuesto_porcentaje') ?? 0);
@@ -199,7 +201,7 @@ class CreateCompra extends CreateRecord
                                 ->step(0.01)
                                 ->default(0)
                                 ->live(onBlur: true)
-                                ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set) {
+                                ->afterStateUpdated(function (Get $get, Set $set) {
                                     $subtotal = (float)($get('subtotal') ?? 0);
                                     $descuento = (float)($get('descuento_monto') ?? 0);
                                     $pct = (float)($get('impuesto_porcentaje') ?? 0);
@@ -257,7 +259,7 @@ class CreateCompra extends CreateRecord
                                 ->minValue(0)
                                 ->default(0)
                                 ->live(onBlur: true)
-                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                ->afterStateUpdated(function ($state, Set $set) {
                                     if ($state) {
                                         $set('fecha_vencimiento', Carbon::now()->addDays((int)$state)->toDateString());
                                     }
@@ -268,7 +270,7 @@ class CreateCompra extends CreateRecord
                         ]),
                 ]),
 
-            // ── Paso 4: Finalizar ─────────────────────────────────────────────
+            // â”€â”€ Paso 4: Finalizar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Step::make('Finalizar')
                 ->icon('heroicon-m-check-circle')
                 ->description('Estado y observaciones finales')
@@ -318,3 +320,4 @@ class CreateCompra extends CreateRecord
         return $data;
     }
 }
+

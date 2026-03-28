@@ -18,6 +18,7 @@ class Venta extends Model
         'numero_venta',
         'cliente_id',
         'user_id',
+        'vendedor_id',
         'sucursal_id',
         'fecha_venta',
         'estado',
@@ -76,6 +77,11 @@ class Venta extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function vendedor(): BelongsTo
+    {
+        return $this->belongsTo(Vendedor::class, 'vendedor_id');
     }
 
     public function sucursal(): BelongsTo

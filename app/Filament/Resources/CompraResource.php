@@ -11,6 +11,8 @@ use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -20,14 +22,14 @@ class CompraResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Compra::class;
 
-    // ── Shield ────────────────────────────────────────────────────────────────
+    // â”€â”€ Shield â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getPermissionPrefixes(): array
     {
         return ['view', 'view_any', 'create', 'update', 'delete', 'delete_any'];
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────────
+    // â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -59,7 +61,7 @@ class CompraResource extends Resource implements HasShieldPermissions
         return 2;
     }
 
-    // ── Form (usado por EditCompra — con Tabs) ────────────────────────────────
+    // â”€â”€ Form (usado por EditCompra â€” con Tabs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function form(Schema $schema): Schema
     {
@@ -145,7 +147,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->required()
                                                 ->columnSpanFull()
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Set $set) {
                                                     if ($state) {
                                                         $producto = \App\Models\Producto::find($state);
                                                         if ($producto) {
@@ -160,7 +162,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->required()
                                                 ->minValue(1)
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                                     $set('subtotal', ((float)$get('precio_unitario') - (float)$get('descuento_unitario')) * (int)$state);
                                                 }),
 
@@ -170,7 +172,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->required()
                                                 ->step(0.01)
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                                     $set('subtotal', ((float)$state - (float)$get('descuento_unitario')) * (int)$get('cantidad'));
                                                 }),
 
@@ -180,7 +182,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->step(0.01)
                                                 ->default(0)
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                                     $set('subtotal', ((float)$get('precio_unitario') - (float)$state) * (int)$get('cantidad'));
                                                 }),
 
@@ -226,7 +228,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                         ->step(0.01)
                                         ->default(0)
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(fn (Forms\Get $get, Forms\Set $set) => self::actualizarTotal($get, $set)),
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => self::actualizarTotal($get, $set)),
 
                                     Forms\Components\TextInput::make('impuesto_porcentaje')
                                         ->label('Impuesto (%)')
@@ -234,7 +236,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                         ->step(0.01)
                                         ->default(0)
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(fn (Forms\Get $get, Forms\Set $set) => self::actualizarTotal($get, $set)),
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => self::actualizarTotal($get, $set)),
 
                                     Forms\Components\TextInput::make('impuesto_monto')
                                         ->label('Monto Impuesto')
@@ -284,7 +286,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                         ->minValue(0)
                                         ->default(0)
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Set $set) {
                                             if ($state) {
                                                 $set('fecha_vencimiento', Carbon::now()->addDays($state)->toDateString());
                                             }
@@ -350,7 +352,7 @@ class CompraResource extends Resource implements HasShieldPermissions
         $set('saldo_pendiente', round($total, 2));
     }
 
-    // ── Table ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function table(Table $table): Table
     {
@@ -444,7 +446,7 @@ class CompraResource extends Resource implements HasShieldPermissions
             ->defaultSort('fecha_compra', 'desc');
     }
 
-    // ── Pages ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getPages(): array
     {
@@ -456,3 +458,4 @@ class CompraResource extends Resource implements HasShieldPermissions
         ];
     }
 }
+

@@ -5,15 +5,20 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\VentaResource\Pages;
 use App\Filament\Resources\VentaResource\RelationManagers\PagosRelationManager;
 use App\Models\Cliente;
+use App\Models\PagoVenta;
 use App\Models\Producto;
 use App\Models\Venta;
+use App\Models\Vendedor;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Carbon\Carbon;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -23,14 +28,14 @@ class VentaResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Venta::class;
 
-    // ── Shield ────────────────────────────────────────────────────────────────
+    // â”€â”€ Shield â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getPermissionPrefixes(): array
     {
         return ['view', 'view_any', 'create', 'update', 'delete', 'delete_any'];
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────────
+    // â”€â”€ Navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -62,7 +67,7 @@ class VentaResource extends Resource implements HasShieldPermissions
         return 1;
     }
 
-    // ── Form (usado por EditVenta — Tabs) ────────────────────────────────────
+    // â”€â”€ Form (usado por EditVenta â€” Tabs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function form(Schema $schema): Schema
     {
@@ -85,6 +90,16 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->label('Fecha de Venta')
                                         ->required()
                                         ->default(now()),
+
+                                    Forms\Components\Select::make('vendedor_id')
+                                        ->label('Vendedor')
+                                        ->relationship('vendedor', 'nombre')
+                                        ->getOptionLabelFromRecordUsing(fn (Vendedor $record) =>
+                                            "{$record->nombre} {$record->apellido}"
+                                        )
+                                        ->searchable(['nombre', 'apellido'])
+                                        ->preload()
+                                        ->nullable(),
                                 ]),
 
                             Section::make('Cliente')
@@ -101,7 +116,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->required()
                                         ->columnSpanFull()
                                         ->live()
-                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Set $set) {
                                             if ($state) {
                                                 $cliente = \App\Models\Cliente::find($state);
                                                 if ($cliente && $cliente->limite_credito > 0) {
@@ -124,7 +139,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->default('credito')
                                         ->required()
                                         ->live()
-                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Set $set) {
                                             if ($state === 'contado') {
                                                 $set('dias_credito', 0);
                                                 $set('fecha_pago_limite', null);
@@ -137,8 +152,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->default(30)
                                         ->minValue(0)
                                         ->live(onBlur: true)
-                                        ->hidden(fn (Forms\Get $get) => $get('tipo_pago') === 'contado')
-                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
+                                        ->afterStateUpdated(function ($state, Set $set) {
                                             if ($state) {
                                                 $set('fecha_pago_limite', Carbon::now()->addDays((int)$state)->toDateString());
                                             }
@@ -146,7 +161,7 @@ class VentaResource extends Resource implements HasShieldPermissions
 
                                     Forms\Components\DatePicker::make('fecha_pago_limite')
                                         ->label('Fecha Límite de Pago')
-                                        ->hidden(fn (Forms\Get $get) => $get('tipo_pago') === 'contado')
+                                        ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
                                         ->default(Carbon::now()->addDays(30)),
                                 ]),
                         ]),
@@ -175,7 +190,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                                 ->searchable()
                                                 ->required()
                                                 ->live()
-                                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Set $set) {
                                                     $producto = Producto::find($state);
                                                     if ($producto) {
                                                         $set('precio_unitario', $producto->precio_venta);
@@ -190,7 +205,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                                 ->minValue(1)
                                                 ->required()
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                                     $set('subtotal', round((float)$get('precio_unitario') * (float)$state * (1 - (float)$get('descuento_porcentaje') / 100), 2));
                                                 }),
 
@@ -200,7 +215,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                                 ->prefix('$')
                                                 ->required()
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                                     $set('subtotal', round((float)$state * (float)$get('cantidad') * (1 - (float)$get('descuento_porcentaje') / 100), 2));
                                                 }),
 
@@ -210,7 +225,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                                 ->default(0)
                                                 ->suffix('%')
                                                 ->live(onBlur: true)
-                                                ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                                     $set('subtotal', round((float)$get('precio_unitario') * (float)$get('cantidad') * (1 - (float)$state / 100), 2));
                                                 }),
 
@@ -318,7 +333,7 @@ class VentaResource extends Resource implements HasShieldPermissions
         ]);
     }
 
-    // ── Table ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function table(Table $table): Table
     {
@@ -396,8 +411,17 @@ class VentaResource extends Resource implements HasShieldPermissions
                     ->money('USD')
                     ->color(fn ($state): string => (float) $state > 0 ? 'danger' : 'success'),
 
-                Tables\Columns\TextColumn::make('user.name')
+                Tables\Columns\TextColumn::make('vendedor.nombre')
                     ->label('Vendedor')
+                    ->formatStateUsing(fn ($record) =>
+                        $record->vendedor
+                            ? "{$record->vendedor->nombre} {$record->vendedor->apellido}"
+                            : '—'
+                    )
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Registrado por')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
@@ -432,6 +456,53 @@ class VentaResource extends Resource implements HasShieldPermissions
                     ->toggle(),
             ])
             ->actions([
+                Actions\Action::make('registrar_pago')
+                    ->label('Pago')
+                    ->icon('heroicon-m-banknotes')
+                    ->color('success')
+                    ->visible(fn (Venta $record): bool =>
+                        $record->tipo_pago === 'credito' && (float) $record->saldo_pendiente > 0
+                    )
+                    ->form([
+                        Forms\Components\TextInput::make('monto')
+                            ->label('Monto del Pago')
+                            ->numeric()
+                            ->prefix('$')
+                            ->required()
+                            ->minValue(0.01),
+                        Forms\Components\DatePicker::make('fecha_pago')
+                            ->label('Fecha de Pago')
+                            ->required()
+                            ->default(today()),
+                        Forms\Components\Select::make('metodo_pago')
+                            ->label('Método de Pago')
+                            ->options([
+                                'efectivo'      => 'Efectivo',
+                                'transferencia' => 'Transferencia',
+                                'cheque'        => 'Cheque',
+                                'deposito'      => 'Depósito',
+                            ])
+                            ->default('efectivo')
+                            ->required(),
+                        Forms\Components\TextInput::make('referencia')
+                            ->label('Referencia')
+                            ->placeholder('Número de comprobante...'),
+                    ])
+                    ->action(function (Venta $record, array $data): void {
+                        PagoVenta::create([
+                            'venta_id'    => $record->id,
+                            'cliente_id'  => $record->cliente_id,
+                            'user_id'     => auth()->id(),
+                            'monto'       => $data['monto'],
+                            'fecha_pago'  => $data['fecha_pago'],
+                            'metodo_pago' => $data['metodo_pago'],
+                            'referencia'  => $data['referencia'] ?? null,
+                        ]);
+                        Notification::make()
+                            ->title('Pago registrado correctamente')
+                            ->success()
+                            ->send();
+                    }),
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
@@ -444,7 +515,7 @@ class VentaResource extends Resource implements HasShieldPermissions
             ->defaultSort('fecha_venta', 'desc');
     }
 
-    // ── Relation Managers ─────────────────────────────────────────────────────
+    // â”€â”€ Relation Managers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getRelations(): array
     {
@@ -453,7 +524,7 @@ class VentaResource extends Resource implements HasShieldPermissions
         ];
     }
 
-    // ── Pages ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getPages(): array
     {

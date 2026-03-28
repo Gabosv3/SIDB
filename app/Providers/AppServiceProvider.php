@@ -10,6 +10,7 @@ use App\Filament\Resources\ProveedorResource;
 use App\Filament\Resources\SucursalResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\VentaResource;
+use App\Filament\Resources\VendedorResource;
 use App\Models\Compra;
 use App\Models\DetalleCompra;
 use App\Models\PagoCompra;
@@ -41,5 +42,6 @@ class AppServiceProvider extends ServiceProvider
         ProveedorResource::scopeToTenant(false);
         CompraResource::scopeToTenant(false);
         VentaResource::scopeToTenant(false);
+        VendedorResource::scopeToTenant(false);
     }
 }

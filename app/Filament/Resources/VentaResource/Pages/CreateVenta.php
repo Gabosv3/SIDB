@@ -4,11 +4,14 @@ namespace App\Filament\Resources\VentaResource\Pages;
 
 use App\Filament\Resources\VentaResource;
 use App\Models\Producto;
+use App\Models\Vendedor;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\Concerns\HasWizard;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard\Step;
 
 class CreateVenta extends CreateRecord
@@ -22,7 +25,6 @@ class CreateVenta extends CreateRecord
     public function getSteps(): array
     {
         return [
-            // ── Paso 1: Cliente ───────────────────────────────────────────────
             Step::make('Cliente')
                 ->icon('heroicon-m-user-circle')
                 ->description('Seleccione el cliente y condiciones de pago')
@@ -35,12 +37,15 @@ class CreateVenta extends CreateRecord
                                 ->required()
                                 ->default(now()),
 
-                            Forms\Components\Select::make('usuario_id')
+                            Forms\Components\Select::make('vendedor_id')
                                 ->label('Vendedor')
-                                ->relationship('user', 'name')
-                                ->default(fn () => auth()->id())
-                                ->searchable()
-                                ->preload(),
+                                ->relationship('vendedor', 'nombre')
+                                ->getOptionLabelFromRecordUsing(fn (\App\Models\Vendedor $record) =>
+                                    "{$record->nombre} {$record->apellido}"
+                                )
+                                ->searchable(['nombre', 'apellido'])
+                                ->preload()
+                                ->nullable(),
                         ]),
 
                     Section::make('Cliente')
@@ -63,7 +68,7 @@ class CreateVenta extends CreateRecord
 
                     Section::make('Condiciones de Pago')
                         ->icon('heroicon-m-banknotes')
-                        ->columns(3)
+                        ->columns(4)
                         ->components([
                             Forms\Components\Select::make('tipo_pago')
                                 ->label('Tipo de Pago')
@@ -74,37 +79,57 @@ class CreateVenta extends CreateRecord
                                 ->default('credito')
                                 ->required()
                                 ->live()
-                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                ->afterStateUpdated(function ($state, Set $set) {
                                     if ($state === 'contado') {
+                                        $set('plazo', 0);
+                                        $set('unidad_plazo', 'dias');
                                         $set('dias_credito', 0);
                                         $set('fecha_pago_limite', null);
                                     } else {
+                                        $set('plazo', 30);
+                                        $set('unidad_plazo', 'dias');
                                         $set('dias_credito', 30);
                                         $set('fecha_pago_limite', Carbon::now()->addDays(30)->toDateString());
                                     }
                                 }),
 
-                            Forms\Components\TextInput::make('dias_credito')
-                                ->label('Días de Crédito')
+                            Forms\Components\TextInput::make('plazo')
+                                ->label('Plazo')
                                 ->numeric()
                                 ->default(30)
-                                ->minValue(0)
+                                ->minValue(1)
+                                ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
                                 ->live(onBlur: true)
-                                ->hidden(fn (Forms\Get $get) => $get('tipo_pago') === 'contado')
-                                ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                    if ($state) {
-                                        $set('fecha_pago_limite', Carbon::now()->addDays((int)$state)->toDateString());
-                                    }
+                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
+                                    $unidad = $get('unidad_plazo') ?? 'dias';
+                                    $dias = $unidad === 'meses' ? (int)$state * 30 : (int)$state;
+                                    $set('dias_credito', $dias);
+                                    $set('fecha_pago_limite', Carbon::now()->addDays($dias)->toDateString());
+                                }),
+
+                            Forms\Components\Select::make('unidad_plazo')
+                                ->label('Unidad')
+                                ->options([
+                                    'dias'  => 'Días',
+                                    'meses' => 'Meses',
+                                ])
+                                ->default('dias')
+                                ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
+                                ->live()
+                                ->afterStateUpdated(function ($state, Get $get, Set $set) {
+                                    $plazo = (int)($get('plazo') ?? 30);
+                                    $dias = $state === 'meses' ? $plazo * 30 : $plazo;
+                                    $set('dias_credito', $dias);
+                                    $set('fecha_pago_limite', Carbon::now()->addDays($dias)->toDateString());
                                 }),
 
                             Forms\Components\DatePicker::make('fecha_pago_limite')
                                 ->label('Fecha Límite de Pago')
-                                ->hidden(fn (Forms\Get $get) => $get('tipo_pago') === 'contado')
+                                ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
                                 ->default(Carbon::now()->addDays(30)),
                         ]),
                 ]),
 
-            // ── Paso 2: Productos ─────────────────────────────────────────────
             Step::make('Productos')
                 ->icon('heroicon-m-shopping-cart')
                 ->description('Agregue los productos de la venta')
@@ -130,7 +155,7 @@ class CreateVenta extends CreateRecord
                                         ->searchable()
                                         ->required()
                                         ->live()
-                                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Set $set) {
                                             $producto = Producto::find($state);
                                             if ($producto) {
                                                 $set('precio_unitario', $producto->precio_venta);
@@ -146,7 +171,7 @@ class CreateVenta extends CreateRecord
                                         ->minValue(1)
                                         ->required()
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                             $set('subtotal', round((float)$get('precio_unitario') * (float)$state * (1 - (float)$get('descuento_porcentaje') / 100), 2));
                                         }),
 
@@ -156,7 +181,7 @@ class CreateVenta extends CreateRecord
                                         ->prefix('$')
                                         ->required()
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                             $set('subtotal', round((float)$state * (float)$get('cantidad') * (1 - (float)$get('descuento_porcentaje') / 100), 2));
                                         }),
 
@@ -166,7 +191,7 @@ class CreateVenta extends CreateRecord
                                         ->default(0)
                                         ->suffix('%')
                                         ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Forms\Get $get, Forms\Set $set) {
+                                        ->afterStateUpdated(function ($state, Get $get, Set $set) {
                                             $set('subtotal', round((float)$get('precio_unitario') * (float)$get('cantidad') * (1 - (float)$state / 100), 2));
                                         }),
 
@@ -181,7 +206,6 @@ class CreateVenta extends CreateRecord
                         ]),
                 ]),
 
-            // ── Paso 3: Totales ───────────────────────────────────────────────
             Step::make('Totales')
                 ->icon('heroicon-m-calculator')
                 ->description('Revise los totales y el abono inicial')
@@ -246,7 +270,6 @@ class CreateVenta extends CreateRecord
                         ]),
                 ]),
 
-            // ── Paso 4: Confirmar ─────────────────────────────────────────────
             Step::make('Confirmar')
                 ->icon('heroicon-m-check-circle')
                 ->description('Estado de la venta y observaciones finales')
@@ -278,6 +301,8 @@ class CreateVenta extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['user_id'] = auth()->id();
+        // dias_credito ya viene calculado desde el live update
+        unset($data['plazo'], $data['unidad_plazo']);
         return $data;
     }
 
