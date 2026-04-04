@@ -15,16 +15,17 @@ class Producto extends Model
     protected $table = 'productos';
 
     protected $fillable = [
+        'sucursal_id',
         'nombre',
         'codigo',
         'descripcion',
         'unidad_medida',
         'precio_compra',
         'precio_venta',
+        'precios_cuotas',
         'stock',
         'stock_minimo',
         'activo',
-        'categoria',
         'categoria_id',
         'peso',
         'dimensiones',
@@ -32,15 +33,21 @@ class Producto extends Model
     ];
 
     protected $casts = [
-        'precio_compra' => 'decimal:2',
-        'precio_venta'  => 'decimal:2',
-        'stock'         => 'integer',
-        'stock_minimo'  => 'integer',
-        'activo'        => 'boolean',
-        'peso'          => 'decimal:3',
+        'precio_compra'  => 'decimal:2',
+        'precio_venta'   => 'decimal:2',
+        'precios_cuotas' => 'array',
+        'stock'          => 'integer',
+        'stock_minimo'   => 'integer',
+        'activo'         => 'boolean',
+        'peso'           => 'decimal:3',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
+
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
 
     public function categoria(): BelongsTo
     {

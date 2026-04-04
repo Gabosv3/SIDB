@@ -231,14 +231,9 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                     Forms\Components\Select::make('ruta_cobro_id')
                                         ->label('Ruta de cobro')
                                         ->placeholder('Selecciona una ruta...')
-                                        ->options(fn() => \App\Models\RutaCobro::query()
-                                            ->where('sucursal_id', auth()->user()->current_team_id ?? 1)
-                                            ->where('activa', true)
-                                            ->orderBy('nombre')
-                                            ->get()
-                                            ->mapWithKeys(fn($ruta) => [$ruta->id => $ruta->nombre])
-                                            ->toArray())
-                                        ->searchable(),
+                                        ->relationship('rutaCobro', 'nombre', fn ($query) => $query->where('activa', true)->orderBy('nombre'))
+                                        ->searchable()
+                                        ->preload(),
                                 ]),
 
                             Section::make('Referencia familiar 1')

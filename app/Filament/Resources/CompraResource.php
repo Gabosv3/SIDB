@@ -21,7 +21,8 @@ use Illuminate\Database\Eloquent\Builder;
 class CompraResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Compra::class;
-
+    // Compras son globales: no están asociadas a una sucursal específica
+    protected static bool $isScopedToTenant = false;
     // â”€â”€ Shield â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getPermissionPrefixes(): array

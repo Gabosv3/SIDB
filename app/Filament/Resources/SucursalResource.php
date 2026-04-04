@@ -19,6 +19,9 @@ class SucursalResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Sucursal::class;
 
+    // Sucursal ES el modelo tenant: no se filtra por sí mismo
+    protected static bool $isScopedToTenant = false;
+
     // ── Shield permissions ────────────────────────────────────────────────────
 
     public static function getPermissionPrefixes(): array

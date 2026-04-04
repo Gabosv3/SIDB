@@ -87,13 +87,11 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                     Forms\Components\Select::make('cobrador_id')
                         ->label('Cobrador asignado')
                         ->placeholder('Selecciona un cobrador')
-                        ->options(fn() => Cobrador::query()
-                            ->where('sucursal_id', auth()->user()->current_team_id ?? 1)
-                            ->get()
-                            ->mapWithKeys(fn($cobrador) => [$cobrador->id => "{$cobrador->nombre} {$cobrador->apellido}"])
-                            ->toArray())
+                        ->relationship('cobrador', 'nombre', fn ($query) => $query->where('activo', true)->orderBy('nombre'))
+                        ->getOptionLabelFromRecordUsing(fn (Cobrador $record) => "{$record->nombre} {$record->apellido}")
                         ->required()
-                        ->searchable(),
+                        ->searchable()
+                        ->preload(),
 
                     Forms\Components\TextInput::make('nombre')
                         ->label('Nombre de la ruta')

@@ -18,6 +18,9 @@ class ProveedorResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Proveedor::class;
 
+    // Proveedores son globales: visibles en todas las sucursales
+    protected static bool $isScopedToTenant = false;
+
     // -- Shield ----------------------------------------------------------------
 
     public static function getPermissionPrefixes(): array

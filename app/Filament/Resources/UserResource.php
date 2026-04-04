@@ -21,6 +21,9 @@ class UserResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = User::class;
 
+    // Usuarios son globales: gestionados por super_admin independiente de sucursal
+    protected static bool $isScopedToTenant = false;
+
     // ── Shield permissions ────────────────────────────────────────────────────
 
     public static function getPermissionPrefixes(): array

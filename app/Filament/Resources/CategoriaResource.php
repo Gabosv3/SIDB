@@ -17,6 +17,8 @@ class CategoriaResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Categoria::class;
 
+    // Categorías son por sucursal (isScopedToTenant = true por defecto)
+
     public static function getPermissionPrefixes(): array
     {
         return ['view', 'view_any', 'create', 'update', 'delete', 'delete_any'];

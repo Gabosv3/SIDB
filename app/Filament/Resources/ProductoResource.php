@@ -19,6 +19,8 @@ class ProductoResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Producto::class;
 
+    // Productos son por sucursal (isScopedToTenant = true por defecto)
+
     // ── Shield ────────────────────────────────────────────────────────────────
 
     public static function getPermissionPrefixes(): array
@@ -76,8 +78,11 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->components([
                                     Forms\Components\TextInput::make('nombre')
                                         ->label('Nombre del producto')
+                                        ->placeholder('Ej: Refresco Cola 600ml')
                                         ->required()
+                                        ->minLength(2)
                                         ->maxLength(255)
+                                        ->helperText('Nombre completo tal como aparecerá en ventas y reportes.')
                                         ->columnSpanFull(),
 
                                     Forms\Components\Select::make('categoria_id')
@@ -85,17 +90,20 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->relationship('categoria', 'nombre')
                                         ->searchable()
                                         ->preload()
+                                        ->required()
                                         ->createOptionForm([
                                             Forms\Components\TextInput::make('nombre')
                                                 ->label('Nombre de la categoría')
                                                 ->required()
+                                                ->minLength(2)
                                                 ->maxLength(100),
                                             Forms\Components\Textarea::make('descripcion')
                                                 ->label('Descripción')
-                                                ->rows(2),
+                                                ->rows(2)
+                                                ->maxLength(500),
                                         ])
                                         ->placeholder('Seleccione o cree una categoría')
-                                        ->helperText('Puede crear una categoría nueva directamente aquí'),
+                                        ->helperText('Puede crear una categoría nueva directamente aquí.'),
 
                                     Forms\Components\TextInput::make('codigo')
                                         ->label('Código')
@@ -111,26 +119,29 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->required()
                                         ->unique(Producto::class, 'codigo', ignoreRecord: true)
                                         ->maxLength(60)
-                                        ->helperText('Generado automáticamente'),
+                                        ->helperText('Generado automáticamente. No puede modificarse.'),
 
                                     Forms\Components\Select::make('unidad_medida')
                                         ->label('Unidad de medida')
                                         ->options([
-                                            'unidad'   => 'Unidad',
-                                            'caja'     => 'Caja',
-                                            'docena'   => 'Docena',
-                                            'paquete'  => 'Paquete',
-                                            'litro'    => 'Litro',
-                                            'kilogramo'=> 'Kilogramo',
-                                            'metro'    => 'Metro',
+                                            'unidad'    => 'Unidad',
+                                            'caja'      => 'Caja',
+                                            'docena'    => 'Docena',
+                                            'paquete'   => 'Paquete',
+                                            'litro'     => 'Litro',
+                                            'kilogramo' => 'Kilogramo',
+                                            'metro'     => 'Metro',
                                         ])
                                         ->default('unidad')
-                                        ->required(),
+                                        ->required()
+                                        ->helperText('Seleccione cómo se mide o vende este producto.'),
 
                                     Forms\Components\Textarea::make('descripcion')
                                         ->label('Descripción')
+                                        ->placeholder('Descripción breve del producto, características, presentación...')
                                         ->rows(3)
                                         ->maxLength(1000)
+                                        ->helperText('Opcional. Máximo 1000 caracteres.')
                                         ->columnSpanFull(),
                                 ]),
                         ]),
@@ -149,7 +160,9 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->prefix('$')
                                         ->default(0)
                                         ->minValue(0)
-                                        ->helperText('Costo de adquisición'),
+                                        ->required()
+                                        ->step(0.01)
+                                        ->helperText('Costo al que se adquiere el producto al proveedor.'),
 
                                     Forms\Components\TextInput::make('precio_venta')
                                         ->label('Precio de venta')
@@ -157,7 +170,51 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->prefix('$')
                                         ->default(0)
                                         ->minValue(0)
-                                        ->helperText('Precio al que se vende al cliente'),
+                                        ->required()
+                                        ->step(0.01)
+                                        ->rules(['gte:precio_compra'])
+                                        ->helperText('Precio al que se vende al cliente. Debe ser mayor o igual al precio de compra.'),
+                                ]),
+
+                            Section::make('Precios por cuotas')
+                                ->description('Opciones de pago a plazos para este producto')
+                                ->icon('heroicon-m-credit-card')
+                                ->collapsible()
+                                ->collapsed()
+                                ->components([
+                                    Forms\Components\Repeater::make('precios_cuotas')
+                                        ->label('')
+                                        ->addActionLabel('Agregar opción de cuotas')
+                                        ->columns(3)
+                                        ->defaultItems(0)
+                                        ->schema([
+                                            Forms\Components\TextInput::make('cuotas')
+                                                ->label('N° de cuotas')
+                                                ->numeric()
+                                                ->minValue(2)
+                                                ->maxValue(120)
+                                                ->integer()
+                                                ->suffix('cuotas')
+                                                ->required()
+                                                ->helperText('Mínimo 2 cuotas.'),
+
+                                            Forms\Components\TextInput::make('precio_cuota')
+                                                ->label('Precio por cuota')
+                                                ->numeric()
+                                                ->prefix('$')
+                                                ->minValue(0.01)
+                                                ->step(0.01)
+                                                ->required()
+                                                ->helperText('Monto de cada pago periódico.'),
+
+                                            Forms\Components\TextInput::make('descripcion')
+                                                ->label('Descripción')
+                                                ->placeholder('Ej: Sin interés, 12 meses')
+                                                ->maxLength(100)
+                                                ->helperText('Nota informativa para el vendedor.'),
+                                        ])
+                                        ->helperText('Defina una o más opciones de financiamiento disponibles para este producto.')
+                                        ->columnSpanFull(),
                                 ]),
 
                             Section::make('Control de inventario')
@@ -168,21 +225,25 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                     Forms\Components\TextInput::make('stock')
                                         ->label('Stock actual')
                                         ->numeric()
+                                        ->integer()
                                         ->default(0)
                                         ->minValue(0)
-                                        ->helperText('Cantidad disponible en bodega'),
+                                        ->required()
+                                        ->helperText('Cantidad de unidades disponibles en bodega.'),
 
                                     Forms\Components\TextInput::make('stock_minimo')
                                         ->label('Stock mínimo')
                                         ->numeric()
+                                        ->integer()
                                         ->default(0)
                                         ->minValue(0)
-                                        ->helperText('Alerta cuando el stock baje de este nivel'),
+                                        ->required()
+                                        ->helperText('Se generará alerta cuando el stock sea menor o igual a este valor.'),
 
                                     Forms\Components\Toggle::make('activo')
                                         ->label('Producto activo')
                                         ->default(true)
-                                        ->helperText('Los productos inactivos no aparecen en las ventas.')
+                                        ->helperText('Los productos inactivos no aparecen en el punto de ventas.')
                                         ->columnSpanFull(),
                                 ]),
                         ]),
@@ -199,11 +260,15 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->label('Peso (kg)')
                                         ->numeric()
                                         ->step(0.001)
-                                        ->minValue(0),
+                                        ->minValue(0)
+                                        ->placeholder('Ej: 0.500')
+                                        ->helperText('Peso en kilogramos. Opcional, usado para cálculo de flete.'),
 
                                     Forms\Components\TextInput::make('dimensiones')
                                         ->label('Dimensiones')
-                                        ->maxLength(100),
+                                        ->maxLength(100)
+                                        ->placeholder('Ej: 20cm x 10cm x 5cm')
+                                        ->helperText('Ancho × Alto × Profundidad. Opcional.'),
                                 ]),
                         ]),
 
@@ -223,7 +288,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->visibility('public')
                                         ->maxSize(2048)
                                         ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
-                                        ->helperText('JPG, PNG o WEBP. Máximo 2 MB.')
+                                        ->helperText('Formatos aceptados: JPG, PNG o WEBP. Tamaño máximo: 2 MB.')
                                         ->columnSpanFull(),
                                 ]),
                         ]),
@@ -240,6 +305,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->relationship('proveedores', 'nombre')
                                         ->searchable()
                                         ->bulkToggleable()
+                                        ->helperText('Seleccione todos los proveedores que suministran este producto.')
                                         ->columnSpanFull(),
                                 ]),
                         ]),

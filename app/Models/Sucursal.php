@@ -48,9 +48,39 @@ class Sucursal extends Model implements HasName
         return $this->hasMany(RutaCobro::class, 'sucursal_id');
     }
 
+    /** Categorías de esta sucursal */
+    public function categorias(): HasMany
+    {
+        return $this->hasMany(Categoria::class, 'sucursal_id');
+    }
+
     /** Clientes de esta sucursal */
     public function clientes(): HasMany
     {
         return $this->hasMany(Cliente::class, 'sucursal_id');
+    }
+
+    /** Vendedores de esta sucursal */
+    public function vendedores(): HasMany
+    {
+        return $this->hasMany(Vendedor::class, 'sucursal_id');
+    }
+
+    /** Ventas de esta sucursal */
+    public function ventas(): HasMany
+    {
+        return $this->hasMany(Venta::class, 'sucursal_id');
+    }
+
+    /** Movimientos de stock de esta sucursal */
+    public function movimientosStock(): HasMany
+    {
+        return $this->hasMany(MovimientoStock::class, 'sucursal_id');
+    }
+
+    /** Productos de esta sucursal */
+    public function productos(): HasMany
+    {
+        return $this->hasMany(Producto::class, 'sucursal_id');
     }
 }

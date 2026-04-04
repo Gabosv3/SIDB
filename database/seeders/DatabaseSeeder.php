@@ -38,5 +38,8 @@ class DatabaseSeeder extends Seeder
 
         $admin->assignRole($superAdmin);
         $admin->sucursales()->syncWithoutDetaching([$sucursal->id]);
+
+        // ── Datos de prueba ───────────────────────────────────────────────────
+        $this->call(TestingSeeder::class);
     }
 }

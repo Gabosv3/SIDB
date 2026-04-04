@@ -2,15 +2,10 @@
 
 namespace App\Providers;
 
-use App\Filament\Resources\CategoriaResource;
-use App\Filament\Resources\ClienteResource;
 use App\Filament\Resources\CompraResource;
-use App\Filament\Resources\ProductoResource;
 use App\Filament\Resources\ProveedorResource;
 use App\Filament\Resources\SucursalResource;
 use App\Filament\Resources\UserResource;
-use App\Filament\Resources\VentaResource;
-use App\Filament\Resources\VendedorResource;
 use App\Models\Compra;
 use App\Models\DetalleCompra;
 use App\Models\PagoCompra;
@@ -33,15 +28,10 @@ class AppServiceProvider extends ServiceProvider
         DetalleCompra::observe(DetalleCompraObserver::class);
         PagoCompra::observe(PagoCompraObserver::class);
 
-        // Recursos globales — no se filtran por sucursal
+        // Recursos globales — no se filtran por sucursal (sin sucursal_id en su tabla)
         UserResource::scopeToTenant(false);
         SucursalResource::scopeToTenant(false);
-        ClienteResource::scopeToTenant(false);
-        CategoriaResource::scopeToTenant(false);
-        ProductoResource::scopeToTenant(false);
         ProveedorResource::scopeToTenant(false);
         CompraResource::scopeToTenant(false);
-        VentaResource::scopeToTenant(false);
-        VendedorResource::scopeToTenant(false);
     }
 }

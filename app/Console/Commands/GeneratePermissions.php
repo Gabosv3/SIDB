@@ -9,6 +9,7 @@ use Spatie\Permission\Models\Role;
 
 class GeneratePermissions extends Command
 {
+    // php artisan permissions:generate
     protected $signature = 'permissions:generate';
     protected $description = 'Genera permisos Shield para todos los resources y asigna al rol super_admin';
 
