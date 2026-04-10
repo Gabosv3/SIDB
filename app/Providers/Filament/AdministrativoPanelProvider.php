@@ -37,6 +37,14 @@ class AdministrativoPanelProvider extends PanelProvider
                 'panels::styles.after',
                 fn (): string => view('filament.login-styles')->render(),
             )
+            ->renderHook(
+                'panels::styles.after',
+                fn (): string => '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />',
+            )
+            ->renderHook(
+                'panels::scripts.after',
+                fn (): string => '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
+            )
             // ── Multitenencia: Sucursal ───────────────────────────────────────
             ->tenant(Sucursal::class, slugAttribute: 'id')
             ->tenantMenuItems([])

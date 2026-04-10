@@ -6,6 +6,7 @@ use App\Filament\Resources\ClienteResource\Pages;
 use App\Filament\Resources\ClienteResource\RelationManagers\CuentasCobrarRelationManager;
 use App\Filament\Resources\ClienteResource\RelationManagers\VentasRelationManager;
 use App\Filament\Resources\ClienteResource\RelationManagers\PagosVentaRelationManager;
+use App\Forms\Components\MapPicker;
 use App\Models\Cliente;
 use App\Models\Cobrador;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
@@ -94,13 +95,21 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->label('Nombre(s)')
                                         ->placeholder('Ej: Juan Carlos')
                                         ->required()
-                                        ->maxLength(100),
+                                        ->maxLength(100)
+                                        ->validationMessages([
+                                            'required' => 'El nombre es obligatorio.',
+                                            'max'      => 'El nombre no puede superar los 100 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('apellido')
                                         ->label('Apellido(s)')
                                         ->placeholder('Ej: González Pérez')
                                         ->required()
-                                        ->maxLength(100),
+                                        ->maxLength(100)
+                                        ->validationMessages([
+                                            'required' => 'El apellido es obligatorio.',
+                                            'max'      => 'El apellido no puede superar los 100 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('nombre_conyuge')
                                         ->label('Nombre del cónyuge')
@@ -111,16 +120,29 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                     Forms\Components\TextInput::make('dui')
                                         ->label('DUI')
                                         ->placeholder('00000000-0')
+                                        ->mask('99999999-9')
+                                        ->required()
                                         ->unique(Cliente::class, 'dui', ignoreRecord: true)
-                                        ->maxLength(15)
-                                        ->helperText('Documento Único de Identidad'),
+                                        ->regex('/^\d{8}-\d$/')
+                                        ->maxLength(10)
+                                        ->helperText('Formato: 00000000-0')
+                                        ->validationMessages([
+                                            'required' => 'El DUI es obligatorio.',
+                                            'unique'   => 'Este DUI ya está registrado.',
+                                            'regex'    => 'El DUI debe tener el formato 00000000-0.',
+                                            'max'      => 'El DUI no puede superar los 10 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('nit')
                                         ->label('NIT')
                                         ->placeholder('0000-000000-000-0')
                                         ->unique(Cliente::class, 'nit', ignoreRecord: true)
                                         ->maxLength(20)
-                                        ->helperText('Número de Identificación Tributaria'),
+                                        ->helperText('Número de Identificación Tributaria')
+                                        ->validationMessages([
+                                            'unique' => 'Este NIT ya está registrado.',
+                                            'max'    => 'El NIT no puede superar los 20 caracteres.',
+                                        ]),
                                 ]),
 
                             Section::make('Fotografías del DUI')
@@ -138,7 +160,13 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->maxSize(4096)
                                         ->directory('dui/frente')
                                         ->visibility('private')
-                                        ->helperText('JPG, PNG o WEBP, máx. 4 MB'),
+                                        ->required()
+                                        ->helperText('Requerido · JPG, PNG o WEBP, máx. 4 MB')
+                                        ->validationMessages([
+                                            'required' => 'La foto del frente del DUI es obligatoria.',
+                                            'mimes'    => 'Solo se permiten imágenes JPG, PNG o WEBP.',
+                                            'max'      => 'La imagen no puede superar los 4 MB.',
+                                        ]),
 
                                     Forms\Components\FileUpload::make('dui_foto_reverso')
                                         ->label('DUI — Reverso')
@@ -150,7 +178,13 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->maxSize(4096)
                                         ->directory('dui/reverso')
                                         ->visibility('private')
-                                        ->helperText('JPG, PNG o WEBP, máx. 4 MB'),
+                                        ->required()
+                                        ->helperText('Requerido · JPG, PNG o WEBP, máx. 4 MB')
+                                        ->validationMessages([
+                                            'required' => 'La foto del reverso del DUI es obligatoria.',
+                                            'mimes'    => 'Solo se permiten imágenes JPG, PNG o WEBP.',
+                                            'max'      => 'La imagen no puede superar los 4 MB.',
+                                        ]),
                                 ]),
 
                             Section::make('Contacto')
@@ -160,15 +194,33 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                 ->components([
                                     Forms\Components\TextInput::make('telefono_normal')
                                         ->label('Teléfono normal')
-                                        ->placeholder('+(503) 1234-5678')
+                                        ->placeholder('7654-3210')
+                                        ->mask('9999-9999')
                                         ->tel()
-                                        ->maxLength(30),
+                                        ->required()
+                                        ->regex('/^\d{4}-\d{4}$/')
+                                        ->maxLength(9)
+                                        ->helperText('Formato: 0000-0000')
+                                        ->validationMessages([
+                                            'required' => 'El teléfono es obligatorio.',
+                                            'regex'    => 'El teléfono debe tener el formato 0000-0000.',
+                                            'max'      => 'El teléfono no puede superar los 9 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('telefono_whatsapp')
                                         ->label('Teléfono WhatsApp')
-                                        ->placeholder('+(503) 1234-5678')
+                                        ->placeholder('7654-3210')
+                                        ->mask('9999-9999')
                                         ->tel()
-                                        ->maxLength(30),
+                                        ->required()
+                                        ->regex('/^\d{4}-\d{4}$/')
+                                        ->maxLength(9)
+                                        ->helperText('Formato: 0000-0000')
+                                        ->validationMessages([
+                                            'required' => 'El teléfono de WhatsApp es obligatorio.',
+                                            'regex'    => 'El teléfono debe tener el formato 0000-0000.',
+                                            'max'      => 'El teléfono no puede superar los 9 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('email')
                                         ->label('Correo electrónico')
@@ -176,7 +228,12 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->email()
                                         ->unique(Cliente::class, 'email', ignoreRecord: true)
                                         ->maxLength(255)
-                                        ->columnSpanFull(),
+                                        ->columnSpanFull()
+                                        ->validationMessages([
+                                            'email'  => 'El correo electrónico no tiene un formato válido.',
+                                            'unique' => 'Este correo ya está registrado.',
+                                            'max'    => 'El correo no puede superar los 255 caracteres.',
+                                        ]),
                                 ]),
 
                             Section::make('Ubicación')
@@ -187,35 +244,74 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                     Forms\Components\TextInput::make('departamento')
                                         ->label('Departamento')
                                         ->placeholder('Ej: San Salvador')
-                                        ->maxLength(100),
+                                        ->required()
+                                        ->maxLength(100)
+                                        ->validationMessages([
+                                            'required' => 'El departamento es obligatorio.',
+                                            'max'      => 'El departamento no puede superar los 100 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('municipio')
                                         ->label('Municipio')
                                         ->placeholder('Ej: San Salvador')
-                                        ->maxLength(100),
+                                        ->required()
+                                        ->maxLength(100)
+                                        ->validationMessages([
+                                            'required' => 'El municipio es obligatorio.',
+                                            'max'      => 'El municipio no puede superar los 100 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('distrito')
                                         ->label('Distrito')
                                         ->placeholder('Ej: Distrito 1')
-                                        ->maxLength(100),
+                                        ->required()
+                                        ->maxLength(100)
+                                        ->validationMessages([
+                                            'required' => 'El distrito es obligatorio.',
+                                            'max'      => 'El distrito no puede superar los 100 caracteres.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('direccion')
                                         ->label('Dirección completa')
                                         ->placeholder('Calle, número, colonia')
+                                        ->required()
                                         ->maxLength(500)
+                                        ->columnSpanFull()
+                                        ->validationMessages([
+                                            'required' => 'La dirección es obligatoria.',
+                                            'max'      => 'La dirección no puede superar los 500 caracteres.',
+                                        ]),
+
+                                    MapPicker::make()
                                         ->columnSpanFull(),
 
                                     Forms\Components\TextInput::make('latitud')
                                         ->label('Latitud')
                                         ->placeholder('Ej: 13.693395')
+                                        ->required()
                                         ->regex('/^-?\d+(\.\d{1,8})?$/')
-                                        ->helperText('Formato: -90 a 90'),
+                                        ->rules(['required', 'numeric', 'between:-90,90'])
+                                        ->helperText('Rango: -90 a 90')
+                                        ->validationMessages([
+                                            'required' => 'La latitud es obligatoria.',
+                                            'regex'    => 'Formato inválido (ej: 13.693395).',
+                                            'numeric'  => 'La latitud debe ser un número.',
+                                            'between'  => 'La latitud debe estar entre -90 y 90.',
+                                        ]),
 
                                     Forms\Components\TextInput::make('longitud')
                                         ->label('Longitud')
                                         ->placeholder('Ej: -89.219541')
+                                        ->required()
                                         ->regex('/^-?\d+(\.\d{1,8})?$/')
-                                        ->helperText('Formato: -180 a 180'),
+                                        ->rules(['required', 'numeric', 'between:-180,180'])
+                                        ->helperText('Rango: -180 a 180')
+                                        ->validationMessages([
+                                            'required' => 'La longitud es obligatoria.',
+                                            'regex'    => 'Formato inválido (ej: -89.219541).',
+                                            'numeric'  => 'La longitud debe ser un número.',
+                                            'between'  => 'La longitud debe estar entre -180 y 180.',
+                                        ]),
                                 ]),
                         ]),
 
