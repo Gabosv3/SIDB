@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 class ComprasRecientesWidget extends TableWidget
 {
     protected static ?string $heading = 'Compras Recientes';
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 7;
     protected int|string|array $columnSpan = 'full';
 
     protected function getTableQuery(): Builder|Relation|null

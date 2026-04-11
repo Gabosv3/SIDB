@@ -10,6 +10,8 @@ use Illuminate\Support\Number;
 
 class ComprasOverviewWidget extends BaseWidget
 {
+    protected static ?int $sort = 2;
+    protected ?string $pollingInterval = '60s';
     protected function getStats(): array
     {
         $comprasDelMes = Compra::where('fecha_compra', '>=', now()->startOfMonth())->get();

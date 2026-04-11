@@ -5,7 +5,6 @@ namespace App\Filament\Resources\ClienteResource\Pages;
 use App\Filament\Resources\ClienteResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
-use Illuminate\Database\Eloquent\Builder;
 
 class ListClientes extends ListRecords
 {
@@ -14,17 +13,7 @@ class ListClientes extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
-                ->mutateFormDataUsing(function (array $data): array {
-                    $data['sucursal_id'] = $this->tenant->id;
-                    return $data;
-                }),
+            Actions\CreateAction::make(),
         ];
-    }
-
-    protected function getTableQuery(): Builder
-    {
-        return parent::getTableQuery()
-            ->where('sucursal_id', $this->tenant->id ?? null);
     }
 }

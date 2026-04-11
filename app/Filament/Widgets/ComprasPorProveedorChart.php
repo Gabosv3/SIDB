@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 class ComprasPorProveedorChart extends ChartWidget
 {
     protected ?string $heading = 'Top Proveedores (Últimos 30 días)';
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 3;
 
     protected function getData(): array
     {

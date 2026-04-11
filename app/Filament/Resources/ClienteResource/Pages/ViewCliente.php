@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ClienteResource\Pages;
 
 use App\Filament\Resources\ClienteResource;
 use Filament\Actions;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Resources\Pages\ViewRecord;
@@ -58,6 +59,24 @@ class ViewCliente extends ViewRecord
                                     IconEntry::make('activo')
                                         ->label('Estado')
                                         ->boolean(),
+                                ]),
+
+                            Section::make('Fotografías del DUI')
+                                ->description('Fotos de ambos lados del DUI')
+                                ->icon('heroicon-m-camera')
+                                ->columns(2)
+                                ->components([
+                                    ImageEntry::make('dui_foto_frente')
+                                        ->label('DUI — Frente')
+                                        ->visibility('private')
+                                        ->height(200)
+                                        ->placeholder('Sin foto'),
+
+                                    ImageEntry::make('dui_foto_reverso')
+                                        ->label('DUI — Reverso')
+                                        ->visibility('private')
+                                        ->height(200)
+                                        ->placeholder('Sin foto'),
                                 ]),
 
                             Section::make('Contacto')

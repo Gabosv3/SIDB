@@ -13,12 +13,14 @@ use App\Observers\CompraObserver;
 use App\Observers\DetalleCompraObserver;
 use App\Observers\PagoCompraObserver;
 use Illuminate\Support\ServiceProvider;
+use PragmaRX\Google2FAQRCode\Google2FA;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // Bind Google2FA (usado por Filament MFA / AppAuthentication)
+        $this->app->bind(Google2FA::class, fn () => new Google2FA());
     }
 
     public function boot(): void
