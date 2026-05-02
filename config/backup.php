@@ -143,7 +143,7 @@ return [
              *
              * For more check https://www.php.net/manual/zip.constants.php and confirm it's supported by your system.
              */
-            'compression_method' => ZipArchive::CM_DEFAULT,
+            'compression_method' => defined('ZipArchive::CM_DEFAULT') ? ZipArchive::CM_DEFAULT : 8,
 
             /*
              * The compression level corresponding to the used algorithm; an integer between 0 and 9.
