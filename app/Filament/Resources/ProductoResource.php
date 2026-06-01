@@ -162,6 +162,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->minValue(0)
                                         ->required()
                                         ->step(0.01)
+                                        ->rules(['required', 'numeric', 'min:0'])
                                         ->helperText('Costo al que se adquiere el producto al proveedor.'),
 
                                     Forms\Components\TextInput::make('precio_venta')
@@ -172,7 +173,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->minValue(0)
                                         ->required()
                                         ->step(0.01)
-                                        ->rules(['gte:precio_compra'])
+                                        ->gte('precio_compra')
                                         ->helperText('Precio al que se vende al cliente. Debe ser mayor o igual al precio de compra.'),
                                 ]),
 

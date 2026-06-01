@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
 class Vendedor extends Model
 {
     use HasFactory;
@@ -21,10 +20,13 @@ class Vendedor extends Model
         'telefono',
         'activo',
         'sucursal_id',
+        'user_id',
+        'es_cobrador',
     ];
 
     protected $casts = [
-        'activo' => 'boolean',
+        'activo'      => 'boolean',
+        'es_cobrador' => 'boolean',
     ];
 
     protected static function boot(): void
@@ -44,9 +46,28 @@ class Vendedor extends Model
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     public function ventas(): HasMany
     {
         return $this->hasMany(Venta::class, 'vendedor_id');
+    }
+
+    public function asignaciones(): HasMany
+    {
+        return $this->hasMany(AsignacionDiaria::class, 'vendedor_id');
+    }
+
+    /** Asignación activa de hoy */
+    public function asignacionHoy(): ?AsignacionDiaria
+    {
+        return $this->asignaciones()
+            ->where('fecha', today())
+            ->where('estado', 'activa')
+            ->first();
     }
 
     public function getNombreCompletoAttribute(): string

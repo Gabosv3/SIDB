@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\CobradorResource\Pages;
 use App\Filament\Resources\CobradorResource\RelationManagers\RutasCobroRelationManager;
 use App\Models\Cobrador;
+use App\Models\User;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Actions;
 use Filament\Forms;
@@ -62,6 +63,27 @@ class CobradorResource extends Resource implements HasShieldPermissions
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
+            Section::make('Cuenta de Usuario')
+                ->description('Vincula este cobrador a una cuenta de acceso al sistema y al POS.')
+                ->icon('heroicon-m-user-circle')
+                ->components([
+                    Forms\Components\Select::make('user_id')
+                        ->label('Usuario del sistema')
+                        ->placeholder('Seleccionar usuario...')
+                        ->relationship(
+                            name: 'user',
+                            titleAttribute: 'name',
+                            modifyQueryUsing: fn ($query, $record) => $query
+                                ->whereDoesntHave('cobrador', fn ($q) => $q->when($record, fn ($q) => $q->where('id', '!=', $record?->id)))
+                                ->whereDoesntHave('vendedor'),
+                        )
+                        ->getOptionLabelFromRecordUsing(fn (User $u) => "{$u->name} ({$u->email})")
+                        ->searchable()
+                        ->preload()
+                        ->nullable()
+                        ->helperText('Solo usuarios sin perfil asignado. Requerido para acceder al POS.'),
+                ]),
+
             Section::make('Sucursal')
                 ->description('La sucursal a la que pertenece este cobrador')
                 ->icon('heroicon-m-building-storefront')
@@ -151,6 +173,13 @@ class CobradorResource extends Resource implements HasShieldPermissions
                 Tables\Columns\IconColumn::make('activo')
                     ->label('Activo')
                     ->boolean(),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Usuario')
+                    ->icon('heroicon-m-user-circle')
+                    ->placeholder('Sin usuario')
+                    ->searchable()
+                    ->toggleable(),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('activo')

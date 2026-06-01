@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\VendedorResource\Pages;
 use App\Models\Sucursal;
+use App\Models\User;
 use App\Models\Vendedor;
 use Filament\Actions;
 use Filament\Forms;
@@ -50,6 +51,34 @@ class VendedorResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
+            Section::make('Cuenta de Usuario')
+                ->icon('heroicon-m-user-circle')
+                ->description('Vincula este vendedor a una cuenta de acceso al sistema y al POS.')
+                ->columns(2)
+                ->components([
+                    Forms\Components\Select::make('user_id')
+                        ->label('Usuario del sistema')
+                        ->placeholder('Seleccionar usuario...')
+                        ->relationship(
+                            name: 'user',
+                            titleAttribute: 'name',
+                            modifyQueryUsing: fn ($query, $record) => $query
+                                ->whereDoesntHave('vendedor', fn ($q) => $q->when($record, fn ($q) => $q->where('id', '!=', $record?->id)))
+                                ->whereDoesntHave('cobrador'),
+                        )
+                        ->getOptionLabelFromRecordUsing(fn (User $u) => "{$u->name} ({$u->email})")
+                        ->searchable()
+                        ->preload()
+                        ->nullable()
+                        ->helperText('Solo usuarios sin perfil asignado. Requerido para acceder al POS.'),
+
+                    Forms\Components\Toggle::make('es_cobrador')
+                        ->label('También es cobrador')
+                        ->default(false)
+                        ->inline(false)
+                        ->helperText('Este vendedor podrá gestionar cobros además de ventas.'),
+                ]),
+
             Section::make('Datos Personales')
                 ->icon('heroicon-m-user')
                 ->columns(2)
@@ -132,6 +161,20 @@ class VendedorResource extends Resource
                 Tables\Columns\IconColumn::make('activo')
                     ->label('Activo')
                     ->boolean(),
+
+                Tables\Columns\TextColumn::make('user.name')
+                    ->label('Usuario')
+                    ->icon('heroicon-m-user-circle')
+                    ->placeholder('Sin usuario')
+                    ->searchable()
+                    ->toggleable(),
+
+                Tables\Columns\IconColumn::make('es_cobrador')
+                    ->label('Cobra')
+                    ->boolean()
+                    ->trueIcon('heroicon-m-check-badge')
+                    ->falseIcon('heroicon-m-minus-circle')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('ventas_count')
                     ->label('Ventas')

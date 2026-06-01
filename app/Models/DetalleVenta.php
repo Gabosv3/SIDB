@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\AsignacionDiaria;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DetalleVenta extends Model
@@ -19,6 +20,8 @@ class DetalleVenta extends Model
         'precio_unitario',
         'descuento_porcentaje',
         'subtotal',
+        'cuotas',
+        'precio_cuota',
     ];
 
     protected $casts = [
@@ -26,6 +29,8 @@ class DetalleVenta extends Model
         'precio_unitario'      => 'decimal:2',
         'descuento_porcentaje' => 'decimal:2',
         'subtotal'             => 'decimal:2',
+        'cuotas'               => 'integer',
+        'precio_cuota'         => 'decimal:2',
     ];
 
     // ── Boot: descontar stock al crear detalle ────────────────────────────────
@@ -35,10 +40,40 @@ class DetalleVenta extends Model
         parent::boot();
 
         static::created(function (DetalleVenta $detalle): void {
+            $venta = $detalle->venta;
+            if ($venta && $venta->vendedor_id) {
+                $tieneAsignacion = AsignacionDiaria::where('vendedor_id', $venta->vendedor_id)
+                    ->whereDate('fecha', $venta->fecha_venta)
+                    ->where('estado', 'activa')
+                    ->whereHas('detalles', function ($query) use ($detalle) {
+                        $query->where('producto_id', $detalle->producto_id);
+                    })
+                    ->exists();
+
+                if ($tieneAsignacion) {
+                    return;
+                }
+            }
+
             $detalle->producto?->decrement('stock', $detalle->cantidad);
         });
 
         static::deleting(function (DetalleVenta $detalle): void {
+            $venta = $detalle->venta;
+            if ($venta && $venta->vendedor_id) {
+                $tieneAsignacion = AsignacionDiaria::where('vendedor_id', $venta->vendedor_id)
+                    ->whereDate('fecha', $venta->fecha_venta)
+                    ->where('estado', 'activa')
+                    ->whereHas('detalles', function ($query) use ($detalle) {
+                        $query->where('producto_id', $detalle->producto_id);
+                    })
+                    ->exists();
+
+                if ($tieneAsignacion) {
+                    return;
+                }
+            }
+
             $detalle->producto?->increment('stock', $detalle->cantidad);
         });
     }

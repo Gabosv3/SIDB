@@ -61,6 +61,11 @@ class Producto extends Model
         return $this->belongsTo(Categoria::class, 'categoria_id');
     }
 
+    public function detalleAsignaciones(): HasMany
+    {
+        return $this->hasMany(DetalleAsignacion::class, 'producto_id');
+    }
+
     /**
      * Proveedores del producto
      */

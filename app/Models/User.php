@@ -14,14 +14,16 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAuthentication, HasAppAuthenticationRecovery
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable;
     use InteractsWithAppAuthentication;
     use InteractsWithAppAuthenticationRecovery;
 
@@ -65,6 +67,40 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
     public function sucursales(): BelongsToMany
     {
         return $this->belongsToMany(Sucursal::class);
+    }
+
+    /** Perfil de vendedor vinculado */
+    public function vendedor(): HasOne
+    {
+        return $this->hasOne(Vendedor::class, 'user_id');
+    }
+
+    /** Perfil de cobrador vinculado */
+    public function cobrador(): HasOne
+    {
+        return $this->hasOne(Cobrador::class, 'user_id');
+    }
+
+    /** ¿Este usuario puede operar como vendedor en el POS? */
+    public function esVendedor(): bool
+    {
+        return $this->vendedor()->where('activo', true)->exists();
+    }
+
+    /** ¿Este usuario puede operar como cobrador? */
+    public function esCobrador(): bool
+    {
+        if ($this->cobrador()->where('activo', true)->exists()) {
+            return true;
+        }
+        // Vendedor con flag es_cobrador también cuenta
+        return $this->vendedor()->where('activo', true)->where('es_cobrador', true)->exists();
+    }
+
+    /** ¿Tiene acceso a la API POS? */
+    public function puedeUsarApi(): bool
+    {
+        return $this->esVendedor() || $this->esCobrador();
     }
 
     // ── Filament: FilamentUser ───────────────────────────────────────────────

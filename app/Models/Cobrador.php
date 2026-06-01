@@ -20,6 +20,7 @@ class Cobrador extends Model
         'telefono',
         'email',
         'activo',
+        'user_id',
     ];
 
     protected $casts = [
@@ -31,6 +32,11 @@ class Cobrador extends Model
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function clientes(): HasMany
