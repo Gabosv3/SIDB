@@ -1,5 +1,3 @@
 <x-filament-panels::page>
-    <div class="max-w-full">
-        @livewire('create-asignacion-diaria-form')
-    </div>
+    @livewire('crear-asignacion-diaria')
 </x-filament-panels::page>
