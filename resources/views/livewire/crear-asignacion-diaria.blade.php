@@ -1,4 +1,4 @@
-<div class="space-y-6">
+<div class="fi-page-content-wrapper space-y-6" style="max-width: none;">
     <!-- Sección: Jornada -->
     <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 class="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
