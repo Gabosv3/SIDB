@@ -108,8 +108,6 @@ class AsignacionDiariaResource extends Resource
                 ->description('Selecciona los productos que llevará el vendedor.')
                 ->columnSpanFull()
                 ->components([
-                    Forms\Components\View::make('filament.forms.components.product-search-grid'),
-
                     Forms\Components\Repeater::make('detalles')
                         ->relationship('detalles')
                         ->label('Productos seleccionados')
