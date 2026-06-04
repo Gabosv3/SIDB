@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Forms\Components\ProductSearchGrid;
 use App\Filament\Resources\AsignacionDiariaResource\Pages;
 use App\Models\AsignacionDiaria;
 use App\Models\Producto;
@@ -105,15 +106,16 @@ class AsignacionDiariaResource extends Resource
 
             Section::make('Productos asignados')
                 ->icon('heroicon-m-shopping-bag')
-                ->description('Selecciona los productos y cantidades que llevará el vendedor.')
+                ->description('Selecciona los productos que llevará el vendedor.')
                 ->columnSpanFull()
                 ->components([
+                    ProductSearchGrid::make('products-search'),
+
                     Forms\Components\Repeater::make('detalles')
                         ->relationship('detalles')
-                        ->label('Detalle de productos')
+                        ->label('Productos seleccionados')
                         ->columns(6)
-                        ->addActionLabel('Agregar producto')
-                        ->defaultItems(1)
+                        ->addActionLabel('Agregar otro producto')
                         ->collapsible()
                         ->itemLabel(fn (array $state): ?string => isset($state['producto_id'])
                             ? Producto::find($state['producto_id'])?->nombre
