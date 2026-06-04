@@ -3,11 +3,9 @@
 namespace App\Filament\Resources\AsignacionDiariaResource\Pages;
 
 use App\Filament\Resources\AsignacionDiariaResource;
-use Filament\Resources\Pages\Page;
+use Filament\Resources\Pages\CreateRecord;
 
-class CreateAsignacionDiaria extends Page
+class CreateAsignacionDiaria extends CreateRecord
 {
     protected static string $resource = AsignacionDiariaResource::class;
-
-    protected static string $view = 'filament.resources.asignacion-diaria-resource.pages.create-asignacion-diaria';
 }
