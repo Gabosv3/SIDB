@@ -13,6 +13,8 @@ use Livewire\Component;
 
 class CrearAsignacionDiaria extends Component
 {
+    protected ?string $layout = null;
+
     #[Validate('required|exists:vendedores,id')]
     public $vendedor_id = null;
 
