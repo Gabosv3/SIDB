@@ -107,7 +107,7 @@ class CreateAsignacionDiaria extends Page
             ]);
         }
 
-        return redirect()->route('filament.admin.resources.asignaciones-diarias.view', ['record' => $asignacion->id]);
+        return redirect()->route('filament.administrativo.resources.asignaciones-diarias.view', ['record' => $asignacion->id]);
     }
 
     public function getViewData(): array

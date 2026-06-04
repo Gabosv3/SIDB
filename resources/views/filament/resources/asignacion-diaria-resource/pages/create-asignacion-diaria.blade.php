@@ -185,7 +185,7 @@
 
             <!-- Botones -->
             <div style="display: flex; gap: 12px;">
-                <a href="{{ route('filament.admin.resources.asignaciones-diarias.index') }}"
+                <a href="javascript:history.back()"
                     style="flex: 1; padding: 12px; background-color: #e5e7eb; color: #111827; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; text-align: center; text-decoration: none;">
                     Cancelar
                 </a>
