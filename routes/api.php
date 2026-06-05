@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AsignacionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\CobroController;
 use App\Http\Controllers\Api\GestionCobroController;
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\ProductoController;
@@ -53,14 +54,20 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/asignaciones/{id}/liquidar', [AsignacionController::class, 'liquidar']);
         });
 
-        // ── Solo COBRADORES: registrar cobros ────────────────────────────────
-        Route::middleware('solo.cobrador')->group(function () {
-            Route::post('/ventas/{venta}/pagos', [PagoVentaController::class, 'store']);
+        // ── Solo COBRADORES: módulo de cobros ────────────────────────────────
+        Route::middleware('solo.cobrador')->prefix('cobros')->group(function () {
+            // Ruta del día
+            Route::get('/ruta-hoy', [CobroController::class, 'rutaHoy']);
 
-            // Gestiones de cobro (cuotas)
-            Route::get('/gestiones-cobro/pendientes', [GestionCobroController::class, 'pendientes']);
-            Route::get('/gestiones-cobro/{id}', [GestionCobroController::class, 'show']);
-            Route::post('/gestiones-cobro/{id}/pagar', [GestionCobroController::class, 'pagar']);
+            // Clientes por ruta
+            Route::get('/rutas/{ruta_id}/clientes', [CobroController::class, 'clientesPorRuta']);
+
+            // Detalle e historial del cliente
+            Route::get('/clientes/{id}', [CobroController::class, 'detalleCliente']);
+            Route::get('/clientes/{id}/gestiones-pendientes', [CobroController::class, 'gestionesPendientes']);
+
+            // Registrar pago de cuota
+            Route::post('/gestiones/{id}/pagar', [CobroController::class, 'pagar']);
         });
     });
 });

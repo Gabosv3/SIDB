@@ -17,6 +17,7 @@ class RutaCobro extends Model
         'sucursal_id',
         'cobrador_id',
         'nombre',
+        'dia_semana',
         'descripcion',
         'activa',
     ];
@@ -24,6 +25,18 @@ class RutaCobro extends Model
     protected $casts = [
         'activa' => 'boolean',
     ];
+
+    protected $appends = [
+        'nombre_con_dia',
+    ];
+
+    // ── Accessors ──────────────────────────────────────────────────────────────
+
+    public function getNombreConDiaAttribute(): string
+    {
+        $dia = $this->dia_semana ? ucfirst($this->dia_semana) : 'Sin día';
+        return "{$this->nombre} ({$dia})";
+    }
 
     // ── Relationships ─────────────────────────────────────────────────────────
 

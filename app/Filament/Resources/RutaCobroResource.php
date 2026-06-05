@@ -50,7 +50,7 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Comercial';
+        return 'Cobros';
     }
 
     public static function getNavigationSort(): ?int
@@ -99,6 +99,20 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                         ->required()
                         ->maxLength(150),
 
+                    Forms\Components\Select::make('dia_semana')
+                        ->label('Día de cobranza')
+                        ->placeholder('Selecciona el día')
+                        ->options([
+                            'lunes' => 'Lunes',
+                            'martes' => 'Martes',
+                            'miércoles' => 'Miércoles',
+                            'jueves' => 'Jueves',
+                            'viernes' => 'Viernes',
+                            'sábado' => 'Sábado',
+                            'domingo' => 'Domingo',
+                        ])
+                        ->required(),
+
                     Forms\Components\TextInput::make('descripcion')
                         ->label('Descripción')
                         ->placeholder('Describe los sectores o zonas incluidas en esta ruta')
@@ -130,6 +144,21 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                     ->searchable()
                     ->sortable()
                     ->weight('semibold'),
+
+                Tables\Columns\TextColumn::make('dia_semana')
+                    ->label('Día')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? ucfirst($state) : '—')
+                    ->color(fn ($state) => match($state) {
+                        'lunes' => 'blue',
+                        'martes' => 'cyan',
+                        'miércoles' => 'purple',
+                        'jueves' => 'amber',
+                        'viernes' => 'green',
+                        'sábado' => 'pink',
+                        'domingo' => 'red',
+                        default => 'gray',
+                    }),
 
                 Tables\Columns\TextColumn::make('cobrador.nombre_completo')
                     ->label('Cobrador')
