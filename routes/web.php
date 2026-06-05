@@ -8,6 +8,14 @@ Route::get('/', function () {
     return redirect('/administrativo');
 });
 
+// Asignaciones diarias
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/asignaciones-diarias/crear', 'App\Http\Controllers\AsignacionDiariaController@crear')->name('asignacion-diaria.crear');
+    Route::post('/asignaciones-diarias/guardar', 'App\Http\Controllers\AsignacionDiariaController@guardar')->name('asignacion-diaria.guardar');
+    Route::get('/asignaciones-diarias/{asignacion}/editar', 'App\Http\Controllers\AsignacionDiariaController@editar')->name('asignacion-diaria.editar');
+    Route::post('/asignaciones-diarias/{asignacion}/actualizar', 'App\Http\Controllers\AsignacionDiariaController@actualizar')->name('asignacion-diaria.actualizar');
+});
+
 // Mapa público para rutas de cobro
 Route::get('/ruta-mapa/{ruta}', function (RutaCobro $ruta) {
     return view('ruta-mapa-public', ['record' => $ruta]);

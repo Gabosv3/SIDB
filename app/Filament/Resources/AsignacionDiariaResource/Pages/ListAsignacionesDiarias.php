@@ -13,8 +13,10 @@ class ListAsignacionesDiarias extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
-                ->label('Nueva asignacion diaria'),
+            Actions\Action::make('create')
+                ->label('Nueva asignación diaria')
+                ->button()
+                ->url(fn () => route('asignacion-diaria.crear')),
         ];
     }
 }
