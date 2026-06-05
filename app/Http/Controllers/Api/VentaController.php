@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AsignacionDiaria;
 use App\Models\DetalleVenta;
+use App\Models\GestionCobro;
 use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -266,6 +267,34 @@ class VentaController extends Controller
                         'cantidad_devuelta' => max(0, $detalleAsignado->cantidad_asignada - $detalleAsignado->cantidad_vendida),
                     ]);
                 }
+            }
+
+            // ── Crear gestiones de cobro por cuotas ──────────────────────────────
+            $cuotas = collect($detallesPrep)
+                ->filter(fn ($d) => $d['cuotas'] !== null)
+                ->pluck('cuotas')
+                ->unique()
+                ->values();
+
+            if ($cuotas->count() > 0) {
+                $numeroCuotas = $cuotas->first();
+                $gestionesCobro = [];
+
+                for ($i = 1; $i <= $numeroCuotas; $i++) {
+                    $gestionesCobro[] = [
+                        'venta_id' => $venta->id,
+                        'cliente_id' => $data['cliente_id'],
+                        'numero_cuota' => $i,
+                        'total_cuotas' => $numeroCuotas,
+                        'monto_cuota' => round($total / $numeroCuotas, 2),
+                        'fecha_vencimiento' => now()->addMonths($i)->toDateString(),
+                        'estado' => 'pendiente',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+
+                GestionCobro::insert($gestionesCobro);
             }
 
             return $venta->load('detalles.producto:id,nombre,codigo');

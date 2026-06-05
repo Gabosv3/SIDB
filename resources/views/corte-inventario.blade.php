@@ -149,38 +149,96 @@
         .footer {
             padding: 2rem;
             background: #f9fafb;
-            border-top: 1px solid #e5e7eb;
+            border-top: 2px solid #f97316;
             display: flex;
             gap: 1rem;
             justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+            border-radius: 0 0 0.75rem 0.75rem;
         }
 
         .btn {
-            padding: 0.75rem 1.5rem;
+            padding: 0.875rem 1.75rem;
             border-radius: 0.5rem;
             border: none;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
         }
 
         .btn-primary {
             background: #f97316;
             color: white;
+            box-shadow: 0 2px 4px rgba(249, 115, 22, 0.2);
         }
 
         .btn-primary:hover {
             background: #ea580c;
+            box-shadow: 0 4px 8px rgba(249, 115, 22, 0.3);
         }
 
         .btn-secondary {
             background: #e5e7eb;
             color: #374151;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .btn-secondary:hover {
             background: #d1d5db;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .floating-buttons {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 9999;
+        }
+
+        .floating-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+        }
+
+        .floating-btn-pdf {
+            background: #f97316;
+            color: white;
+        }
+
+        .floating-btn-pdf:hover {
+            background: #ea580c;
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(249, 115, 22, 0.3);
+        }
+
+        .floating-btn-print {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .floating-btn-print:hover {
+            background: #2563eb;
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
         }
 
         @media print {
@@ -195,10 +253,20 @@
             .btn {
                 display: none;
             }
+
+            .floating-buttons {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- FLOATING BUTTONS -->
+    <div class="floating-buttons">
+        <button class="floating-btn floating-btn-pdf" onclick="descargarPdf()" title="Descargar PDF">📥</button>
+        <button class="floating-btn floating-btn-print" onclick="window.print()" title="Imprimir">🖨️</button>
+    </div>
+
     <div class="container">
         <!-- HEADER -->
         <div class="header">
@@ -299,11 +367,6 @@
         function descargarPdf() {
             window.location.href = '{{ route("asignacion-diaria.corte.pdf", ["tenant" => $tenant, "asignacion" => $asignacion->id]) }}';
         }
-    </div>
-
-    <script>
-        // Auto print on load (opcional, comentar si no se desea)
-        // window.print();
     </script>
 </body>
 </html>

@@ -7,6 +7,7 @@ use App\Filament\Resources\ClienteResource\RelationManagers\CuentasCobrarRelatio
 use App\Filament\Resources\ClienteResource\RelationManagers\VentasRelationManager;
 use App\Filament\Resources\ClienteResource\RelationManagers\PagosVentaRelationManager;
 use App\Forms\Components\MapPicker;
+use App\Data\ElSalvadorData;
 use App\Models\Cliente;
 use App\Models\Cobrador;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
@@ -158,8 +159,9 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->uploadingMessage('Subiendo...')
                                         ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                                         ->maxSize(4096)
+                                        ->disk('public')
                                         ->directory('dui/frente')
-                                        ->visibility('private')
+                                        ->visibility('public')
                                         ->required()
                                         ->helperText('Requerido · JPG, PNG o WEBP, máx. 4 MB')
                                         ->validationMessages([
@@ -176,8 +178,9 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->uploadingMessage('Subiendo...')
                                         ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                                         ->maxSize(4096)
+                                        ->disk('public')
                                         ->directory('dui/reverso')
-                                        ->visibility('private')
+                                        ->visibility('public')
                                         ->required()
                                         ->helperText('Requerido · JPG, PNG o WEBP, máx. 4 MB')
                                         ->validationMessages([
@@ -185,6 +188,25 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                             'mimes'    => 'Solo se permiten imágenes JPG, PNG o WEBP.',
                                             'max'      => 'La imagen no puede superar los 4 MB.',
                                         ]),
+                                ]),
+
+                            Section::make('Fotografía de la Casa')
+                                ->description('Foto de la vivienda del cliente')
+                                ->icon('heroicon-m-home')
+                                ->columns(1)
+                                ->components([
+                                    Forms\Components\FileUpload::make('foto_casa')
+                                        ->label('Fotografía de la Casa')
+                                        ->image()
+                                        ->imageEditor()
+                                        ->imagePreviewHeight('200')
+                                        ->uploadingMessage('Subiendo...')
+                                        ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                                        ->maxSize(4096)
+                                        ->disk('public')
+                                        ->directory('casas')
+                                        ->visibility('public')
+                                        ->helperText('Opcional · JPG, PNG o WEBP, máx. 4 MB'),
                                 ]),
 
                             Section::make('Contacto')
@@ -241,34 +263,36 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                 ->icon('heroicon-m-map-pin')
                                 ->columns(3)
                                 ->components([
-                                    Forms\Components\TextInput::make('departamento')
+                                    Forms\Components\Select::make('departamento')
                                         ->label('Departamento')
-                                        ->placeholder('Ej: San Salvador')
+                                        ->placeholder('Selecciona un departamento')
+                                        ->options(ElSalvadorData::departamentos())
+                                        ->searchable()
                                         ->required()
-                                        ->maxLength(100)
+                                        ->live()
                                         ->validationMessages([
                                             'required' => 'El departamento es obligatorio.',
-                                            'max'      => 'El departamento no puede superar los 100 caracteres.',
                                         ]),
 
-                                    Forms\Components\TextInput::make('municipio')
+                                    Forms\Components\Select::make('municipio')
                                         ->label('Municipio')
-                                        ->placeholder('Ej: San Salvador')
+                                        ->placeholder('Selecciona un municipio')
+                                        ->options(fn ($get) => ElSalvadorData::municipios($get('departamento') ?? ''))
+                                        ->searchable()
                                         ->required()
-                                        ->maxLength(100)
+                                        ->live()
                                         ->validationMessages([
                                             'required' => 'El municipio es obligatorio.',
-                                            'max'      => 'El municipio no puede superar los 100 caracteres.',
                                         ]),
 
-                                    Forms\Components\TextInput::make('distrito')
+                                    Forms\Components\Select::make('distrito')
                                         ->label('Distrito')
-                                        ->placeholder('Ej: Distrito 1')
+                                        ->placeholder('Selecciona un distrito')
+                                        ->options(fn ($get) => ElSalvadorData::distritos($get('municipio') ?? ''))
+                                        ->searchable()
                                         ->required()
-                                        ->maxLength(100)
                                         ->validationMessages([
                                             'required' => 'El distrito es obligatorio.',
-                                            'max'      => 'El distrito no puede superar los 100 caracteres.',
                                         ]),
 
                                     Forms\Components\TextInput::make('direccion')

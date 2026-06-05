@@ -28,16 +28,19 @@ class CorteInventarioController extends Controller
             abort(403, 'Esta asignación aún no ha sido liquidada.');
         }
 
-        $pdf = Pdf::loadView('corte-inventario-pdf', [
+        $pdf = Pdf::loadView('corte-inventario-pdf-limpio', [
             'asignacion' => $asignacion,
             'tenant' => $tenant,
         ]);
 
+        $pdf->setPaper('A4');
+        $pdf->setOption('margin-top', 10);
+        $pdf->setOption('margin-bottom', 10);
+
         $filename = sprintf(
-            'Corte-Inventario_%s_%s_%s.pdf',
+            'Corte-Inventario_%s_%s.pdf',
             $asignacion->vendedor->nombre,
-            $asignacion->fecha->format('Y-m-d'),
-            now()->format('His')
+            $asignacion->fecha->format('Y-m-d')
         );
 
         return $pdf->download($filename);

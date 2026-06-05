@@ -68,14 +68,29 @@ class ViewCliente extends ViewRecord
                                 ->components([
                                     ImageEntry::make('dui_foto_frente')
                                         ->label('DUI — Frente')
-                                        ->visibility('private')
+                                        ->disk('public')
+                                        ->visibility('public')
                                         ->height(200)
                                         ->placeholder('Sin foto'),
 
                                     ImageEntry::make('dui_foto_reverso')
                                         ->label('DUI — Reverso')
-                                        ->visibility('private')
+                                        ->disk('public')
+                                        ->visibility('public')
                                         ->height(200)
+                                        ->placeholder('Sin foto'),
+                                ]),
+
+                            Section::make('Fotografía de la Casa')
+                                ->description('Foto de la vivienda del cliente')
+                                ->icon('heroicon-m-home')
+                                ->columns(1)
+                                ->components([
+                                    ImageEntry::make('foto_casa')
+                                        ->label('Casa del Cliente')
+                                        ->disk('public')
+                                        ->visibility('public')
+                                        ->height(250)
                                         ->placeholder('Sin foto'),
                                 ]),
 

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AsignacionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
+use App\Http\Controllers\Api\GestionCobroController;
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\VentaController;
@@ -55,6 +56,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // ── Solo COBRADORES: registrar cobros ────────────────────────────────
         Route::middleware('solo.cobrador')->group(function () {
             Route::post('/ventas/{venta}/pagos', [PagoVentaController::class, 'store']);
+
+            // Gestiones de cobro (cuotas)
+            Route::get('/gestiones-cobro/pendientes', [GestionCobroController::class, 'pendientes']);
+            Route::get('/gestiones-cobro/{id}', [GestionCobroController::class, 'show']);
+            Route::post('/gestiones-cobro/{id}/pagar', [GestionCobroController::class, 'pagar']);
         });
     });
 });

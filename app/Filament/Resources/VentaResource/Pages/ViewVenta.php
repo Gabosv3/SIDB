@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\VentaResource\Pages;
 
 use App\Filament\Resources\VentaResource;
+use App\Models\GestionCobro;
 use Filament\Actions;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -11,6 +12,7 @@ use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Schema;
+use Filament\Notifications\Notification;
 
 class ViewVenta extends ViewRecord
 {
@@ -21,6 +23,59 @@ class ViewVenta extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('regenerarGestiones')
+                ->label('Regenerar Gestiones de Cobro')
+                ->icon('heroicon-m-arrow-path')
+                ->color('warning')
+                ->action(function () {
+                    $venta = $this->record;
+
+                    // Si no tiene cuotas, no hacer nada
+                    $cuotas = $venta->detalles
+                        ->pluck('cuotas')
+                        ->filter(fn ($c) => $c !== null)
+                        ->unique()
+                        ->values();
+
+                    if ($cuotas->isEmpty()) {
+                        Notification::make()
+                            ->title('Sin cuotas')
+                            ->body('Esta venta no tiene cuotas configuradas.')
+                            ->warning()
+                            ->send();
+                        return;
+                    }
+
+                    // Eliminar gestiones existentes
+                    GestionCobro::where('venta_id', $venta->id)->delete();
+
+                    // Crear nuevas gestiones
+                    $numeroCuotas = $cuotas->first();
+                    $gestionesCobro = [];
+
+                    for ($i = 1; $i <= $numeroCuotas; $i++) {
+                        $gestionesCobro[] = [
+                            'venta_id' => $venta->id,
+                            'cliente_id' => $venta->cliente_id,
+                            'numero_cuota' => $i,
+                            'total_cuotas' => $numeroCuotas,
+                            'monto_cuota' => round($venta->total / $numeroCuotas, 2),
+                            'fecha_vencimiento' => $venta->fecha_venta->addMonths($i)->toDateString(),
+                            'estado' => 'pendiente',
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+
+                    GestionCobro::insert($gestionesCobro);
+
+                    Notification::make()
+                        ->title('Éxito')
+                        ->body("Se crearon {$numeroCuotas} gestiones de cobro.")
+                        ->success()
+                        ->send();
+                }),
+
             Actions\EditAction::make(),
         ];
     }
@@ -72,13 +127,42 @@ class ViewVenta extends ViewRecord
                                         }),
 
                                     TextEntry::make('dias_credito')
-                                        ->label('Días de Crédito')
-                                        ->suffix(' días')
+                                        ->label('Cuotas')
+                                        ->formatStateUsing(function ($record) {
+                                            $cuotas = $record->detalles
+                                                ->pluck('cuotas')
+                                                ->filter(fn ($c) => $c !== null)
+                                                ->unique()
+                                                ->values();
+
+                                            if ($cuotas->count() === 1) {
+                                                return $cuotas->first() . ' cuotas';
+                                            } elseif ($cuotas->count() > 1) {
+                                                return 'Mixto (' . $cuotas->implode(', ') . ')';
+                                            }
+
+                                            return ($record->dias_credito ?? 0) . ' días';
+                                        })
                                         ->placeholder('—'),
 
                                     TextEntry::make('fecha_pago_limite')
-                                        ->label('Fecha Límite Pago')
-                                        ->date('d/m/Y')
+                                        ->label('Plazo')
+                                        ->formatStateUsing(function ($record) {
+                                            $cuotas = $record->detalles
+                                                ->pluck('cuotas')
+                                                ->filter(fn ($c) => $c !== null)
+                                                ->unique()
+                                                ->values();
+
+                                            if ($cuotas->count() === 1) {
+                                                $meses = $cuotas->first();
+                                                return $meses . ' mes' . ($meses > 1 ? 'es' : '');
+                                            } elseif ($cuotas->count() > 1) {
+                                                return 'Mixto';
+                                            }
+
+                                            return $record->fecha_pago_limite?->format('d/m/Y') ?? '—';
+                                        })
                                         ->placeholder('—')
                                         ->color(fn ($record): string =>
                                             $record->tipo_pago === 'credito' && $record->saldo_pendiente > 0 && $record->fecha_pago_limite?->isPast()
@@ -233,6 +317,49 @@ class ViewVenta extends ViewRecord
                                                 ->label('Notas')
                                                 ->placeholder('—')
                                                 ->columnSpan(3),
+                                        ]),
+                                ]),
+                        ]),
+
+                    Tabs\Tab::make('Gestiones de Cobro')
+                        ->icon('heroicon-m-calendar')
+                        ->components([
+                            Section::make('Plan de Cuotas')
+                                ->description('Cronograma de vencimiento de cuotas')
+                                ->columnSpanFull()
+                                ->components([
+                                    RepeatableEntry::make('gestionesCobro')
+                                        ->label('')
+                                        ->columns(5)
+                                        ->schema([
+                                            TextEntry::make('numero_cuota')
+                                                ->label('Cuota')
+                                                ->formatStateUsing(fn ($state, $record) => "{$state}/{$record->total_cuotas}"),
+
+                                            TextEntry::make('monto_cuota')
+                                                ->label('Monto')
+                                                ->money('USD')
+                                                ->weight('semibold'),
+
+                                            TextEntry::make('fecha_vencimiento')
+                                                ->label('Vencimiento')
+                                                ->date('d/m/Y'),
+
+                                            TextEntry::make('estado')
+                                                ->label('Estado')
+                                                ->badge()
+                                                ->color(fn (string $state): string => match ($state) {
+                                                    'pendiente' => 'warning',
+                                                    'cobrado' => 'success',
+                                                    'vencido' => 'danger',
+                                                    default => 'gray',
+                                                })
+                                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                                    'pendiente' => 'Pendiente',
+                                                    'cobrado' => 'Cobrado',
+                                                    'vencido' => 'Vencido',
+                                                    default => $state,
+                                                }),
                                         ]),
                                 ]),
                         ]),

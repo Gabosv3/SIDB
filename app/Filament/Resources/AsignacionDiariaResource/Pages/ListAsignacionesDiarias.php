@@ -13,6 +13,14 @@ class ListAsignacionesDiarias extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('reporte')
+                ->label('📊 Descargar Reporte PDF')
+                ->button()
+                ->color('info')
+                ->icon('heroicon-m-document-text')
+                ->url(fn () => route('reporte.diario', ['tenant' => \Filament\Facades\Filament::getTenant()->id]))
+                ->openUrlInNewTab(),
+
             Actions\Action::make('create')
                 ->label('Nueva asignación diaria')
                 ->button()

@@ -106,6 +106,11 @@ class Venta extends Model
         return $this->hasMany(PagoVenta::class, 'venta_id');
     }
 
+    public function gestionesCobro(): HasMany
+    {
+        return $this->hasMany(GestionCobro::class, 'venta_id');
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     public function estaCompletada(): bool

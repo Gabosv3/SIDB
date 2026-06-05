@@ -914,6 +914,13 @@
             actualizarCarrito();
         }
 
+        function actualizarPrecio(key, nuevoPrecio) {
+            if (state.detalles[key]) {
+                state.detalles[key].precio_venta_actual = parseFloat(nuevoPrecio) || state.detalles[key].precio_venta;
+                actualizarCarrito();
+            }
+        }
+
         function actualizarCarrito() {
             const container = document.getElementById('cartItems');
             const detallesArray = Object.entries(state.detalles);
@@ -921,7 +928,11 @@
             if (detallesArray.length === 0) {
                 container.innerHTML = '<div class="empty-cart"><p>Sin productos seleccionados</p><p style="font-size: 11px; color: #6b7280;">Agrega productos del catálogo</p></div>';
             } else {
-                container.innerHTML = detallesArray.map(([key, detalle]) => `
+                container.innerHTML = detallesArray.map(([key, detalle]) => {
+                    const precioActual = detalle.precio_venta_actual || detalle.precio_venta;
+                    const diferencia = parseFloat(precioActual) - parseFloat(detalle.precio_venta);
+                    const mostrarDiferencia = Math.abs(diferencia) > 0.01;
+                    return `
                     <div class="cart-item">
                         <div class="cart-item-header">
                             <div class="cart-item-image">
@@ -930,7 +941,12 @@
                             <div class="cart-item-details">
                                 <div class="cart-item-name">${escapeHtml(detalle.nombre)}</div>
                                 <div class="cart-item-code">${escapeHtml(detalle.codigo)}</div>
-                                <div class="cart-item-price">${formatMoney(detalle.precio_venta)}</div>
+                                <div class="cart-item-price" style="display: flex; gap: 10px; align-items: center;">
+                                    <span>Asignado: <strong>${formatMoney(detalle.precio_venta)}</strong></span>
+                                    <input type="number" step="0.01" value="${precioActual}" style="width: 70px; padding: 3px; font-size: 11px;"
+                                        onchange="actualizarPrecio('${key}', this.value)" placeholder="Precio venta">
+                                    ${mostrarDiferencia ? `<span style="color: ${diferencia > 0 ? '#10b981' : '#f97316'}; font-weight: bold; font-size: 10px;">${diferencia > 0 ? '+' : ''}${formatMoney(diferencia)}</span>` : ''}
+                                </div>
                             </div>
                             <button type="button" class="remove-btn" onclick="remover('${key}')">×</button>
                         </div>
@@ -939,15 +955,18 @@
                             <div class="qty-display">${detalle.cantidad_asignada}</div>
                             <button type="button" class="qty-btn" onclick="incrementar('${key}')">+</button>
                         </div>
-                        <div class="cart-item-total">${formatMoney(detalle.cantidad_asignada * parseFloat(detalle.precio_venta))}</div>
+                        <div class="cart-item-total">${formatMoney(detalle.cantidad_asignada * parseFloat(precioActual))}</div>
                     </div>
-                `).join('');
+                `}).join('');
             }
 
             // Update summary
             const numProductos = detallesArray.length;
             const totalUnidades = detallesArray.reduce((sum, [_, d]) => sum + d.cantidad_asignada, 0);
-            const totalAsignacion = detallesArray.reduce((sum, [_, d]) => sum + (d.cantidad_asignada * parseFloat(d.precio_venta)), 0);
+            const totalAsignacion = detallesArray.reduce((sum, [_, d]) => {
+                const precio = d.precio_venta_actual || d.precio_venta;
+                return sum + (d.cantidad_asignada * parseFloat(precio));
+            }, 0);
 
             document.getElementById('cartCount').textContent = numProductos;
             document.getElementById('summaryProducts').textContent = numProductos;
@@ -1019,7 +1038,8 @@
             Object.entries(state.detalles).forEach(([key, detalle]) => {
                 form.innerHTML += `<input type="hidden" name="detalles[${index}][producto_id]" value="${detalle.producto_id}">`;
                 form.innerHTML += `<input type="hidden" name="detalles[${index}][cantidad_asignada]" value="${detalle.cantidad_asignada}">`;
-                form.innerHTML += `<input type="hidden" name="detalles[${index}][precio_venta]" value="${parseFloat(detalle.precio_venta)}">`;
+                const precioFinal = detalle.precio_venta_actual || detalle.precio_venta;
+                form.innerHTML += `<input type="hidden" name="detalles[${index}][precio_venta]" value="${parseFloat(precioFinal)}">`;
                 index++;
             });
 

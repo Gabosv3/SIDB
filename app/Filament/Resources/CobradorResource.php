@@ -50,7 +50,7 @@ class CobradorResource extends Resource implements HasShieldPermissions
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Comercial';
+        return 'Cobros';
     }
 
     public static function getNavigationSort(): ?int

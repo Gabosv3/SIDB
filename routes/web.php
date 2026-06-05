@@ -30,6 +30,19 @@ Route::middleware(['web', 'auth'])->prefix('asignaciones-diarias')->name('asigna
         ->where(['tenant' => '[0-9]+', 'asignacion' => '[0-9]+']);
 });
 
+// Reportes
+Route::middleware(['web', 'auth'])->prefix('reportes')->name('reporte.')->group(function () {
+    Route::get('diario/{tenant}', 'App\Http\Controllers\ReporteController@reporteDiario')
+        ->name('diario')
+        ->where('tenant', '[0-9]+');
+    Route::get('vendedor/{tenant}/{vendedor}', 'App\Http\Controllers\ReporteController@reporteVendedor')
+        ->name('vendedor')
+        ->where(['tenant' => '[0-9]+', 'vendedor' => '[0-9]+']);
+    Route::get('liquidados/{tenant}', 'App\Http\Controllers\ReporteController@reporteLiquidados')
+        ->name('liquidados')
+        ->where('tenant', '[0-9]+');
+});
+
 // Mapa público para rutas de cobro
 Route::get('/ruta-mapa/{ruta}', function (RutaCobro $ruta) {
     return view('ruta-mapa-public', ['record' => $ruta]);

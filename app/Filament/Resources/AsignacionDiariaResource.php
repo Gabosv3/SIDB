@@ -237,6 +237,17 @@ class AsignacionDiariaResource extends Resource
                     ->default(),
             ])
             ->actions([
+                Actions\Action::make('pdf')
+                    ->label('PDF')
+                    ->icon('heroicon-m-document-text')
+                    ->color('info')
+                    ->visible(fn (AsignacionDiaria $record) => $record->liquidada_at !== null)
+                    ->url(fn (AsignacionDiaria $record) => route('asignacion-diaria.corte.pdf', [
+                        'tenant' => \Filament\Facades\Filament::getTenant()->id,
+                        'asignacion' => $record->id,
+                    ]))
+                    ->openUrlInNewTab(),
+
                 Actions\Action::make('editar')
                     ->label('Editar')
                     ->icon('heroicon-m-pencil')
