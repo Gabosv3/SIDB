@@ -8,12 +8,26 @@ Route::get('/', function () {
     return redirect('/administrativo');
 });
 
-// Asignaciones diarias
-Route::middleware(['web', 'auth'])->group(function () {
-    Route::get('/asignaciones-diarias/crear', 'App\Http\Controllers\AsignacionDiariaController@crear')->name('asignacion-diaria.crear');
-    Route::post('/asignaciones-diarias/guardar', 'App\Http\Controllers\AsignacionDiariaController@guardar')->name('asignacion-diaria.guardar');
-    Route::get('/asignaciones-diarias/{asignacion}/editar', 'App\Http\Controllers\AsignacionDiariaController@editar')->name('asignacion-diaria.editar');
-    Route::post('/asignaciones-diarias/{asignacion}/actualizar', 'App\Http\Controllers\AsignacionDiariaController@actualizar')->name('asignacion-diaria.actualizar');
+// Asignaciones diarias (rutas protegidas por autenticación)
+Route::middleware(['web', 'auth'])->prefix('asignaciones-diarias')->name('asignacion-diaria.')->group(function () {
+    Route::get('{tenant}/crear', 'App\Http\Controllers\AsignacionDiariaController@crear')
+        ->name('crear')
+        ->where('tenant', '[0-9]+');
+    Route::post('{tenant}/guardar', 'App\Http\Controllers\AsignacionDiariaController@guardar')
+        ->name('guardar')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/{asignacion}/editar', 'App\Http\Controllers\AsignacionDiariaController@editar')
+        ->name('editar')
+        ->where(['tenant' => '[0-9]+', 'asignacion' => '[0-9]+']);
+    Route::post('{tenant}/{asignacion}/actualizar', 'App\Http\Controllers\AsignacionDiariaController@actualizar')
+        ->name('actualizar')
+        ->where(['tenant' => '[0-9]+', 'asignacion' => '[0-9]+']);
+    Route::get('{tenant}/{asignacion}/corte', 'App\Http\Controllers\CorteInventarioController@mostrar')
+        ->name('corte')
+        ->where(['tenant' => '[0-9]+', 'asignacion' => '[0-9]+']);
+    Route::get('{tenant}/{asignacion}/corte/pdf', 'App\Http\Controllers\CorteInventarioController@generarPdf')
+        ->name('corte.pdf')
+        ->where(['tenant' => '[0-9]+', 'asignacion' => '[0-9]+']);
 });
 
 // Mapa público para rutas de cobro

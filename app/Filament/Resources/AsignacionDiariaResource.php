@@ -237,8 +237,14 @@ class AsignacionDiariaResource extends Resource
                     ->default(),
             ])
             ->actions([
-                Actions\EditAction::make()
-                    ->visible(fn (AsignacionDiaria $record) => $record->estaActiva()),
+                Actions\Action::make('editar')
+                    ->label('Editar')
+                    ->icon('heroicon-m-pencil')
+                    ->visible(fn (AsignacionDiaria $record) => $record->estaActiva())
+                    ->url(fn (AsignacionDiaria $record) => route('asignacion-diaria.editar', [
+                        'tenant' => \Filament\Facades\Filament::getTenant()->id,
+                        'asignacion' => $record->id,
+                    ])),
 
                 Actions\Action::make('liquidar')
                     ->label('Liquidar jornada')
@@ -248,7 +254,13 @@ class AsignacionDiariaResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Liquidar jornada')
                     ->modalDescription('Se calcularán las ventas realizadas y las unidades devueltas. Esta acción no se puede deshacer.')
-                    ->action(fn (AsignacionDiaria $record) => $record->liquidar()),
+                    ->action(function (AsignacionDiaria $record) {
+                        $record->liquidar();
+                        redirect()->route('asignacion-diaria.corte', [
+                            'tenant' => \Filament\Facades\Filament::getTenant()->id,
+                            'asignacion' => $record->id,
+                        ])->send();
+                    }),
 
                 Actions\ViewAction::make(),
             ])

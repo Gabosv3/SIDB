@@ -8,9 +8,4 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateAsignacionDiaria extends CreateRecord
 {
     protected static string $resource = AsignacionDiariaResource::class;
-
-    public function mount(): void
-    {
-        redirect()->route('asignacion-diaria.crear');
-    }
 }

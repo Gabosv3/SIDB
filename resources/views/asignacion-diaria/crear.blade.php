@@ -21,8 +21,8 @@
         .container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
+            min-height: 100vh;
+            overflow: visible;
         }
 
         /* ──────────── HEADER ──────────── */
@@ -34,6 +34,11 @@
             justify-content: space-between;
             align-items: center;
             gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .header-left {
+            min-width: 250px;
         }
 
         .header-left h1 {
@@ -56,12 +61,12 @@
             display: flex;
             gap: 1.5rem;
             flex: 1;
-            max-width: 800px;
+            min-width: 600px;
         }
 
         .form-group {
             flex: 1;
-            min-width: 150px;
+            min-width: 140px;
         }
 
         .form-group label {
@@ -82,6 +87,7 @@
             color: white;
             font-size: 14px;
             transition: border-color 0.2s;
+            font-family: inherit;
         }
 
         .form-group select:hover,
@@ -93,13 +99,14 @@
         .form-group input:focus {
             outline: none;
             border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
         }
 
         /* ──────────── MAIN CONTENT ──────────── */
         .content {
             display: flex;
             flex: 1;
-            overflow: hidden;
+            overflow: visible;
             gap: 1rem;
             padding: 1.5rem;
         }
@@ -111,6 +118,7 @@
             flex-direction: column;
             gap: 1rem;
             overflow-y: auto;
+            overflow-x: hidden;
             padding-right: 0.5rem;
         }
 
@@ -119,8 +127,7 @@
         }
 
         .left-panel::-webkit-scrollbar-track {
-            background: #1f2937;
-            border-radius: 10px;
+            background: transparent;
         }
 
         .left-panel::-webkit-scrollbar-thumb {
@@ -136,28 +143,29 @@
             background: #111827;
             border: 1px solid #1f2937;
             border-radius: 0.75rem;
-            padding: 1rem;
+            padding: 1.5rem;
+            flex-shrink: 0;
         }
 
         .search-section h3 {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .search-box {
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .search-box input {
             width: 100%;
-            padding: 0.625rem 0.75rem;
+            padding: 0.75rem 1rem;
             background: #1f2937;
             border: 1px solid #374151;
             border-radius: 0.5rem;
             color: white;
             font-size: 14px;
-            margin-bottom: 0.75rem;
+            font-family: inherit;
         }
 
         .search-box input::placeholder {
@@ -167,19 +175,21 @@
         .categories {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
+            gap: 0.75rem;
         }
 
         .category-btn {
-            padding: 0.5rem 0.75rem;
+            padding: 0.625rem 1rem;
             background: #374151;
             border: none;
             border-radius: 0.375rem;
             color: white;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
+            font-family: inherit;
+            white-space: nowrap;
         }
 
         .category-btn:hover {
@@ -195,9 +205,13 @@
             background: #111827;
             border: 1px solid #1f2937;
             border-radius: 0.75rem;
-            padding: 1rem;
+            padding: 1.5rem;
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         .products-section::-webkit-scrollbar {
@@ -205,8 +219,7 @@
         }
 
         .products-section::-webkit-scrollbar-track {
-            background: #1f2937;
-            border-radius: 10px;
+            background: transparent;
         }
 
         .products-section::-webkit-scrollbar-thumb {
@@ -219,21 +232,17 @@
         }
 
         .products-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            font-size: 12px;
-        }
-
-        .products-header .count {
+            margin-bottom: 1.5rem;
+            font-size: 13px;
             color: #9ca3af;
         }
 
         .products-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 0.75rem;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1.5rem;
+            auto-rows: max-content;
+            flex: 1;
         }
 
         .product-card {
@@ -245,21 +254,24 @@
             transition: all 0.2s;
             display: flex;
             flex-direction: column;
+            min-height: 260px;
         }
 
         .product-card:hover {
             border-color: #f97316;
             transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(249, 115, 22, 0.2);
         }
 
         .product-image {
             background: #374151;
-            height: 100px;
+            height: 120px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            font-size: 24px;
+            font-size: 28px;
+            flex-shrink: 0;
         }
 
         .product-image img {
@@ -269,17 +281,19 @@
         }
 
         .product-info {
-            padding: 0.75rem;
+            padding: 1rem;
             flex: 1;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
+            gap: 0.75rem;
         }
 
         .product-name {
             font-weight: 600;
             color: white;
-            font-size: 12px;
-            margin-bottom: 0.25rem;
+            font-size: 13px;
+            line-height: 1.4;
             overflow: hidden;
             text-overflow: ellipsis;
             display: -webkit-box;
@@ -290,20 +304,20 @@
         .product-code {
             font-size: 11px;
             color: #9ca3af;
-            margin-bottom: 0.25rem;
+            font-weight: 500;
         }
 
         .product-stock {
             font-size: 11px;
             color: #9ca3af;
-            margin-bottom: 0.5rem;
+            font-weight: 500;
         }
 
         .product-price {
             font-weight: bold;
             color: #fb923c;
-            font-size: 12px;
-            margin-bottom: 0.5rem;
+            font-size: 14px;
+            margin-top: 0.5rem;
         }
 
         .add-btn {
@@ -311,48 +325,70 @@
             background: #f97316;
             color: white;
             border: none;
-            padding: 0.5rem;
+            padding: 0.875rem;
             border-radius: 0.375rem;
             cursor: pointer;
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: 700;
             transition: background 0.2s;
+            font-family: inherit;
+            margin-top: auto;
         }
 
         .add-btn:hover {
             background: #ea580c;
         }
 
-        .load-more {
-            text-align: center;
-            margin-top: 1rem;
-            padding: 1rem;
+        .add-btn:active {
+            transform: scale(0.98);
         }
 
-        .load-more-btn {
-            background: none;
-            border: none;
-            color: #fb923c;
+        /* OBSERVATIONS */
+        .observations {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .observations h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .observations textarea {
+            width: 100%;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            color: white;
+            padding: 0.875rem;
             font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: color 0.2s;
+            resize: vertical;
+            min-height: 100px;
+            max-height: 120px;
+            font-family: inherit;
+            transition: border-color 0.2s;
         }
 
-        .load-more-btn:hover {
-            color: #f97316;
+        .observations textarea:focus {
+            outline: none;
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
         }
 
         /* RIGHT PANEL */
         .right-panel {
-            width: 320px;
+            width: 300px;
             background: #111827;
             border: 1px solid #1f2937;
             border-radius: 0.75rem;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            position: relative;
+            flex-shrink: 0;
         }
 
         .cart-header {
@@ -361,6 +397,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .cart-header h2 {
@@ -382,6 +419,7 @@
         .cart-items {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             padding: 0.75rem;
             display: flex;
             flex-direction: column;
@@ -465,6 +503,12 @@
             cursor: pointer;
             font-size: 16px;
             padding: 0;
+            flex-shrink: 0;
+            transition: color 0.2s;
+        }
+
+        .remove-btn:hover {
+            color: #fca5a5;
         }
 
         .quantity-controls {
@@ -482,6 +526,7 @@
             border-radius: 0.375rem;
             cursor: pointer;
             font-weight: bold;
+            font-family: inherit;
             transition: background 0.2s;
         }
 
@@ -494,6 +539,7 @@
             text-align: center;
             font-weight: 600;
             color: white;
+            padding: 0.25rem 0;
         }
 
         .cart-item-total {
@@ -511,11 +557,11 @@
             height: 100%;
             color: #6b7280;
             text-align: center;
+            padding: 2rem 1rem;
         }
 
         .empty-cart p {
             font-size: 12px;
-            margin-bottom: 0.5rem;
         }
 
         .cart-footer {
@@ -524,6 +570,7 @@
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            flex-shrink: 0;
         }
 
         .summary-row {
@@ -570,10 +617,16 @@
             font-size: 14px;
             transition: background 0.2s;
             margin-top: 0.5rem;
+            font-family: inherit;
         }
 
         .save-btn:hover {
             background: #ea580c;
+        }
+
+        .save-btn:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
         }
 
         .cancel-link {
@@ -590,99 +643,87 @@
             color: #d1d5db;
         }
 
-        /* OBSERVATIONS */
-        .observations {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 0.75rem;
-            padding: 1rem;
-        }
-
-        .observations h3 {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-
-        .observations textarea {
-            width: 100%;
-            background: #1f2937;
-            border: 1px solid #374151;
-            border-radius: 0.5rem;
-            color: white;
-            padding: 0.75rem;
-            font-size: 14px;
-            resize: none;
-            font-family: inherit;
-            transition: border-color 0.2s;
-        }
-
-        .observations textarea:focus {
-            outline: none;
-            border-color: #f97316;
-        }
-
-        /* HIDDEN FORM */
-        .hidden-form {
-            display: none;
-        }
-
-        @media (max-width: 1200px) {
+        @media (max-width: 1300px) {
             .content {
                 flex-direction: column;
             }
 
             .right-panel {
                 width: 100%;
-                max-height: 300px;
+                max-height: 320px;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-right {
+                min-width: auto;
+                width: 100%;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        @if($errors->any() || session('error'))
+            <div style="background: #dc2626; color: white; padding: 1rem; margin: 1rem; border-radius: 0.5rem; font-size: 14px;">
+                @if($errors->any())
+                    <strong>Error de validación:</strong>
+                    <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+                @if(session('error'))
+                    <strong>{{ session('error') }}</strong>
+                @endif
+            </div>
+        @endif
+
         <!-- HEADER -->
         <div class="header">
             <div class="header-left">
                 <div class="breadcrumb">
-                    <a href="{{ route('filament.administrativo.resources.asignaciones-diarias.index', ['tenant' => auth()->user()->sucursales()->first()->id]) }}">
-                        Asignaciones Diarias
+                    <a href="{{ route('filament.administrativo.resources.asignaciones-diarias.index', ['tenant' => $tenant]) }}" style="display: inline-flex; align-items: center; gap: 0.5rem; color: #9ca3af; text-decoration: none; font-size: 14px;">
+                        ← Volver a Asignaciones
                     </a>
-                    <span>/</span>
-                    <span>Crear</span>
                 </div>
                 <h1>Asignación Diaria</h1>
             </div>
 
             <div class="header-right">
-                <form id="mainForm" method="POST" action="{{ route('asignacion-diaria.guardar') }}" style="display: flex; gap: 1.5rem; flex: 1; max-width: 800px;">
-                    @csrf
+                <div class="form-group">
+                    <label>Vendedor</label>
+                    <select id="vendedorSelect" required>
+                        <option value="">Seleccionar vendedor...</option>
+                        @foreach($vendedores as $v)
+                            <option value="{{ $v->id }}" {{ $v->tiene_asignacion_hoy ? 'disabled' : '' }}>
+                                {{ $v->nombre }} {{ $v->apellido }}
+                                @if($v->tiene_asignacion_hoy)
+                                    (Ya tiene asignación hoy)
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
-                    <div class="form-group">
-                        <label>Vendedor</label>
-                        <select name="vendedor_id" id="vendedorSelect" required>
-                            <option value="">Seleccionar vendedor...</option>
-                            @foreach($vendedores as $v)
-                                <option value="{{ $v->id }}">{{ $v->nombre }} {{ $v->apellido }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label>Sucursal</label>
+                    <select id="sucursalSelect" required>
+                        <option value="">Seleccionar sucursal...</option>
+                        @foreach($sucursales as $s)
+                            <option value="{{ $s->id }}">{{ $s->nombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
-                    <div class="form-group">
-                        <label>Sucursal</label>
-                        <select name="sucursal_id" id="sucursalSelect" required>
-                            <option value="">Sucursal...</option>
-                            @foreach($sucursales as $s)
-                                <option value="{{ $s->id }}">{{ $s->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Fecha de jornada</label>
-                        <input type="date" name="fecha" id="fechaInput" value="{{ now()->format('Y-m-d') }}" required>
-                    </div>
-                </form>
+                <div class="form-group">
+                    <label>Fecha de jornada</label>
+                    <input type="date" id="fechaInput" value="{{ now()->format('Y-m-d') }}" required>
+                </div>
             </div>
         </div>
 
@@ -693,14 +734,13 @@
                 <!-- SEARCH SECTION -->
                 <div class="search-section">
                     <h3>Buscar productos</h3>
-
                     <div class="search-box">
-                        <input type="text" id="searchInput" placeholder="Buscar por nombre, código o escanear...">
+                        <input type="text" id="searchInput" placeholder="Buscar por nombre, código...">
                     </div>
 
                     <div>
                         <label style="display: block; font-size: 12px; color: #9ca3af; margin-bottom: 0.75rem;">Categorías</label>
-                        <div class="categories">
+                        <div class="categories" id="categoriesContainer">
                             <button class="category-btn active" data-category="">Todos</button>
                             @foreach($categorias as $cat)
                                 <button class="category-btn" data-category="{{ $cat->id }}">{{ $cat->nombre }}</button>
@@ -712,12 +752,11 @@
                 <!-- PRODUCTS SECTION -->
                 <div class="products-section">
                     <div class="products-header">
-                        <span class="count">Mostrando <span id="productCount">{{ $productos->count() }}</span> productos</span>
+                        <span>Mostrando <strong id="productCount">{{ count($productos) }}</strong> productos</span>
                     </div>
-
                     <div class="products-grid" id="productsGrid">
                         @forelse($productos as $producto)
-                            <div class="product-card" onclick="agregarProducto({{ $producto->id }})">
+                            <div class="product-card" data-category-id="{{ $producto->categoria_id }}" data-product-name="{{ strtolower($producto->nombre) }}" data-product-code="{{ strtolower($producto->codigo) }}" data-stock="{{ $producto->stock }}">
                                 <div class="product-image">
                                     @if($producto->imagen)
                                         <img src="{{ asset('storage/' . $producto->imagen) }}" alt="{{ $producto->nombre }}">
@@ -726,11 +765,13 @@
                                     @endif
                                 </div>
                                 <div class="product-info">
-                                    <p class="product-name">{{ $producto->nombre }}</p>
-                                    <p class="product-code">{{ $producto->codigo }}</p>
-                                    <p class="product-stock">Stock: {{ $producto->stock }}</p>
-                                    <p class="product-price">${{ number_format($producto->precio_venta, 2) }}</p>
-                                    <button type="button" class="add-btn">+ Agregar</button>
+                                    <div>
+                                        <p class="product-name">{{ $producto->nombre }}</p>
+                                        <p class="product-code">{{ $producto->codigo }}</p>
+                                        <p class="product-stock">Stock: {{ $producto->stock }}</p>
+                                        <p class="product-price">${{ number_format($producto->precio_venta, 2) }}</p>
+                                    </div>
+                                    <button type="button" class="add-btn" data-product-id="{{ $producto->id }}" data-product-name="{{ $producto->nombre }}" data-product-code="{{ $producto->codigo }}" data-product-image="{{ $producto->imagen }}" data-product-price="{{ $producto->precio_venta }}" data-product-stock="{{ $producto->stock }}" data-category-id="{{ $producto->categoria_id }}" onclick="agregarProducto(this)" {{ $producto->stock <= 0 ? 'disabled style=&quot;opacity: 0.5; cursor: not-allowed;&quot;' : '' }}>{{ $producto->stock <= 0 ? 'Sin stock' : '+ Agregar' }}</button>
                                 </div>
                             </div>
                         @empty
@@ -744,7 +785,7 @@
                 <!-- OBSERVATIONS -->
                 <div class="observations">
                     <h3>Observaciones</h3>
-                    <textarea id="observacionesInput" name="observaciones" placeholder="Escribe aquí alguna observación..." rows="2"></textarea>
+                    <textarea id="observacionesInput" placeholder="Escribe aquí alguna observación..." rows="2"></textarea>
                 </div>
             </div>
 
@@ -777,40 +818,70 @@
                     </div>
 
                     <button type="button" class="save-btn" onclick="guardarAsignacion()">Guardar asignación</button>
-                    <a href="{{ route('filament.administrativo.resources.asignaciones-diarias.index', ['tenant' => auth()->user()->sucursales()->first()->id]) }}" class="cancel-link">Cancelar</a>
+                    <a href="{{ route('filament.administrativo.resources.asignaciones-diarias.index', ['tenant' => auth()->user()->sucursales()->first()->id ?? 1]) }}" class="cancel-link">Cancelar</a>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State management
         const state = {
             detalles: {},
-            productos: @json($productos->items() ?? []),
+            allProducts: {}
         };
 
-        // Map product data
-        state.productos.forEach(p => {
-            state.productosMap = state.productosMap || {};
-            state.productosMap[p.id] = p;
-        });
+        const assetPath = '{{ asset("storage") }}';
 
-        function agregarProducto(productoId) {
-            const producto = state.productosMap[productoId];
-            if (!producto) return;
+        // Utility functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
+        function formatMoney(amount) {
+            return '$' + parseFloat(amount).toFixed(2);
+        }
+
+        function showNotification(message, type = 'info') {
+            // Simple notification using alert for now
+            // TODO: Replace with toast system
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function agregarProducto(btn) {
+            const productoId = btn.dataset.productId;
+            const nombre = btn.dataset.productName;
+            const codigo = btn.dataset.productCode;
+            const imagen = btn.dataset.productImage;
+            const precioVenta = btn.dataset.productPrice;
+            const stock = parseInt(btn.dataset.productStock);
             const key = `p_${productoId}`;
+
+            // Validar stock
+            if (stock <= 0) {
+                showNotification('Este producto no tiene stock disponible', 'warning');
+                return;
+            }
+
+            // Validar cantidad máxima
+            const cantidadActual = state.detalles[key] ? state.detalles[key].cantidad_asignada : 0;
+            if (cantidadActual >= stock) {
+                showNotification(`No puedes agregar más de ${stock} unidades de este producto`, 'warning');
+                return;
+            }
+
             if (state.detalles[key]) {
                 state.detalles[key].cantidad_asignada++;
             } else {
                 state.detalles[key] = {
                     producto_id: productoId,
-                    nombre: producto.nombre,
-                    codigo: producto.codigo,
-                    imagen: producto.imagen,
+                    nombre: nombre,
+                    codigo: codigo,
+                    imagen: imagen,
                     cantidad_asignada: 1,
-                    precio_venta: parseFloat(producto.precio_venta),
+                    precio_venta: parseFloat(precioVenta),
+                    stock_disponible: stock
                 };
             }
 
@@ -819,6 +890,10 @@
 
         function incrementar(key) {
             if (state.detalles[key]) {
+                if (state.detalles[key].cantidad_asignada >= state.detalles[key].stock_disponible) {
+                    showNotification('Stock limitado', 'warning');
+                    return;
+                }
                 state.detalles[key].cantidad_asignada++;
                 actualizarCarrito();
             }
@@ -840,18 +915,22 @@
         }
 
         function actualizarCarrito() {
-            const cartHtml = Object.keys(state.detalles).length === 0
-                ? '<div class="empty-cart"><p>Sin productos seleccionados</p><p style="font-size: 11px; color: #6b7280;">Agrega productos del catálogo</p></div>'
-                : Object.entries(state.detalles).map(([key, detalle]) => `
+            const container = document.getElementById('cartItems');
+            const detallesArray = Object.entries(state.detalles);
+
+            if (detallesArray.length === 0) {
+                container.innerHTML = '<div class="empty-cart"><p>Sin productos seleccionados</p><p style="font-size: 11px; color: #6b7280;">Agrega productos del catálogo</p></div>';
+            } else {
+                container.innerHTML = detallesArray.map(([key, detalle]) => `
                     <div class="cart-item">
                         <div class="cart-item-header">
                             <div class="cart-item-image">
-                                ${detalle.imagen ? `<img src="{{ asset('storage') }}/${detalle.imagen}" alt="">` : '📦'}
+                                ${detalle.imagen ? `<img src="${assetPath}/${detalle.imagen}" alt="" onerror="this.textContent='📦'">` : '📦'}
                             </div>
                             <div class="cart-item-details">
-                                <div class="cart-item-name">${detalle.nombre}</div>
-                                <div class="cart-item-code">${detalle.codigo}</div>
-                                <div class="cart-item-price">$${detalle.precio_venta.toFixed(2)}</div>
+                                <div class="cart-item-name">${escapeHtml(detalle.nombre)}</div>
+                                <div class="cart-item-code">${escapeHtml(detalle.codigo)}</div>
+                                <div class="cart-item-price">${formatMoney(detalle.precio_venta)}</div>
                             </div>
                             <button type="button" class="remove-btn" onclick="remover('${key}')">×</button>
                         </div>
@@ -860,61 +939,136 @@
                             <div class="qty-display">${detalle.cantidad_asignada}</div>
                             <button type="button" class="qty-btn" onclick="incrementar('${key}')">+</button>
                         </div>
-                        <div class="cart-item-total">$${(detalle.cantidad_asignada * detalle.precio_venta).toFixed(2)}</div>
+                        <div class="cart-item-total">${formatMoney(detalle.cantidad_asignada * parseFloat(detalle.precio_venta))}</div>
                     </div>
                 `).join('');
-
-            document.getElementById('cartItems').innerHTML = cartHtml;
+            }
 
             // Update summary
-            const numProductos = Object.keys(state.detalles).length;
-            const totalUnidades = Object.values(state.detalles).reduce((sum, d) => sum + d.cantidad_asignada, 0);
-            const totalAsignacion = Object.values(state.detalles).reduce((sum, d) => sum + (d.cantidad_asignada * d.precio_venta), 0);
+            const numProductos = detallesArray.length;
+            const totalUnidades = detallesArray.reduce((sum, [_, d]) => sum + d.cantidad_asignada, 0);
+            const totalAsignacion = detallesArray.reduce((sum, [_, d]) => sum + (d.cantidad_asignada * parseFloat(d.precio_venta)), 0);
 
             document.getElementById('cartCount').textContent = numProductos;
             document.getElementById('summaryProducts').textContent = numProductos;
             document.getElementById('summaryUnits').textContent = totalUnidades;
-            document.getElementById('summaryTotal').textContent = '$' + totalAsignacion.toFixed(2);
+            document.getElementById('summaryTotal').textContent = formatMoney(totalAsignacion);
         }
 
         function guardarAsignacion() {
-            if (!document.getElementById('vendedorSelect').value) {
-                alert('Selecciona un vendedor');
-                return;
-            }
-            if (!document.getElementById('sucursalSelect').value) {
-                alert('Selecciona una sucursal');
-                return;
-            }
-            if (Object.keys(state.detalles).length === 0) {
-                alert('Agrega al menos un producto');
+            const vendedorId = document.getElementById('vendedorSelect').value;
+            const sucursalId = document.getElementById('sucursalSelect').value;
+            const fecha = document.getElementById('fechaInput').value;
+            const hoy = new Date().toISOString().split('T')[0];
+            const numProductos = Object.keys(state.detalles).length;
+
+            // Validación 1: Vendedor
+            if (!vendedorId || vendedorId === '') {
+                alert('⚠️ VENDEDOR REQUERIDO\n\nDebes seleccionar un vendedor antes de guardar la asignación.');
+                document.getElementById('vendedorSelect').focus();
                 return;
             }
 
-            // Create hidden inputs for detalles
-            const form = document.getElementById('mainForm');
-            Object.entries(state.detalles).forEach(([key, detalle], index) => {
-                form.innerHTML += `
-                    <input type="hidden" name="detalles[${index}][producto_id]" value="${detalle.producto_id}">
-                    <input type="hidden" name="detalles[${index}][cantidad_asignada]" value="${detalle.cantidad_asignada}">
-                    <input type="hidden" name="detalles[${index}][precio_venta]" value="${detalle.precio_venta}">
-                `;
+            // Validación 2: Sucursal
+            if (!sucursalId || sucursalId === '') {
+                alert('⚠️ SUCURSAL REQUERIDA\n\nDebes seleccionar una sucursal antes de guardar la asignación.');
+                document.getElementById('sucursalSelect').focus();
+                return;
+            }
+
+            // Validación 3: Fecha
+            if (!fecha) {
+                alert('⚠️ FECHA REQUERIDA\n\nDebes seleccionar una fecha antes de guardar la asignación.');
+                document.getElementById('fechaInput').focus();
+                return;
+            }
+
+            if (fecha < hoy) {
+                alert('⚠️ FECHA INVÁLIDA\n\nLa fecha no puede ser anterior a hoy.');
+                document.getElementById('fechaInput').focus();
+                return;
+            }
+
+            // Validación 4: Productos
+            if (numProductos === 0) {
+                alert('❌ SIN PRODUCTOS\n\nDebes agregar al menos 1 producto a la asignación antes de guardar.\n\nBúscalos en el catálogo de la izquierda.');
+                document.getElementById('searchInput').focus();
+                return;
+            }
+
+            // Confirmación final
+            const vendedor = document.getElementById('vendedorSelect').options[document.getElementById('vendedorSelect').selectedIndex].text;
+            const confirmMsg = `✓ Confirmar asignación:\n\nVendedor: ${vendedor}\nProductos: ${numProductos}\nUnidades: ${Object.values(state.detalles).reduce((sum, d) => sum + d.cantidad_asignada, 0)}\n\n¿Guardar esta asignación?`;
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            // Crear y enviar form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{{ route("asignacion-diaria.guardar", ["tenant" => $tenant]) }}';
+
+            form.innerHTML = '<input type="hidden" name="_token" value="{{ csrf_token() }}">';
+            form.innerHTML += `<input type="hidden" name="vendedor_id" value="${vendedorId}">`;
+            form.innerHTML += `<input type="hidden" name="sucursal_id" value="${sucursalId}">`;
+            form.innerHTML += `<input type="hidden" name="fecha" value="${fecha}">`;
+            form.innerHTML += `<input type="hidden" name="observaciones" value="${escapeHtml(document.getElementById('observacionesInput').value)}">`;
+
+            let index = 0;
+            Object.entries(state.detalles).forEach(([key, detalle]) => {
+                form.innerHTML += `<input type="hidden" name="detalles[${index}][producto_id]" value="${detalle.producto_id}">`;
+                form.innerHTML += `<input type="hidden" name="detalles[${index}][cantidad_asignada]" value="${detalle.cantidad_asignada}">`;
+                form.innerHTML += `<input type="hidden" name="detalles[${index}][precio_venta]" value="${parseFloat(detalle.precio_venta)}">`;
+                index++;
             });
 
+            document.body.appendChild(form);
             form.submit();
         }
 
-        // Event listeners
-        document.getElementById('vendedorSelect').addEventListener('change', function() {
-            // Auto-fill sucursal based on vendedor
-            const vendedorId = this.value;
-            if (vendedorId) {
-                // You can add AJAX call here to get vendedor's sucursal
+        // Función para filtrar y buscar
+        function filtrarProductos() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoryId = document.querySelector('.category-btn.active')?.dataset.category || '';
+            let visibles = 0;
+
+            document.querySelectorAll('.product-card').forEach(card => {
+                const cardCategory = card.dataset.categoryId || '';
+                const cardName = card.dataset.productName || '';
+                const cardCode = card.dataset.productCode || '';
+                const stock = parseInt(card.dataset.stock) || 0;
+
+                const matchSearch = cardName.includes(searchTerm) || cardCode.includes(searchTerm);
+                const matchCategory = !categoryId || cardCategory === categoryId;
+                const shouldShow = matchSearch && matchCategory && stock > 0;
+
+                card.style.display = shouldShow ? '' : 'none';
+                if (shouldShow) visibles++;
+            });
+
+            document.getElementById('productCount').textContent = visibles;
+        }
+
+        // Event listener para búsqueda
+        document.getElementById('searchInput').addEventListener('input', filtrarProductos);
+
+        // Category filter
+        document.getElementById('categoriesContainer').addEventListener('click', function(e) {
+            if (e.target.classList.contains('category-btn')) {
+                document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                filtrarProductos();
             }
         });
 
+        // Set min date on fecha input
+        document.getElementById('fechaInput').min = new Date().toISOString().split('T')[0];
+
         // Initialize
-        actualizarCarrito();
+        document.addEventListener('DOMContentLoaded', function() {
+            filtrarProductos();
+        });
     </script>
 </body>
 </html>

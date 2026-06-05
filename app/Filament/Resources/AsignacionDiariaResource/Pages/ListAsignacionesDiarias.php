@@ -16,7 +16,7 @@ class ListAsignacionesDiarias extends ListRecords
             Actions\Action::make('create')
                 ->label('Nueva asignación diaria')
                 ->button()
-                ->url(fn () => route('asignacion-diaria.crear')),
+                ->url(fn () => route('asignacion-diaria.crear', ['tenant' => \Filament\Facades\Filament::getTenant()->id])),
         ];
     }
 }
