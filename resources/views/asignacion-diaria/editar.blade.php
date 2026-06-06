@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -25,7 +25,7 @@
             overflow: visible;
         }
 
-        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        /* ──────────── HEADER ──────────── */
         .header {
             background: #111827;
             border-bottom: 1px solid #1f2937;
@@ -102,11 +102,11 @@
             box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
         }
 
-        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ MAIN CONTENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        /* ──────────── MAIN CONTENT ──────────── */
         .content {
             display: flex;
             flex: 1;
-            overflow: hidden;
+            overflow: visible;
             gap: 1rem;
             padding: 1.5rem;
         }
@@ -700,7 +700,12 @@
                     <select id="vendedorSelect" required>
                         <option value="">Seleccionar vendedor...</option>
                         @foreach($vendedores as $v)
-                            <option value="{{ $v->id }}" {{ $v->id == $asignacion->vendedor_id ? 'selected' : '' }}>{{ $v->nombre }} {{ $v->apellido }}</option>
+                            <option value="{{ $v->id }} {{ $v->id == $asignacion->vendedor_id ? 'selected' : '' }}" {{ $v->tiene_asignacion_hoy ? 'disabled' : '' }}>
+                                {{ $v->nombre }} {{ $v->apellido }}
+                                @if($v->tiene_asignacion_hoy)
+                                    (Ya tiene asignación hoy)
+                                @endif
+                            </option>
                         @endforeach
                     </select>
                 </div>
@@ -710,7 +715,7 @@
                     <select id="sucursalSelect" required>
                         <option value="">Seleccionar sucursal...</option>
                         @foreach($sucursales as $s)
-                            <option value="{{ $s->id }}" {{ $s->id == $asignacion->sucursal_id ? 'selected' : '' }}>{{ $s->nombre }}</option>
+                            <option value="{{ $s->id }} {{ $s->id == $asignacion->sucursal_id ? 'selected' : '' }}">{{ $s->nombre }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -780,7 +785,7 @@
                 <!-- OBSERVATIONS -->
                 <div class="observations">
                     <h3>Observaciones</h3>
-                    <textarea id="observacionesInput" placeholder="Escribe aquí alguna observación..." rows="2">{{ $asignacion->observaciones ?? '' }}</textarea>
+                    <textarea id="observacionesInput" placeholder="Escribe aquí alguna observación..." rows="2">{{ $asignacion->observaciones ?? "" }}</textarea>
                 </div>
             </div>
 
@@ -794,7 +799,7 @@
                 <div class="cart-items" id="cartItems">
                     <div class="empty-cart">
                         <p>Sin productos seleccionados</p>
-                        <p style="font-size: 11px; color: #6b7280;">Agrega productos del catÃ¡logo</p>
+                        <p style="font-size: 11px; color: #6b7280;">Agrega productos del catálogo</p>
                     </div>
                 </div>
 
@@ -813,7 +818,7 @@
                     </div>
 
                     <button type="button" class="save-btn" onclick="guardarAsignacion()">Guardar asignación</button>
-                    <a href="{{ route('filament.administrativo.resources.asignaciones-diarias.index', ['tenant' => $tenant]) }}" class="cancel-link">Cancelar</a>
+                    <a href="{{ route('filament.administrativo.resources.asignaciones-diarias.index', ['tenant' => auth()->user()->sucursales()->first()->id ?? 1]) }}" class="cancel-link">Cancelar</a>
                 </div>
             </div>
         </div>
@@ -827,27 +832,6 @@
 
         const assetPath = '{{ asset("storage") }}';
 
-        // Load existing detalles
-        const existingDetalles = {!! json_encode($asignacion->detalles->map(fn($d) => [
-            'producto_id' => $d->producto_id,
-            'nombre' => $d->producto->nombre,
-            'codigo' => $d->producto->codigo,
-            'imagen' => $d->producto->imagen,
-            'cantidad_asignada' => $d->cantidad_asignada,
-            'cantidad_vendida' => $d->cantidad_vendida ?? 0,
-            'precio_venta' => (float)$d->precio_venta,
-            'stock_disponible' => $d->producto->stock
-        ])->values()) !!};
-
-        console.log('Detalles cargados:', existingDetalles);
-
-        existingDetalles.forEach(detalle => {
-            const key = `p_${detalle.producto_id}`;
-            state.detalles[key] = detalle;
-        });
-
-        console.log('State después de cargar:', state.detalles);
-
         // Utility functions
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -860,6 +844,8 @@
         }
 
         function showNotification(message, type = 'info') {
+            // Simple notification using alert for now
+            // TODO: Replace with toast system
             console.log(`[${type.toUpperCase()}] ${message}`);
         }
 
@@ -872,11 +858,13 @@
             const stock = parseInt(btn.dataset.productStock);
             const key = `p_${productoId}`;
 
+            // Validar stock
             if (stock <= 0) {
                 showNotification('Este producto no tiene stock disponible', 'warning');
                 return;
             }
 
+            // Validar cantidad máxima
             const cantidadActual = state.detalles[key] ? state.detalles[key].cantidad_asignada : 0;
             if (cantidadActual >= stock) {
                 showNotification(`No puedes agregar más de ${stock} unidades de este producto`, 'warning');
@@ -913,14 +901,6 @@
 
         function decrementar(key) {
             if (state.detalles[key]) {
-                const cantidadVendida = state.detalles[key].cantidad_vendida || 0;
-                const cantidadNueva = state.detalles[key].cantidad_asignada - 1;
-
-                if (cantidadNueva < cantidadVendida) {
-                    showNotification(`No puedes reducir a ${cantidadNueva} porque ya se vendieron ${cantidadVendida} unidades`, 'warning');
-                    return;
-                }
-
                 state.detalles[key].cantidad_asignada--;
                 if (state.detalles[key].cantidad_asignada <= 0) {
                     delete state.detalles[key];
@@ -953,31 +933,31 @@
                     const diferencia = parseFloat(precioActual) - parseFloat(detalle.precio_venta);
                     const mostrarDiferencia = Math.abs(diferencia) > 0.01;
                     return `
-                    <div class=”cart-item”>
-                        <div class=”cart-item-header”>
-                            <div class=”cart-item-image”>
-                                ${detalle.imagen ? `<img src=”${assetPath}/${detalle.imagen}” alt=””>` : ‘📦’}
+                    <div class="cart-item">
+                        <div class="cart-item-header">
+                            <div class="cart-item-image">
+                                ${detalle.imagen ? `<img src="${assetPath}/${detalle.imagen}" alt="" onerror="this.textContent='📦'">` : '📦'}
                             </div>
-                            <div class=”cart-item-details”>
-                                <div class=”cart-item-name”>${escapeHtml(detalle.nombre)}</div>
-                                <div class=”cart-item-code”>${escapeHtml(detalle.codigo)}</div>
-                                <div class=”cart-item-price” style=”display: flex; gap: 10px; align-items: center;”>
-                                    <span>Asignado: <strong>$${parseFloat(detalle.precio_venta).toFixed(2)}</strong></span>
-                                    <input type=”number” step=”0.01” value=”${precioActual}” style=”width: 70px; padding: 3px; font-size: 11px;”
-                                        onchange=”actualizarPrecio(‘${key}’, this.value)” placeholder=”Precio venta”>
-                                    ${mostrarDiferencia ? `<span style=”color: ${diferencia > 0 ? ‘#10b981’ : ‘#f97316’}; font-weight: bold; font-size: 10px;”>${diferencia > 0 ? ‘+’ : ‘’}$${diferencia.toFixed(2)}</span>` : ‘’}
+                            <div class="cart-item-details">
+                                <div class="cart-item-name">${escapeHtml(detalle.nombre)}</div>
+                                <div class="cart-item-code">${escapeHtml(detalle.codigo)}</div>
+                                <div class="cart-item-price" style="display: flex; gap: 10px; align-items: center;">
+                                    <span>Asignado: <strong>${formatMoney(detalle.precio_venta)}</strong></span>
+                                    <input type="number" step="0.01" value="${precioActual}" style="width: 70px; padding: 3px; font-size: 11px;"
+                                        onchange="actualizarPrecio('${key}', this.value)" placeholder="Precio venta">
+                                    ${mostrarDiferencia ? `<span style="color: ${diferencia > 0 ? '#10b981' : '#f97316'}; font-weight: bold; font-size: 10px;">${diferencia > 0 ? '+' : ''}${formatMoney(diferencia)}</span>` : ''}
                                 </div>
                             </div>
-                            <button type=”button” class=”remove-btn” onclick=”remover(‘${key}’)”>×</button>
+                            <button type="button" class="remove-btn" onclick="remover('${key}')">×</button>
                         </div>
-                        <div class=”quantity-controls”>
-                            <button type=”button” class=”qty-btn” onclick=”decrementar(‘${key}’)”>−</button>
-                            <div class=”qty-display”>${detalle.cantidad_asignada}</div>
-                            <button type=”button” class=”qty-btn” onclick=”incrementar(‘${key}’)”>+</button>
+                        <div class="quantity-controls">
+                            <button type="button" class="qty-btn" onclick="decrementar('${key}')">−</button>
+                            <div class="qty-display">${detalle.cantidad_asignada}</div>
+                            <button type="button" class="qty-btn" onclick="incrementar('${key}')">+</button>
                         </div>
-                        <div class=”cart-item-total”>$${(detalle.cantidad_asignada * parseFloat(precioActual)).toFixed(2)}</div>
+                        <div class="cart-item-total">${formatMoney(detalle.cantidad_asignada * parseFloat(precioActual))}</div>
                     </div>
-                `}).join(‘’);
+                `}).join('');
             }
 
             // Update summary
@@ -991,14 +971,14 @@
             document.getElementById('cartCount').textContent = numProductos;
             document.getElementById('summaryProducts').textContent = numProductos;
             document.getElementById('summaryUnits').textContent = totalUnidades;
-            document.getElementById('summaryTotal').textContent = '$' + totalAsignacion.toFixed(2);
+            document.getElementById('summaryTotal').textContent = formatMoney(totalAsignacion);
         }
 
         function guardarAsignacion() {
             const vendedorId = document.getElementById('vendedorSelect').value;
             const sucursalId = document.getElementById('sucursalSelect').value;
             const fecha = document.getElementById('fechaInput').value;
-            const observaciones = document.getElementById('observacionesInput').value;
+            const hoy = new Date().toISOString().split('T')[0];
             const numProductos = Object.keys(state.detalles).length;
 
             // Validación 1: Vendedor
@@ -1022,36 +1002,38 @@
                 return;
             }
 
+            if (fecha < hoy) {
+                alert('⚠️ FECHA INVÁLIDA\n\nLa fecha no puede ser anterior a hoy.');
+                document.getElementById('fechaInput').focus();
+                return;
+            }
+
             // Validación 4: Productos
             if (numProductos === 0) {
-                alert('❌ SIN PRODUCTOS\n\nDebes tener al menos 1 producto en la asignación antes de guardar.\n\nBúscalos en el catálogo de la izquierda.');
+                alert('❌ SIN PRODUCTOS\n\nDebes agregar al menos 1 producto a la asignación antes de guardar.\n\nBúscalos en el catálogo de la izquierda.');
                 document.getElementById('searchInput').focus();
                 return;
             }
 
             // Confirmación final
             const vendedor = document.getElementById('vendedorSelect').options[document.getElementById('vendedorSelect').selectedIndex].text;
-            const confirmMsg = `✓ Confirmar cambios:\n\nVendedor: ${vendedor}\nProductos: ${numProductos}\nUnidades: ${Object.values(state.detalles).reduce((sum, d) => sum + d.cantidad_asignada, 0)}\n\n¿Guardar cambios?`;
+            const confirmMsg = `✓ Confirmar asignación:\n\nVendedor: ${vendedor}\nProductos: ${numProductos}\nUnidades: ${Object.values(state.detalles).reduce((sum, d) => sum + d.cantidad_asignada, 0)}\n\n¿Guardar esta asignación?`;
 
             if (!confirm(confirmMsg)) {
                 return;
             }
 
-            // Create form and submit
+            // Crear y enviar form
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = '{{ route("asignacion-diaria.actualizar", ["tenant" => $tenant, "asignacion" => $asignacion]) }}';
+            form.action = '{{ route("asignacion-diaria.guardar", ["tenant" => $tenant]) }}';
 
-            // CSRF token
             form.innerHTML = '<input type="hidden" name="_token" value="{{ csrf_token() }}">';
-
-            // Add fields
             form.innerHTML += `<input type="hidden" name="vendedor_id" value="${vendedorId}">`;
             form.innerHTML += `<input type="hidden" name="sucursal_id" value="${sucursalId}">`;
             form.innerHTML += `<input type="hidden" name="fecha" value="${fecha}">`;
-            form.innerHTML += `<input type="hidden" name="observaciones" value="${observaciones}">`;
+            form.innerHTML += `<input type="hidden" name="observaciones" value="${escapeHtml(document.getElementById('observacionesInput').value)}">`;
 
-            // Add detalles
             let index = 0;
             Object.entries(state.detalles).forEach(([key, detalle]) => {
                 form.innerHTML += `<input type="hidden" name="detalles[${index}][producto_id]" value="${detalle.producto_id}">`;
@@ -1100,12 +1082,13 @@
             }
         });
 
-        // Initialize cart with existing detalles
+        // Set min date on fecha input
+        document.getElementById('fechaInput').min = new Date().toISOString().split('T')[0];
+
+        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            actualizarCarrito();
             filtrarProductos();
         });
     </script>
 </body>
 </html>
-
