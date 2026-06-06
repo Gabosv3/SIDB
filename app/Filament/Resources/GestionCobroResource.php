@@ -16,7 +16,7 @@ class GestionCobroResource extends Resource
 {
     protected static ?string $model = GestionCobro::class;
 
-    public static function getNavigationIcon(): string|null
+    public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-banknotes';
     }
@@ -36,12 +36,15 @@ class GestionCobroResource extends Resource
         return 'Gestiones de Cobro';
     }
 
-    public static function getNavigationGroup(): string|null
+    public static function getNavigationGroup(): string|\UnitEnum|null
     {
         return 'Cobros';
     }
 
-    protected static ?int $navigationSort = 3;
+    public static function getNavigationSort(): ?int
+    {
+        return 3;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -117,8 +120,9 @@ class GestionCobroResource extends Resource
                     ->label('Pagado')
                     ->money('USD'),
 
-                Tables\Columns\BadgeColumn::make('estado')
+                Tables\Columns\TextColumn::make('estado')
                     ->label('Estado')
+                    ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'pendiente' => 'warning',
                         'parcialmente_cobrado' => 'info',

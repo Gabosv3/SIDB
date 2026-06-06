@@ -22,7 +22,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
     use InteractsWithTable;
 
 
-    public static function getNavigationIcon(): string|null
+    public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-link';
     }
@@ -37,7 +37,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
         return 'Asignar Rutas a Clientes';
     }
 
-    public static function getNavigationGroup(): string|null
+    public static function getNavigationGroup(): string|\UnitEnum|null
     {
         return 'Cobros';
     }

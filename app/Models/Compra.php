@@ -43,7 +43,7 @@ class Compra extends Model
     ];
 
     protected $casts = [
-        'fecha_compra'             => 'date',
+        'fecha_compra'             => 'datetime',
         'fecha_entrega_estimada'   => 'date',
         'fecha_entrega_real'       => 'date',
         'fecha_vencimiento'        => 'date',
@@ -55,7 +55,7 @@ class Compra extends Model
         'saldo_pendiente'          => 'decimal:2',
     ];
 
-    protected $append = ['dias_transcurridos', 'estado_etiqueta'];
+    protected $appends = ['dias_transcurridos', 'estado_etiqueta'];
 
     // ── Relationships ─────────────────────────────────────────────────────────
 

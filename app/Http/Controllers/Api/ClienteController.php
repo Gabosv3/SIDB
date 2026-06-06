@@ -88,7 +88,14 @@ class ClienteController extends Controller
     )]
     public function show(int $id): JsonResponse
     {
-        $cliente = Cliente::where('activo', true)->findOrFail($id);
+        $cliente = Cliente::where('activo', true)
+            ->select([
+                'id', 'nombre', 'apellido', 'dui', 'nit',
+                'telefono_normal', 'telefono_whatsapp', 'email',
+                'direccion', 'departamento', 'municipio', 'distrito',
+                'limite_credito', 'saldo', 'activo', 'sucursal_id', 'ruta_cobro_id',
+            ])
+            ->findOrFail($id);
 
         return response()->json($cliente);
     }

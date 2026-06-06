@@ -24,6 +24,9 @@ class GestionCobro extends Model
     protected $casts = [
         'fecha_vencimiento' => 'date',
         'monto_cuota' => 'decimal:2',
+        'monto_pagado' => 'decimal:2',
+        'numero_cuota' => 'integer',
+        'total_cuotas' => 'integer',
     ];
 
     public function venta(): BelongsTo

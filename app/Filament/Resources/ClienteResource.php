@@ -55,7 +55,7 @@ class ClienteResource extends Resource implements HasShieldPermissions
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Comercial';
+        return 'Ventas';
     }
 
     public static function getNavigationSort(): ?int

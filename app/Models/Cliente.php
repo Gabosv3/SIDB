@@ -57,6 +57,7 @@ class Cliente extends Model
         'ref_con2_nombre',
         'ref_con2_telefono',
         'ref_con2_trabajo',
+        'foto_casa',
     ];
 
     protected $casts = [
@@ -90,6 +91,11 @@ class Cliente extends Model
     public function pagosVenta(): HasMany
     {
         return $this->hasMany(PagoVenta::class, 'cliente_id');
+    }
+
+    public function gestionesCobro(): HasMany
+    {
+        return $this->hasMany(GestionCobro::class, 'cliente_id');
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────

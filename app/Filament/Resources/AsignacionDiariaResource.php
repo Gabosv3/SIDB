@@ -199,12 +199,14 @@ class AsignacionDiariaResource extends Resource
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\BadgeColumn::make('estado')
+                Tables\Columns\TextColumn::make('estado')
                     ->label('Estado')
-                    ->colors([
-                        'success' => 'activa',
-                        'gray'    => 'liquidada',
-                    ]),
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'activa' => 'success',
+                        'liquidada' => 'gray',
+                        default => 'gray',
+                    }),
 
                 Tables\Columns\TextColumn::make('total_vendido')
                     ->label('Total vendido')

@@ -388,6 +388,200 @@
                 ]
             }
         },
+        "/cobros/ruta-hoy": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Obtener rutas del cobrador para hoy",
+                "operationId": "6996344e784e20fa39532ddf5346f7ca",
+                "responses": {
+                    "200": {
+                        "description": "Rutas del día con conteo de clientes"
+                    },
+                    "404": {
+                        "description": "Sin ruta para hoy"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/rutas/{ruta_id}/clientes": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Listar clientes de una ruta específica",
+                "operationId": "0e7a6712987d4b4b66beaaa4630fce6f",
+                "parameters": [
+                    {
+                        "name": "ruta_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Clientes de la ruta"
+                    },
+                    "403": {
+                        "description": "Esta ruta no te pertenece"
+                    },
+                    "404": {
+                        "description": "Ruta no encontrada"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/clientes/{id}": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Detalle del cliente con historial de cobros",
+                "operationId": "dda2b33c9fbde4170390d50d3a6d6252",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Detalle del cliente"
+                    },
+                    "403": {
+                        "description": "Cliente no pertenece a tus rutas"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/clientes/{id}/gestiones-pendientes": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Cuotas pendientes o parciales de un cliente",
+                "operationId": "41ec27bd11eab65baf74aafc7f19971e",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Gestiones pendientes"
+                    },
+                    "403": {
+                        "description": "Cliente no pertenece a tus rutas"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/gestiones/{id}/pagar": {
+            "post": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Registrar pago de una cuota",
+                "operationId": "a45f6db12502ff77141246cf6002f51b",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "monto",
+                                    "metodo_pago"
+                                ],
+                                "properties": {
+                                    "monto": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 14
+                                    },
+                                    "metodo_pago": {
+                                        "type": "string",
+                                        "enum": [
+                                            "efectivo",
+                                            "transferencia",
+                                            "cheque",
+                                            "deposito"
+                                        ]
+                                    },
+                                    "referencia": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "observaciones": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pago registrado"
+                    },
+                    "403": {
+                        "description": "Gestión no pertenece a tus rutas"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/ventas/{venta}/pagos": {
             "get": {
                 "tags": [
@@ -618,6 +812,73 @@
                     },
                     "401": {
                         "description": "No autenticado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/productos/{id}/metodos-pago": {
+            "get": {
+                "tags": [
+                    "Productos"
+                ],
+                "summary": "Obtener métodos de pago a cuotas por producto",
+                "operationId": "da1458060714c1a98061c681aee4a8cf",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Opciones de pago a cuotas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer",
+                                            "example": 5
+                                        },
+                                        "nombre": {
+                                            "type": "string",
+                                            "example": "Televisor 40\""
+                                        },
+                                        "codigo": {
+                                            "type": "string",
+                                            "example": "TV-40-SAMSUNG"
+                                        },
+                                        "precio_venta": {
+                                            "type": "number",
+                                            "format": "float",
+                                            "example": 299.99
+                                        },
+                                        "precios_cuotas": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    },
+                    "404": {
+                        "description": "No encontrado"
                     }
                 },
                 "security": [
@@ -1046,6 +1307,17 @@
                         "format": "float",
                         "example": 0
                     },
+                    "cuotas": {
+                        "type": "integer",
+                        "example": 6,
+                        "nullable": true
+                    },
+                    "precio_cuota": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 99.99,
+                        "nullable": true
+                    },
                     "subtotal": {
                         "type": "number",
                         "format": "float",
@@ -1223,6 +1495,10 @@
         {
             "name": "Clientes",
             "description": "Clientes"
+        },
+        {
+            "name": "Cobros",
+            "description": "Cobros"
         },
         {
             "name": "Pagos",

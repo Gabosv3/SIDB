@@ -33,7 +33,7 @@ class DetalleCompra extends Model
         'fecha_vencimiento'  => 'date',
     ];
 
-    protected $append = ['total_con_descuento'];
+    protected $appends = ['total_con_descuento'];
 
     // ── Relationships ─────────────────────────────────────────────────────────
 

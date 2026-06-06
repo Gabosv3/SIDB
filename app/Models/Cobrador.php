@@ -39,9 +39,16 @@ class Cobrador extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function clientes(): HasMany
+    public function clientes(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
     {
-        return $this->hasMany(Cliente::class, 'cobrador_id');
+        return $this->hasManyThrough(
+            Cliente::class,
+            RutaCobro::class,
+            'cobrador_id',
+            'ruta_cobro_id',
+            'id',
+            'id'
+        );
     }
 
     public function rutasCobro(): HasMany

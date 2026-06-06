@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cobrador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
@@ -20,7 +22,25 @@ class CobroController extends Controller
 
     private function cobrador(Request $request)
     {
-        return $request->user()->cobrador;
+        $user = $request->user();
+        $cobrador = $user->cobrador;
+
+        if (! $cobrador) {
+            $vendedor = $user->vendedor;
+            if ($vendedor && $vendedor->es_cobrador) {
+                $cobrador = Cobrador::where('user_id', $user->id)->first();
+            }
+        }
+
+        return $cobrador;
+    }
+
+    private function clienteDeRuta(int $clienteId, $cobrador): ?\App\Models\Cliente
+    {
+        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        return \App\Models\Cliente::where('id', $clienteId)
+            ->whereIn('ruta_cobro_id', $rutasIds)
+            ->first();
     }
 
     // ── GET /cobros/ruta-hoy ────────────────────────────────────────────────
@@ -38,6 +58,9 @@ class CobroController extends Controller
     public function rutaHoy(Request $request): JsonResponse
     {
         $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
         $diaHoy = $this->diaHoy();
 
         $rutas = $cobrador->rutasCobro()
@@ -156,12 +179,11 @@ class CobroController extends Controller
     public function detalleCliente(Request $request, int $id): JsonResponse
     {
         $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
 
-        // Verificar que el cliente pertenece a alguna ruta del cobrador
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
-        $cliente = \App\Models\Cliente::where('id', $id)
-            ->whereIn('ruta_cobro_id', $rutasIds)
-            ->first();
+        $cliente = $this->clienteDeRuta($id, $cobrador);
 
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
@@ -223,11 +245,11 @@ class CobroController extends Controller
     public function gestionesPendientes(Request $request, int $id): JsonResponse
     {
         $cobrador = $this->cobrador($request);
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
 
-        $cliente = \App\Models\Cliente::where('id', $id)
-            ->whereIn('ruta_cobro_id', $rutasIds)
-            ->first();
+        $cliente = $this->clienteDeRuta($id, $cobrador);
 
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
@@ -295,16 +317,14 @@ class CobroController extends Controller
         ]);
 
         $cobrador = $this->cobrador($request);
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
 
         $gestion = GestionCobro::with('venta')->findOrFail($id);
 
-        // Verificar que la gestión pertenece a un cliente del cobrador
-        $clientePerteneceARuta = \App\Models\Cliente::where('id', $gestion->cliente_id)
-            ->whereIn('ruta_cobro_id', $rutasIds)
-            ->exists();
-
-        if (! $clientePerteneceARuta) {
+        $cliente = $this->clienteDeRuta($gestion->cliente_id, $cobrador);
+        if (! $cliente) {
             return response()->json(['mensaje' => 'Esta gestión no pertenece a tus rutas.'], 403);
         }
 
@@ -325,50 +345,59 @@ class CobroController extends Controller
         }
 
         // Validar que no exceda el saldo pendiente
-        $saldoGestion = $gestion->monto_cuota - $gestion->monto_pagado;
+        $saldoGestion = round($gestion->monto_cuota - $gestion->monto_pagado, 2);
         if ($monto > $saldoGestion) {
             throw ValidationException::withMessages([
                 'monto' => "El monto no puede exceder \${$saldoGestion} pendiente de esta cuota.",
             ]);
         }
 
-        // Registrar pago
-        PagoVenta::create([
-            'venta_id' => $gestion->venta_id,
-            'cliente_id' => $gestion->cliente_id,
-            'monto' => $monto,
-            'fecha_pago' => today(),
-            'metodo_pago' => $data['metodo_pago'],
-            'referencia' => $data['referencia'] ?? null,
-            'observaciones' => $data['observaciones'] ?? null,
-            'user_id' => auth()->id(),
-        ]);
+        $result = DB::transaction(function () use ($gestion, $monto, $data) {
+            // Registrar pago
+            PagoVenta::create([
+                'venta_id' => $gestion->venta_id,
+                'cliente_id' => $gestion->cliente_id,
+                'monto' => $monto,
+                'fecha_pago' => today(),
+                'metodo_pago' => $data['metodo_pago'],
+                'referencia' => $data['referencia'] ?? null,
+                'observaciones' => $data['observaciones'] ?? null,
+                'user_id' => auth()->id(),
+            ]);
 
-        // Actualizar gestión
-        $nuevoMontoPagado = $gestion->monto_pagado + $monto;
-        $estado = $nuevoMontoPagado >= $gestion->monto_cuota ? 'cobrado' : 'parcialmente_cobrado';
-        $gestion->update(['monto_pagado' => $nuevoMontoPagado, 'estado' => $estado]);
+            // Actualizar gestión atómicamente
+            $gestion->increment('monto_pagado', $monto);
+            $gestion->refresh();
+            $estado = $gestion->monto_pagado >= $gestion->monto_cuota ? 'cobrado' : 'parcialmente_cobrado';
+            $gestion->update(['estado' => $estado]);
 
-        // Actualizar venta
-        $venta = $gestion->venta;
-        $venta->monto_pagado += $monto;
-        $venta->saldo_pendiente = max(0, $venta->saldo_pendiente - $monto);
-        if ($venta->saldo_pendiente == 0) {
-            $venta->estado = 'completada';
-        }
-        $venta->save();
+            // Actualizar venta atómicamente
+            $venta = $gestion->venta;
+            $venta->increment('monto_pagado', $monto);
+            $venta->decrement('saldo_pendiente', min($monto, $venta->saldo_pendiente));
+            $venta->refresh();
+            if ($venta->saldo_pendiente <= 0) {
+                $venta->update(['estado' => 'completada']);
+            }
+
+            return [
+                'estado' => $estado,
+                'gestion' => $gestion,
+                'venta_saldo' => $venta->saldo_pendiente,
+            ];
+        });
 
         return response()->json([
-            'mensaje' => $estado === 'cobrado' ? 'Cuota pagada completamente.' : 'Pago parcial registrado.',
+            'mensaje' => $result['estado'] === 'cobrado' ? 'Cuota pagada completamente.' : 'Pago parcial registrado.',
             'gestion' => [
-                'id' => $gestion->id,
-                'cuota' => "{$gestion->numero_cuota}/{$gestion->total_cuotas}",
-                'monto_cuota' => $gestion->monto_cuota,
-                'monto_pagado' => $nuevoMontoPagado,
-                'saldo_pendiente' => round($gestion->monto_cuota - $nuevoMontoPagado, 2),
-                'estado' => $estado,
+                'id' => $result['gestion']->id,
+                'cuota' => "{$result['gestion']->numero_cuota}/{$result['gestion']->total_cuotas}",
+                'monto_cuota' => $result['gestion']->monto_cuota,
+                'monto_pagado' => $result['gestion']->monto_pagado,
+                'saldo_pendiente' => round($result['gestion']->monto_cuota - $result['gestion']->monto_pagado, 2),
+                'estado' => $result['estado'],
             ],
-            'venta_saldo' => $venta->saldo_pendiente,
+            'venta_saldo' => $result['venta_saldo'],
         ]);
     }
 }

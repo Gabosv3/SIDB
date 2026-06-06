@@ -77,13 +77,15 @@ class VentaController extends Controller
             new OA\Response(response: 404, description: 'No encontrada'),
         ],
     )]
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
         $venta = Venta::with([
             'cliente:id,nombre,apellido,dui,telefono_normal',
             'detalles.producto:id,nombre,codigo,unidad_medida',
             'pagos:id,venta_id,monto,fecha_pago,metodo_pago',
-        ])->findOrFail($id);
+        ])
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
 
         return response()->json($venta);
     }
@@ -263,6 +265,7 @@ class VentaController extends Controller
                 $detalleAsignado = $asignacionDetalles->get((int) $d['producto_id']);
                 if ($detalleAsignado) {
                     $detalleAsignado->increment('cantidad_vendida', $d['cantidad']);
+                    $detalleAsignado->refresh();
                     $detalleAsignado->update([
                         'cantidad_devuelta' => max(0, $detalleAsignado->cantidad_asignada - $detalleAsignado->cantidad_vendida),
                     ]);
@@ -278,15 +281,21 @@ class VentaController extends Controller
 
             if ($cuotas->count() > 0) {
                 $numeroCuotas = $cuotas->first();
+                $montoCuotaBase = floor($total / $numeroCuotas * 100) / 100;
+                $residuo = round($total - ($montoCuotaBase * $numeroCuotas), 2);
                 $gestionesCobro = [];
 
                 for ($i = 1; $i <= $numeroCuotas; $i++) {
+                    $montoCuota = $montoCuotaBase;
+                    if ($i === $numeroCuotas) {
+                        $montoCuota = round($montoCuotaBase + $residuo, 2);
+                    }
                     $gestionesCobro[] = [
                         'venta_id' => $venta->id,
                         'cliente_id' => $data['cliente_id'],
                         'numero_cuota' => $i,
                         'total_cuotas' => $numeroCuotas,
-                        'monto_cuota' => round($total / $numeroCuotas, 2),
+                        'monto_cuota' => $montoCuota,
                         'fecha_vencimiento' => now()->addMonths($i)->toDateString(),
                         'estado' => 'pendiente',
                         'created_at' => now(),

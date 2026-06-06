@@ -5,7 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CobroController;
-use App\Http\Controllers\Api\GestionCobroController;
+
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\VentaController;
@@ -40,10 +40,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/clientes', [ClienteController::class, 'index']);
         Route::get('/clientes/{id}', [ClienteController::class, 'show']);
 
-        // ── Consulta de ventas (cualquier perfil POS puede ver) ──────────────
+        // ── Consulta de ventas (solo del propio usuario) ──────────────────────
         Route::get('/ventas', [VentaController::class, 'index']);
         Route::get('/ventas/{id}', [VentaController::class, 'show']);
-        Route::get('/ventas/{venta}/pagos', [PagoVentaController::class, 'index']);
 
         // ── Solo VENDEDORES: crear ventas ────────────────────────────────────
         Route::middleware('solo.vendedor')->group(function () {
