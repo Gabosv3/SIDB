@@ -700,11 +700,8 @@
                     <select id="vendedorSelect" required>
                         <option value="">Seleccionar vendedor...</option>
                         @foreach($vendedores as $v)
-                            <option value="{{ $v->id }} {{ $v->id == $asignacion->vendedor_id ? 'selected' : '' }}" {{ $v->tiene_asignacion_hoy ? 'disabled' : '' }}>
+                            <option value="{{ $v->id }}" {{ $v->id == $asignacion->vendedor_id ? 'selected' : '' }}>
                                 {{ $v->nombre }} {{ $v->apellido }}
-                                @if($v->tiene_asignacion_hoy)
-                                    (Ya tiene asignación hoy)
-                                @endif
                             </option>
                         @endforeach
                     </select>
@@ -715,7 +712,7 @@
                     <select id="sucursalSelect" required>
                         <option value="">Seleccionar sucursal...</option>
                         @foreach($sucursales as $s)
-                            <option value="{{ $s->id }} {{ $s->id == $asignacion->sucursal_id ? 'selected' : '' }}">{{ $s->nombre }}</option>
+                            <option value="{{ $s->id }}" {{ $s->id == $asignacion->sucursal_id ? 'selected' : '' }}>{{ $s->nombre }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -831,6 +828,19 @@
         };
 
         const assetPath = '{{ asset("storage") }}';
+
+        // Load existing detalles for edit
+        @if(isset($detallesJson))
+        try {
+            const existingDetalles = {!! $detallesJson !!};
+            existingDetalles.forEach(detalle => {
+                const key = `p_${detalle.producto_id}`;
+                state.detalles[key] = detalle;
+            });
+        } catch (e) {
+            console.error('Error cargando detalles:', e);
+        }
+        @endif
 
         // Utility functions
         function escapeHtml(text) {
@@ -1085,10 +1095,9 @@
         // Set min date on fecha input
         document.getElementById('fechaInput').min = new Date().toISOString().split('T')[0];
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            filtrarProductos();
-        });
+        // Initialize - Se ejecuta directamente porque el script está al final del body
+        actualizarCarrito();
+        filtrarProductos();
     </script>
 </body>
 </html>

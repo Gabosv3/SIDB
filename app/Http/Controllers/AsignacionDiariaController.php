@@ -39,9 +39,23 @@ class AsignacionDiariaController extends Controller
 
     public function editar($tenant, AsignacionDiaria $asignacion)
     {
+        $detalles = $asignacion->detalles->map(function($d) {
+            return [
+                'producto_id' => $d->producto_id,
+                'nombre' => $d->producto->nombre,
+                'codigo' => $d->producto->codigo,
+                'imagen' => $d->producto->imagen,
+                'cantidad_asignada' => (int)$d->cantidad_asignada,
+                'cantidad_vendida' => (int)($d->cantidad_vendida ?? 0),
+                'precio_venta' => (float)$d->precio_venta,
+                'stock_disponible' => (int)$d->producto->stock
+            ];
+        })->values();
+
         return view('asignacion-diaria.editar', [
             'tenant' => $tenant,
             'asignacion' => $asignacion,
+            'detallesJson' => json_encode($detalles),
             'vendedores' => Vendedor::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get(),
             'sucursales' => Sucursal::orderBy('nombre')->get(),
             'categorias' => Categoria::orderBy('nombre')->get(),
