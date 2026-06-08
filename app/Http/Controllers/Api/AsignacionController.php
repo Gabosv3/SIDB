@@ -25,7 +25,8 @@ class AsignacionController extends Controller
         }
 
         $asignacion = AsignacionDiaria::with([
-            'detalles.producto:id,nombre,codigo,unidad_medida,precio_venta,precios_cuotas,imagen',
+            'detalles.producto:id,nombre,codigo,unidad_medida,precio_venta,precios_cuotas,imagen,categoria_id',
+            'detalles.producto.categoria:id,nombre',
         ])
         ->where('vendedor_id', $vendedor->id)
         ->where('fecha', today())
@@ -55,6 +56,8 @@ class AsignacionController extends Controller
                     'precio_venta'      => $d->precio_venta ?? $d->producto?->precio_venta,
                     'precios_cuotas'    => $d->producto?->precios_cuotas ?? [],
                     'imagen'            => $d->producto?->imagen,
+                    'categoria_id'      => $d->producto?->categoria_id,
+                    'categoria'         => $d->producto?->categoria?->nombre,
                     'cantidad_asignada' => $d->cantidad_asignada,
                     'cantidad_vendida'  => $d->cantidad_vendida,
                     'cantidad_devuelta' => $d->cantidad_devuelta,
