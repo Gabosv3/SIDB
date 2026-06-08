@@ -148,9 +148,9 @@ class AuditLogs extends Page implements HasTable
             return true;
         }
 
-        // Verificar permiso si existe
+        // Verificar permiso específico
         try {
-            return $user->hasPermissionTo('view_audit_logs');
+            return $user->hasPermissionTo('View:AuditLogs');
         } catch (\Exception $e) {
             // Si el permiso no existe, denegar acceso
             return false;
