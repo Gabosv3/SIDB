@@ -138,6 +138,22 @@ class AuditLogs extends Page implements HasTable
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        return $user?->hasRole('super_admin') || $user?->hasPermissionTo('view_audit_logs');
+
+        if (! $user) {
+            return false;
+        }
+
+        // Super admin siempre puede acceder
+        if ($user->hasRole('super_admin')) {
+            return true;
+        }
+
+        // Verificar permiso si existe
+        try {
+            return $user->hasPermissionTo('view_audit_logs');
+        } catch (\Exception $e) {
+            // Si el permiso no existe, denegar acceso
+            return false;
+        }
     }
 }
