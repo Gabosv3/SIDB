@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'solo.vendedor' => \App\Http\Middleware\SoloVendedor::class,
             'solo.cobrador' => \App\Http\Middleware\SoloCobrador::class,
         ]);
+        // Excluir webhook de WhatsApp del CSRF (Meta necesita POST sin token)
+        $middleware->validateCsrfTokens(except: [
+            'whatsapp/webhook',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    // ── WhatsApp Cloud API (Meta) ─────────────────────────────────────────────
+    'whatsapp' => [
+        'token'                => env('WHATSAPP_TOKEN'),
+        'phone_number_id'      => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'waba_id'              => env('WHATSAPP_WABA_ID'),
+        'meta_business_id'     => env('WHATSAPP_META_BUSINESS_ID'),
+        'display_phone_number' => env('WHATSAPP_DISPLAY_PHONE_NUMBER'),
+        'verified_name'        => env('WHATSAPP_VERIFIED_NAME'),
+        'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'mi_token_secreto'),
+    ],
+
 ];

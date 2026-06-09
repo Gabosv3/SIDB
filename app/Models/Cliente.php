@@ -98,6 +98,11 @@ class Cliente extends Model
         return $this->hasMany(GestionCobro::class, 'cliente_id');
     }
 
+    public function whatsappConversacion(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(WhatsappConversation::class, 'cliente_id')->latestOfMany();
+    }
+
     // ── Accessors ─────────────────────────────────────────────────────────────
 
     public function getNombreCompletoAttribute(): string

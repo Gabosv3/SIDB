@@ -12,6 +12,7 @@ use App\Models\Cliente;
 use App\Models\Cobrador;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Filament\Actions;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -541,6 +542,20 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->falseLabel('Solo inactivos'),
             ])
             ->actions([
+                // Botón WhatsApp
+                Action::make('whatsapp')
+                    ->label('💬 WhatsApp')
+                    ->icon('heroicon-m-chat-bubble-left')
+                    ->color('success')
+                    ->url(function (Cliente $record) {
+                        $tenant = auth()->user()?->sucursal_id ?? 1;
+                        return route('whatsapp.openClient', [
+                            'tenant'  => $tenant,
+                            'cliente' => $record->id,
+                        ]);
+                    })
+                    ->openUrlInNewTab(),
+                // Acciones estándar
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),

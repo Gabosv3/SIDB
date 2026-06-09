@@ -72,6 +72,11 @@ class AdministrativoPanelProvider extends PanelProvider
                 'panels::scripts.after',
                 fn (): string => '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
             )
+            // ── Botón WhatsApp en el sidebar ─────────────────────────────────────
+            ->renderHook(
+                'panels::sidebar.nav.end',
+                fn (): string => view('filament.whatsapp-sidebar-button')->render(),
+            )
             // ── Autenticación de Dos Factores (2FA) ───────────────────────────
             ->multiFactorAuthentication([
                 AppAuthentication::make()
@@ -91,6 +96,7 @@ class AdministrativoPanelProvider extends PanelProvider
             ->navigationGroups([
                 NavigationGroup::make('Ventas'),
                 NavigationGroup::make('Comercial'),
+                NavigationGroup::make('Comunicación'),
                 NavigationGroup::make('Compras'),
                 NavigationGroup::make('Inventario'),
                 NavigationGroup::make('Administración'),
