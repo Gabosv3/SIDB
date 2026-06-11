@@ -28,7 +28,17 @@ class CobroController extends Controller
         if (! $cobrador) {
             $vendedor = $user->vendedor;
             if ($vendedor && $vendedor->es_cobrador) {
-                $cobrador = Cobrador::where('user_id', $user->id)->first();
+                $cobrador = Cobrador::firstOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'sucursal_id' => $vendedor->sucursal_id,
+                        'nombre'      => $vendedor->nombre,
+                        'apellido'    => $vendedor->apellido,
+                        'telefono'    => $vendedor->telefono,
+                        'email'       => $vendedor->email,
+                        'activo'      => true,
+                    ]
+                );
             }
         }
 
@@ -69,12 +79,27 @@ class CobroController extends Controller
             ->withCount('clientes')
             ->with([
                 'clientes' => fn ($q) => $q
-                    ->select('id', 'nombre', 'apellido', 'telefono_normal', 'saldo', 'ruta_cobro_id')
-                    ->withCount([
-                        'ventas as gestiones_pendientes' => fn ($q) => $q
-                            ->whereHas('gestionesCobro', fn ($g) =>
-                                $g->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                            ),
+                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'ruta_cobro_id')
+                    ->with(['ventas' => fn ($v) => $v
+                        ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
+                        ->where('saldo_pendiente', '>', 0)
+                        ->withCount([
+                            'gestionesCobro as cuotas_pendientes' => fn ($g) => $g
+                                ->whereIn('estado', ['pendiente', 'parcialmente_cobrado']),
+                            'gestionesCobro as cuotas_vencidas' => fn ($g) => $g
+                                ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                                ->whereDate('fecha_vencimiento', '<', today()),
+                        ])
+                    ])
+                    ->addSelect([
+                        'cuotas_vencidas' => GestionCobro::selectRaw('COUNT(*)')
+                            ->whereColumn('cliente_id', 'clientes.id')
+                            ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                            ->whereDate('fecha_vencimiento', '<', today()),
+                        'para_estar_al_dia' => GestionCobro::selectRaw('COALESCE(SUM(monto_cuota - monto_pagado), 0)')
+                            ->whereColumn('cliente_id', 'clientes.id')
+                            ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                            ->whereDate('fecha_vencimiento', '<', today()),
                     ]),
             ])
             ->get();
@@ -96,9 +121,24 @@ class CobroController extends Controller
                 'clientes' => $ruta->clientes->map(fn ($c) => [
                     'id' => $c->id,
                     'nombre' => $c->nombre_completo,
+                    'dui' => $c->dui,
+                    'codigo_anterior' => $c->codigo_anterior,
                     'telefono' => $c->telefono_normal,
-                    'saldo' => $c->saldo,
-                    'gestiones_pendientes' => $c->gestiones_pendientes,
+                    'saldo_total' => (float) $c->saldo,
+                    'cuotas_vencidas' => (int) $c->cuotas_vencidas,
+                    'para_estar_al_dia' => round((float) $c->para_estar_al_dia, 2),
+                    'ventas' => $c->ventas->map(fn ($v) => [
+                        'id'              => $v->id,
+                        'numero_venta'    => $v->numero_venta,
+                        'fecha_venta'     => $v->fecha_venta instanceof \Carbon\Carbon
+                            ? $v->fecha_venta->format('d/m/Y')
+                            : \Carbon\Carbon::parse($v->fecha_venta)->format('d/m/Y'),
+                        'total'           => (float) $v->total,
+                        'monto_pagado'    => (float) $v->monto_pagado,
+                        'saldo_pendiente' => (float) $v->saldo_pendiente,
+                        'cuotas_pendientes' => (int) $v->cuotas_pendientes,
+                        'cuotas_vencidas'   => (int) $v->cuotas_vencidas,
+                    ])->values(),
                 ]),
             ]),
         ]);
@@ -135,23 +175,52 @@ class CobroController extends Controller
 
         $clientes = $ruta->clientes()
             ->where('activo', true)
-            ->select('id', 'nombre', 'apellido', 'dui', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento')
-            ->withCount([
-                'ventas as cuotas_pendientes' => fn ($q) => $q
-                    ->whereHas('gestionesCobro', fn ($g) =>
-                        $g->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                    ),
+            ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento', 'ruta_cobro_id')
+            ->with(['ventas' => fn ($v) => $v
+                ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
+                ->where('saldo_pendiente', '>', 0)
+                ->withCount([
+                    'gestionesCobro as cuotas_pendientes' => fn ($g) => $g
+                        ->whereIn('estado', ['pendiente', 'parcialmente_cobrado']),
+                    'gestionesCobro as cuotas_vencidas' => fn ($g) => $g
+                        ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                        ->whereDate('fecha_vencimiento', '<', today()),
+                ])
+            ])
+            ->addSelect([
+                'cuotas_vencidas' => GestionCobro::selectRaw('COUNT(*)')
+                    ->whereColumn('cliente_id', 'clientes.id')
+                    ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                    ->whereDate('fecha_vencimiento', '<', today()),
+                'para_estar_al_dia' => GestionCobro::selectRaw('COALESCE(SUM(monto_cuota - monto_pagado), 0)')
+                    ->whereColumn('cliente_id', 'clientes.id')
+                    ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                    ->whereDate('fecha_vencimiento', '<', today()),
             ])
             ->get()
             ->map(fn ($c) => [
                 'id' => $c->id,
                 'nombre' => $c->nombre_completo,
                 'dui' => $c->dui,
+                'codigo_anterior' => $c->codigo_anterior,
                 'telefono' => $c->telefono_normal,
                 'whatsapp' => $c->telefono_whatsapp,
-                'saldo' => $c->saldo,
+                'saldo_total' => (float) $c->saldo,
+                'cuotas_vencidas' => (int) $c->cuotas_vencidas,
+                'para_estar_al_dia' => round((float) $c->para_estar_al_dia, 2),
                 'direccion' => "{$c->direccion}, {$c->municipio}, {$c->departamento}",
-                'cuotas_pendientes' => $c->cuotas_pendientes,
+                'ventas' => $c->ventas->map(fn ($v) => [
+                    'id'              => $v->id,
+                    'numero_venta'    => $v->numero_venta,
+                    'fecha_venta'     => $v->fecha_venta instanceof \Carbon\Carbon
+                        ? $v->fecha_venta->format('d/m/Y')
+                        : \Carbon\Carbon::parse($v->fecha_venta)->format('d/m/Y'),
+                    'total'           => (float) $v->total,
+                    'monto_pagado'    => (float) $v->monto_pagado,
+                    'saldo_pendiente' => (float) $v->saldo_pendiente,
+                    'cuotas_pendientes' => (int) $v->cuotas_pendientes,
+                    'cuotas_vencidas'   => (int) $v->cuotas_vencidas,
+                ])->values(),
             ]);
 
         return response()->json([
@@ -189,41 +258,68 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
         }
 
-        // Historial de gestiones de cobro
+        // Gestiones agrupadas por venta
         $gestiones = GestionCobro::where('cliente_id', $id)
-            ->with('venta:id,numero_venta,total,fecha_venta')
-            ->orderBy('fecha_vencimiento')
-            ->get()
-            ->map(fn ($g) => [
-                'id' => $g->id,
-                'venta' => $g->venta?->numero_venta,
-                'cuota' => "{$g->numero_cuota}/{$g->total_cuotas}",
-                'monto_cuota' => $g->monto_cuota,
-                'monto_pagado' => $g->monto_pagado,
-                'saldo_cuota' => round($g->monto_cuota - $g->monto_pagado, 2),
-                'fecha_vencimiento' => $g->fecha_vencimiento->format('d/m/Y'),
-                'estado' => $g->estado,
-                'vencida' => $g->fecha_vencimiento->isPast() && $g->estado !== 'cobrado',
-            ]);
+            ->with('venta:id,numero_venta,total,fecha_venta,estado,monto_pagado,saldo_pendiente')
+            ->orderBy('venta_id')
+            ->orderBy('numero_cuota')
+            ->get();
+
+        $ventas = $gestiones->groupBy('venta_id')->map(function ($cuotas) {
+            $venta    = $cuotas->first()->venta;
+            $vencidas = $cuotas->filter(fn ($g) => $g->fecha_vencimiento->isPast() && $g->estado !== 'cobrado');
+
+            return [
+                'id'              => $venta->id,
+                'numero_venta'    => $venta->numero_venta,
+                'fecha_venta'     => $venta->fecha_venta instanceof \Carbon\Carbon
+                    ? $venta->fecha_venta->format('d/m/Y')
+                    : $venta->fecha_venta,
+                'total'           => (float) $venta->total,
+                'monto_pagado'    => (float) $venta->monto_pagado,
+                'saldo_pendiente' => (float) $venta->saldo_pendiente,
+                'estado'          => $venta->estado,
+                'resumen' => [
+                    'total_cuotas'   => $cuotas->count(),
+                    'cobradas'       => $cuotas->where('estado', 'cobrado')->count(),
+                    'pendientes'     => $cuotas->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count(),
+                    'vencidas'       => $vencidas->count(),
+                    'monto_vencido'  => round($vencidas->sum(fn ($g) => $g->monto_cuota - $g->monto_pagado), 2),
+                ],
+                'cuotas' => $cuotas->map(fn ($g) => [
+                    'id'               => $g->id,
+                    'cuota'            => "{$g->numero_cuota}/{$g->total_cuotas}",
+                    'monto_cuota'      => (float) $g->monto_cuota,
+                    'monto_pagado'     => (float) $g->monto_pagado,
+                    'saldo_pendiente'  => round($g->monto_cuota - $g->monto_pagado, 2),
+                    'fecha_vencimiento'=> $g->fecha_vencimiento->format('d/m/Y'),
+                    'estado'           => $g->estado,
+                    'vencida'          => $g->fecha_vencimiento->isPast() && $g->estado !== 'cobrado',
+                ])->values(),
+            ];
+        })->values();
+
+        $totalPendientes = $gestiones->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count();
+        $totalVencidas   = $gestiones->filter(fn ($g) => $g->fecha_vencimiento->isPast() && $g->estado !== 'cobrado')->count();
 
         return response()->json([
             'cliente' => [
-                'id' => $cliente->id,
-                'nombre' => $cliente->nombre_completo,
-                'dui' => $cliente->dui,
-                'telefono' => $cliente->telefono_normal,
-                'whatsapp' => $cliente->telefono_whatsapp,
-                'direccion' => $cliente->direccion,
-                'saldo_total' => $cliente->saldo,
-                'ruta' => $cliente->rutaCobro?->nombre,
+                'id'             => $cliente->id,
+                'nombre'         => $cliente->nombre_completo,
+                'dui'            => $cliente->dui,
+                'codigo_anterior'=> $cliente->codigo_anterior,
+                'telefono'       => $cliente->telefono_normal,
+                'whatsapp'       => $cliente->telefono_whatsapp,
+                'direccion'      => $cliente->direccion,
+                'saldo_total'    => (float) $cliente->saldo,
+                'ruta'           => $cliente->rutaCobro?->nombre,
             ],
             'resumen' => [
-                'total_cuotas' => $gestiones->count(),
-                'pendientes' => $gestiones->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count(),
-                'cobradas' => $gestiones->where('estado', 'cobrado')->count(),
-                'vencidas' => $gestiones->where('vencida', true)->count(),
+                'total_ventas'   => $ventas->count(),
+                'cuotas_pendientes' => $totalPendientes,
+                'cuotas_vencidas'   => $totalVencidas,
             ],
-            'gestiones' => $gestiones,
+            'ventas' => $ventas,
         ]);
     }
 
@@ -276,6 +372,152 @@ class CobroController extends Controller
             'cliente_id' => $id,
             'total_pendiente' => $gestiones->sum('saldo_pendiente'),
             'gestiones' => $gestiones,
+        ]);
+    }
+
+    // ── POST /cobros/clientes/{id}/pagar ─────────────────────────────────────
+
+    #[OA\Post(
+        path: '/cobros/clientes/{id}/pagar',
+        summary: 'Registrar pago directo a un cliente (opcionalmente a una venta específica)',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['monto', 'metodo_pago', 'venta_id'],
+                properties: [
+                    new OA\Property(property: 'monto', type: 'number', format: 'float', example: 14.00),
+                    new OA\Property(property: 'metodo_pago', type: 'string', enum: ['efectivo', 'transferencia', 'cheque', 'deposito']),
+                    new OA\Property(property: 'venta_id', type: 'integer', example: 20, description: 'ID de la venta a la que se aplica el pago'),
+                    new OA\Property(property: 'referencia', type: 'string', nullable: true),
+                    new OA\Property(property: 'observaciones', type: 'string', nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Pago registrado'),
+            new OA\Response(response: 404, description: 'No hay cuotas pendientes'),
+            new OA\Response(response: 403, description: 'Cliente no pertenece a tus rutas o venta no pertenece al cliente'),
+            new OA\Response(response: 422, description: 'Validación fallida'),
+        ],
+    )]
+    public function pagarCliente(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'monto'         => 'required|numeric|min:0.01',
+            'metodo_pago'   => 'required|in:efectivo,transferencia,cheque,deposito',
+            'venta_id'      => 'required|integer|exists:ventas,id',
+            'referencia'    => 'nullable|string|max:100',
+            'observaciones' => 'nullable|string|max:500',
+        ]);
+
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $cliente = $this->clienteDeRuta($id, $cobrador);
+        if (! $cliente) {
+            return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
+        }
+
+        $monto = (float) $data['monto'];
+        $ventaId = (int) $data['venta_id'];
+
+        // Validar que la venta pertenece al cliente
+        $venta = \App\Models\Venta::where('id', $ventaId)
+            ->where('cliente_id', $id)
+            ->first();
+        if (! $venta) {
+            return response()->json(['mensaje' => 'Esta venta no pertenece al cliente.'], 403);
+        }
+
+        // Validar que no exceda el saldo de la venta
+        $saldoVenta = (float) $venta->saldo_pendiente;
+        if ($monto > $saldoVenta) {
+            throw ValidationException::withMessages([
+                'monto' => "El monto \${$monto} supera el saldo pendiente de esta venta (\${$saldoVenta}).",
+            ]);
+        }
+
+        $result = DB::transaction(function () use ($id, $monto, $data, $ventaId) {
+            $gestiones = GestionCobro::where('cliente_id', $id)
+                ->where('venta_id', $ventaId)
+                ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                ->orderBy('fecha_vencimiento')
+                ->orderBy('numero_cuota')
+                ->with('venta')
+                ->get();
+
+            $restante      = $monto;
+            $cuotasPagadas = [];
+
+            foreach ($gestiones as $gestion) {
+                if ($restante <= 0) break;
+
+                $saldoCuota = round($gestion->monto_cuota - $gestion->monto_pagado, 2);
+                $aplicar    = min($restante, $saldoCuota);
+
+                PagoVenta::create([
+                    'venta_id'      => $gestion->venta_id,
+                    'cliente_id'    => $id,
+                    'monto'         => $aplicar,
+                    'fecha_pago'    => today(),
+                    'metodo_pago'   => $data['metodo_pago'],
+                    'referencia'    => $data['referencia'] ?? null,
+                    'observaciones' => $data['observaciones'] ?? null,
+                    'user_id'       => auth()->id(),
+                ]);
+
+                $gestion->increment('monto_pagado', $aplicar);
+                $gestion->refresh();
+                $estadoCuota = $gestion->monto_pagado >= $gestion->monto_cuota ? 'cobrado' : 'parcialmente_cobrado';
+                $gestion->update(['estado' => $estadoCuota]);
+
+                $venta = $gestion->venta;
+                $venta->increment('monto_pagado', $aplicar);
+                $venta->decrement('saldo_pendiente', min($aplicar, $venta->saldo_pendiente));
+                $venta->refresh();
+                if ($venta->saldo_pendiente <= 0) {
+                    $venta->update(['estado' => 'completada']);
+                }
+
+                $cuotasPagadas[] = [
+                    'id'              => $gestion->id,
+                    'cuota'           => "{$gestion->numero_cuota}/{$gestion->total_cuotas}",
+                    'monto_aplicado'  => round($aplicar, 2),
+                    'saldo_pendiente' => round($gestion->monto_cuota - $gestion->monto_pagado, 2),
+                    'estado'          => $estadoCuota,
+                ];
+
+                $restante = round($restante - $aplicar, 2);
+            }
+
+            $proxima = GestionCobro::where('cliente_id', $id)
+                ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                ->orderBy('fecha_vencimiento')
+                ->orderBy('numero_cuota')
+                ->first();
+
+            return compact('cuotasPagadas', 'proxima');
+        });
+
+        return response()->json([
+            'mensaje'       => 'Pago registrado y distribuido en ' . count($result['cuotasPagadas']) . ' cuota(s).',
+            'monto_total'   => $monto,
+            'cuotas_pagadas' => $result['cuotasPagadas'],
+            'proxima_cuota' => $result['proxima'] ? [
+                'id'               => $result['proxima']->id,
+                'cuota'            => "{$result['proxima']->numero_cuota}/{$result['proxima']->total_cuotas}",
+                'monto_cuota'      => $result['proxima']->monto_cuota,
+                'saldo_pendiente'  => round($result['proxima']->monto_cuota - $result['proxima']->monto_pagado, 2),
+                'fecha_vencimiento'=> $result['proxima']->fecha_vencimiento->format('d/m/Y'),
+                'estado'           => $result['proxima']->estado,
+            ] : null,
         ]);
     }
 

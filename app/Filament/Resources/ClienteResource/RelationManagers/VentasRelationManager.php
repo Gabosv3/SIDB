@@ -67,7 +67,7 @@ class VentasRelationManager extends RelationManager
                     ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('estado')
-                    ->label('Estado')
+                    ->label('Estado venta')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'pendiente'  => 'warning',
@@ -75,6 +75,50 @@ class VentasRelationManager extends RelationManager
                         'cancelada'  => 'danger',
                         'devuelta'   => 'info',
                         default      => 'gray',
+                    }),
+
+                // ── Estado de cuotas ──────────────────────────────────────────
+                Tables\Columns\TextColumn::make('estado_cuotas_badge')
+                    ->label('Cuotas')
+                    ->badge()
+                    ->getStateUsing(function ($record): string {
+                        if ((float) $record->saldo_pendiente <= 0) return 'completado';
+                        $info = $record->estadoCuotas();
+                        return match ($info['estado']) {
+                            'adelantado' => "adelantado_{$info['diferencia']}",
+                            'atrasado'   => "atrasado_{$info['diferencia']}",
+                            'al_dia'     => 'al_dia',
+                            default      => 'completado',
+                        };
+                    })
+                    ->formatStateUsing(function ($state, $record): string {
+                        if ((float) $record->saldo_pendiente <= 0) return '✓ Completado';
+                        $info = $record->estadoCuotas();
+                        return match ($info['estado']) {
+                            'adelantado' => "▲ Adelantado {$info['diferencia']}",
+                            'atrasado'   => "▼ Atrasado {$info['diferencia']}",
+                            'al_dia'     => '● Al día',
+                            default      => '✓ Completado',
+                        };
+                    })
+                    ->color(function ($state): string {
+                        if (str_starts_with($state, 'atrasado'))   return 'danger';
+                        if (str_starts_with($state, 'adelantado')) return 'success';
+                        if ($state === 'al_dia')                    return 'info';
+                        return 'gray';
+                    })
+                    ->tooltip(function ($record): string {
+                        $info = $record->estadoCuotas();
+                        $txt  = "Cobradas: {$info['cuotas_cobradas']} | ";
+                        $txt .= "Esperadas hoy: {$info['cuotas_esperadas']} | ";
+                        $txt .= "Pendientes: {$info['cuotas_pendientes']}";
+                        if ($info['parcial_numero']) {
+                            $txt .= " | Cuota #{$info['parcial_numero']} parcial: \${$info['parcial_pagado']} de \${$info['parcial_total']}";
+                        }
+                        if ($info['proxima_fecha']) {
+                            $txt .= " | Próxima: {$info['proxima_fecha']}";
+                        }
+                        return $txt;
                     }),
             ])
             ->filters([

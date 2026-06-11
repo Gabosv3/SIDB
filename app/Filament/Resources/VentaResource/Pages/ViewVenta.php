@@ -129,38 +129,26 @@ class ViewVenta extends ViewRecord
                                     TextEntry::make('dias_credito')
                                         ->label('Cuotas')
                                         ->formatStateUsing(function ($record) {
-                                            $cuotas = $record->detalles
-                                                ->pluck('cuotas')
-                                                ->filter(fn ($c) => $c !== null)
-                                                ->unique()
-                                                ->values();
-
-                                            if ($cuotas->count() === 1) {
-                                                return $cuotas->first() . ' cuotas';
-                                            } elseif ($cuotas->count() > 1) {
-                                                return 'Mixto (' . $cuotas->implode(', ') . ')';
+                                            $total    = $record->gestionesCobro()->count();
+                                            $cobradas = $record->gestionesCobro()->where('estado', 'cobrado')->count();
+                                            $pendientes = $total - $cobradas;
+                                            if ($total > 0) {
+                                                return "{$total} cuotas ({$cobradas} cobradas, {$pendientes} pendientes)";
                                             }
-
-                                            return ($record->dias_credito ?? 0) . ' días';
+                                            return '—';
                                         })
                                         ->placeholder('—'),
 
                                     TextEntry::make('fecha_pago_limite')
                                         ->label('Plazo')
                                         ->formatStateUsing(function ($record) {
-                                            $cuotas = $record->detalles
-                                                ->pluck('cuotas')
-                                                ->filter(fn ($c) => $c !== null)
-                                                ->unique()
-                                                ->values();
-
-                                            if ($cuotas->count() === 1) {
-                                                $meses = $cuotas->first();
-                                                return $meses . ' mes' . ($meses > 1 ? 'es' : '');
-                                            } elseif ($cuotas->count() > 1) {
-                                                return 'Mixto';
+                                            // La última cuota principal (cuota 20) define el plazo
+                                            $ultimaCuota = $record->gestionesCobro()
+                                                ->where('numero_cuota', 20)
+                                                ->first();
+                                            if ($ultimaCuota) {
+                                                return \Carbon\Carbon::parse($ultimaCuota->fecha_vencimiento)->format('d/m/Y');
                                             }
-
                                             return $record->fecha_pago_limite?->format('d/m/Y') ?? '—';
                                         })
                                         ->placeholder('—')
@@ -181,6 +169,12 @@ class ViewVenta extends ViewRecord
                                 ->icon('heroicon-m-user')
                                 ->columns(3)
                                 ->components([
+                                    TextEntry::make('cliente.codigo_anterior')
+                                        ->label('Código anterior')
+                                        ->badge()
+                                        ->color('gray')
+                                        ->placeholder('—'),
+
                                     TextEntry::make('cliente.nombre')
                                         ->label('Nombre')
                                         ->formatStateUsing(fn ($record) =>

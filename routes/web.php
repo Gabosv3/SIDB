@@ -8,6 +8,17 @@ Route::get('/', function () {
     return redirect('/administrativo');
 });
 
+// Exportación de clientes
+Route::middleware(['web', 'auth'])->prefix('clientes')->name('clientes.')->group(function () {
+    Route::get('/exportar/csv', 'App\Http\Controllers\ClienteExportController@exportarSimpleCSV')->name('exportar.csv');
+});
+
+// Pagos y Ubicación (masivo)
+Route::middleware(['web', 'auth'])->prefix('pagos-ubicacion')->name('pagos-ubicacion.')->group(function () {
+    Route::get('/', 'App\Http\Controllers\PagosYUbicacionController@index')->name('index');
+    Route::post('/procesar', 'App\Http\Controllers\PagosYUbicacionController@procesar')->name('procesar');
+});
+
 // Asignaciones diarias (rutas protegidas por autenticación)
 Route::middleware(['web', 'auth'])->prefix('asignaciones-diarias')->name('asignacion-diaria.')->group(function () {
     Route::get('{tenant}/crear', 'App\Http\Controllers\AsignacionDiariaController@crear')

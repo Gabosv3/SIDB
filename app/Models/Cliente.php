@@ -23,6 +23,7 @@ class Cliente extends Model
 
     protected $fillable = [
         'sucursal_id',
+        'codigo_anterior',
         'nombre',
         'apellido',
         'nombre_conyuge',

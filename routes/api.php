@@ -65,7 +65,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/clientes/{id}', [CobroController::class, 'detalleCliente']);
             Route::get('/clientes/{id}/gestiones-pendientes', [CobroController::class, 'gestionesPendientes']);
 
-            // Registrar pago de cuota
+            // Registrar pago: directo al cliente (aplica a cuota más antigua)
+            Route::post('/clientes/{id}/pagar', [CobroController::class, 'pagarCliente']);
+
+            // Registrar pago: a una gestión específica
             Route::post('/gestiones/{id}/pagar', [CobroController::class, 'pagar']);
         });
     });

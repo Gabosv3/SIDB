@@ -497,6 +497,14 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->searchable()
                     ->weight('semibold'),
 
+                Tables\Columns\TextColumn::make('codigo_anterior')
+                    ->label('Cód. Anterior')
+                    ->searchable()
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('nombre_completo')
                     ->label('Cliente')
                     ->searchable(['nombre', 'apellido'])
@@ -584,10 +592,11 @@ class ClienteResource extends Resource implements HasShieldPermissions
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListClientes::route('/'),
-            'create' => Pages\CreateCliente::route('/create'),
-            'view'   => Pages\ViewCliente::route('/{record}'),
-            'edit'   => Pages\EditCliente::route('/{record}/edit'),
+            'index'    => Pages\ListClientes::route('/'),
+            'create'   => Pages\CreateCliente::route('/create'),
+            'view'     => Pages\ViewCliente::route('/{record}'),
+            'edit'     => Pages\EditCliente::route('/{record}/edit'),
+            'importar' => Pages\ImportarClientes::route('/importar'),
         ];
     }
 }

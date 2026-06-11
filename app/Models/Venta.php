@@ -122,4 +122,80 @@ class Venta extends Model
     {
         return (float) $this->saldo_pendiente > 0;
     }
+
+    /**
+     * Calcula si el cliente va adelantado, atrasado o al día en sus cuotas.
+     *
+     * @return array{
+     *   estado: 'adelantado'|'atrasado'|'al_dia'|'completado',
+     *   diferencia: int,          // cuotas de diferencia (positivo=adelantado, negativo=atrasado)
+     *   cuotas_esperadas: int,    // cuotas que deberían haberse pagado a hoy
+     *   cuotas_cobradas: int,     // cuotas marcadas como cobrado
+     *   cuotas_pendientes: int,   // cuotas que aún faltan
+     *   proxima_fecha: string|null
+     * }
+     */
+    public function estadoCuotas(): array
+    {
+        $hoy = now()->startOfDay();
+
+        $cuotas = $this->gestionesCobro()->orderBy('numero_cuota')->get();
+
+        if ($cuotas->isEmpty()) {
+            return [
+                'estado'           => 'completado',
+                'diferencia'       => 0,
+                'cuotas_esperadas' => 0,
+                'cuotas_cobradas'  => 0,
+                'cuotas_pendientes'=> 0,
+                'proxima_fecha'    => null,
+            ];
+        }
+
+        // Cuántas deberían estar pagadas hoy (fecha_vencimiento <= hoy)
+        $esperadas = $cuotas->filter(
+            fn($c) => \Carbon\Carbon::parse($c->fecha_vencimiento)->startOfDay()->lte($hoy)
+        )->count();
+
+        // Cuántas ya fueron cobradas completas
+        $cobradas   = $cuotas->where('estado', 'cobrado')->count();
+
+        // Cuota parcial (si existe)
+        $parcial = $cuotas->where('estado', 'parcialmente_cobrado')->first();
+
+        // Pendientes (incluyendo la parcial como no terminada)
+        $pendientes = $cuotas->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count();
+
+        // Próxima cuota sin cobrar (parcial primero, luego pendiente)
+        $proxima = $parcial
+            ?? $cuotas->where('estado', 'pendiente')->sortBy('fecha_vencimiento')->first();
+
+        // Diferencia: la cuota parcial cuenta como "en progreso", no como cobrada
+        $diferencia = $cobradas - $esperadas;
+
+        if ($pendientes === 0) {
+            $estado = 'completado';
+        } elseif ($diferencia > 0) {
+            $estado = 'adelantado';
+        } elseif ($diferencia < 0) {
+            $estado = 'atrasado';
+        } else {
+            $estado = 'al_dia';
+        }
+
+        return [
+            'estado'            => $estado,
+            'diferencia'        => abs($diferencia),
+            'cuotas_esperadas'  => $esperadas,
+            'cuotas_cobradas'   => $cobradas,
+            'cuotas_pendientes' => $pendientes,
+            'proxima_fecha'     => $proxima
+                ? \Carbon\Carbon::parse($proxima->fecha_vencimiento)->format('d/m/Y')
+                : null,
+            // Detalle de la cuota parcial
+            'parcial_numero'    => $parcial?->numero_cuota,
+            'parcial_pagado'    => $parcial ? (float) $parcial->monto_pagado : null,
+            'parcial_total'     => $parcial ? (float) $parcial->monto_cuota  : null,
+        ];
+    }
 }

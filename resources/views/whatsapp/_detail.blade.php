@@ -1,6 +1,7 @@
 {{-- Partial SSR: panel derecho de detalles del cliente --}}
 @php
     $cliente = $conversation->cliente;
+    $config = \App\Models\ConfiguracionSistema::instance();
     $cuotas  = \App\Models\GestionCobro::where('cliente_id', $conversation->cliente_id)
         ->whereIn('estado', ['pendiente', 'vencida'])
         ->orderBy('fecha_vencimiento')
@@ -61,3 +62,27 @@
         <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
     </div>
 </div>
+
+@if($config->telefono || $config->correo_contacto || $config->horario)
+<div class="detail-section">
+    <div class="detail-section-title">📞 Contacto de {{ $config->app_name }}</div>
+    @if($config->telefono)
+        <div class="detail-row">
+            <span class="detail-key">Teléfono</span>
+            <span class="detail-val"><a href="tel:{{ $config->telefono }}" style="color:var(--green);text-decoration:none;">{{ $config->telefono }}</a></span>
+        </div>
+    @endif
+    @if($config->correo_contacto)
+        <div class="detail-row">
+            <span class="detail-key">Email</span>
+            <span class="detail-val" style="font-size:11px;"><a href="mailto:{{ $config->correo_contacto }}" style="color:var(--green);text-decoration:none;">{{ $config->correo_contacto }}</a></span>
+        </div>
+    @endif
+    @if($config->horario)
+        <div class="detail-row">
+            <span class="detail-key">Horario</span>
+            <span class="detail-val" style="font-size:11px;">{{ $config->horario }}</span>
+        </div>
+    @endif
+</div>
+@endif

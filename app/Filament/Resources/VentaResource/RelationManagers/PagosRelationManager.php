@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\VentaResource\RelationManagers;
 
-use Filament\Actions;
-use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -17,42 +15,7 @@ class PagosRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        return $schema->components([
-            Forms\Components\TextInput::make('monto')
-                ->label('Monto del Pago')
-                ->numeric()
-                ->prefix('$')
-                ->required()
-                ->minValue(0.01)
-                ->columnSpanFull(),
-
-            Forms\Components\DatePicker::make('fecha_pago')
-                ->label('Fecha de Pago')
-                ->required()
-                ->default(today()),
-
-            Forms\Components\Select::make('metodo_pago')
-                ->label('Método de Pago')
-                ->options([
-                    'efectivo'      => 'Efectivo',
-                    'transferencia' => 'Transferencia',
-                    'cheque'        => 'Cheque',
-                    'deposito'      => 'Depósito',
-                ])
-                ->default('efectivo')
-                ->required(),
-
-            Forms\Components\TextInput::make('referencia')
-                ->label('Referencia / N° de transacción')
-                ->placeholder('Ej: TRF-00123')
-                ->maxLength(100),
-
-            Forms\Components\Textarea::make('observaciones')
-                ->label('Observaciones')
-                ->rows(3)
-                ->maxLength(500)
-                ->columnSpanFull(),
-        ]);
+        return $schema->components([]);
     }
 
     public function table(Table $table): Table
@@ -103,24 +66,9 @@ class PagosRelationManager extends RelationManager
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->headerActions([
-                Actions\CreateAction::make()
-                    ->label('Registrar Pago')
-                    ->mutateFormDataUsing(function (array $data): array {
-                        $data['user_id']    = auth()->id();
-                        $data['cliente_id'] = $this->getOwnerRecord()->cliente_id;
-                        return $data;
-                    }),
-            ])
-            ->actions([
-                Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
-            ])
-            ->bulkActions([
-                Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
-                ]),
-            ])
+            ->headerActions([])
+            ->actions([])
+            ->bulkActions([])
             ->defaultSort('fecha_pago', 'desc');
     }
 }

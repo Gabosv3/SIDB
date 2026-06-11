@@ -350,6 +350,13 @@ class VentaResource extends Resource implements HasShieldPermissions
                     ->dateTime('d/m/Y')
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('cliente.codigo_anterior')
+                    ->label('Cód.')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable(),
+
                 Tables\Columns\TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->formatStateUsing(fn ($record) =>
@@ -410,6 +417,57 @@ class VentaResource extends Resource implements HasShieldPermissions
                     ->label('Saldo')
                     ->money('USD')
                     ->color(fn ($state): string => (float) $state > 0 ? 'danger' : 'success'),
+
+                // ── Estado de cuotas ──────────────────────────────────────────
+                Tables\Columns\TextColumn::make('estado_cuotas')
+                    ->label('Cuotas')
+                    ->badge()
+                    ->getStateUsing(function ($record): string {
+                        if ($record->tipo_pago !== 'credito' || (float) $record->saldo_pendiente <= 0) {
+                            return 'completado';
+                        }
+                        $info = $record->estadoCuotas();
+                        return match ($info['estado']) {
+                            'adelantado' => "adelantado_{$info['diferencia']}",
+                            'atrasado'   => "atrasado_{$info['diferencia']}",
+                            'al_dia'     => 'al_dia',
+                            default      => 'completado',
+                        };
+                    })
+                    ->formatStateUsing(function ($state, $record): string {
+                        if ($record->tipo_pago !== 'credito' || (float) $record->saldo_pendiente <= 0) {
+                            return '✓ Completado';
+                        }
+                        $info = $record->estadoCuotas();
+                        return match ($info['estado']) {
+                            'adelantado' => "▲ Adelantado {$info['diferencia']}",
+                            'atrasado'   => "▼ Atrasado {$info['diferencia']}",
+                            'al_dia'     => '● Al día',
+                            default      => '✓ Completado',
+                        };
+                    })
+                    ->color(function ($state): string {
+                        if (str_starts_with($state, 'atrasado'))   return 'danger';
+                        if (str_starts_with($state, 'adelantado')) return 'success';
+                        if ($state === 'al_dia')                    return 'info';
+                        return 'gray';
+                    })
+                    ->tooltip(function ($record): ?string {
+                        if ($record->tipo_pago !== 'credito') return null;
+                        $info   = $record->estadoCuotas();
+                        $lineas = [
+                            "Esperadas hoy: {$info['cuotas_esperadas']}",
+                            "Cobradas: {$info['cuotas_cobradas']}",
+                            "Pendientes: {$info['cuotas_pendientes']}",
+                        ];
+                        if ($info['parcial_numero']) {
+                            $lineas[] = "Cuota #{$info['parcial_numero']} parcial: \${$info['parcial_pagado']} de \${$info['parcial_total']}";
+                        }
+                        if ($info['proxima_fecha']) {
+                            $lineas[] = "Próxima: {$info['proxima_fecha']}";
+                        }
+                        return implode(' | ', $lineas);
+                    }),
 
                 Tables\Columns\TextColumn::make('vendedor.nombre')
                     ->label('Vendedor')

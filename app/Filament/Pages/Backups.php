@@ -33,21 +33,24 @@ class Backups extends Page
     /** Lista de backups existentes */
     public function getBackups(): array
     {
-        $disk   = Storage::disk('local');
-        $folder = config('backup.backup.name', config('app.name'));
-        $files  = collect($disk->files($folder))
-            ->filter(fn ($f) => str_ends_with($f, '.zip'))
-            ->sortByDesc(fn ($f) => $disk->lastModified($f))
+        $backupDir = storage_path('app/backups');
+        if (!is_dir($backupDir)) {
+            return [];
+        }
+
+        $files = collect(glob($backupDir . '/*.{sql,sql.gz,zip}', GLOB_BRACE))
+            ->sortByDesc(fn ($f) => filemtime($f))
             ->values();
 
-        return $files->map(function ($file) use ($disk) {
+        return $files->map(function ($filepath) {
+            $size = filesize($filepath);
             return [
-                'name'         => basename($file),
-                'path'         => $file,
-                'size'         => Number::fileSize($disk->size($file), precision: 1),
-                'size_bytes'   => $disk->size($file),
-                'date'         => Carbon::createFromTimestamp($disk->lastModified($file))->format('d/m/Y H:i'),
-                'age'          => Carbon::createFromTimestamp($disk->lastModified($file))->diffForHumans(),
+                'name'       => basename($filepath),
+                'path'       => $filepath,
+                'size'       => Number::fileSize($size, precision: 1),
+                'size_bytes' => $size,
+                'date'       => Carbon::createFromTimestamp(filemtime($filepath))->format('d/m/Y H:i'),
+                'age'        => Carbon::createFromTimestamp(filemtime($filepath))->diffForHumans(),
             ];
         })->toArray();
     }
@@ -63,11 +66,11 @@ class Backups extends Page
                 ->color('primary')
                 ->requiresConfirmation()
                 ->modalHeading('¿Crear un nuevo backup?')
-                ->modalDescription('Esto ejecutará un backup completo de la base de datos y los archivos. Puede tardar unos minutos.')
+                ->modalDescription('Esto ejecutará un backup de la base de datos. Puede tardar unos minutos.')
                 ->modalSubmitActionLabel('Sí, crear backup')
                 ->action(function () {
                     try {
-                        Artisan::call('backup:run', ['--only-db' => true]);
+                        Artisan::call('backup:database');
                         Notification::make()
                             ->title('Backup creado exitosamente')
                             ->success()
@@ -91,9 +94,9 @@ class Backups extends Page
                 ->modalSubmitActionLabel('Sí, crear backup completo')
                 ->action(function () {
                     try {
-                        Artisan::call('backup:run');
+                        Artisan::call('backup:database');
                         Notification::make()
-                            ->title('Backup completo creado')
+                            ->title('Backup creado')
                             ->success()
                             ->send();
                     } catch (\Throwable $e) {
@@ -134,13 +137,17 @@ class Backups extends Page
     /** Descargar un backup */
     public function downloadBackup(string $path): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        return Storage::disk('local')->download($path);
+        return response()->streamDownload(function () use ($path) {
+            readfile($path);
+        }, basename($path));
     }
 
     /** Eliminar un backup individual */
     public function deleteBackup(string $path): void
     {
-        Storage::disk('local')->delete($path);
+        if (file_exists($path)) {
+            unlink($path);
+        }
         Notification::make()
             ->title('Backup eliminado')
             ->success()
