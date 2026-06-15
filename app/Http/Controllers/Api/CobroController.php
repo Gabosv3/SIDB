@@ -79,7 +79,7 @@ class CobroController extends Controller
             ->withCount('clientes')
             ->with([
                 'clientes' => fn ($q) => $q
-                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'ruta_cobro_id')
+                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'latitud', 'longitud', 'ruta_cobro_id')
                     ->with(['ventas' => fn ($v) => $v
                         ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
                         ->where('saldo_pendiente', '>', 0)
@@ -127,6 +127,10 @@ class CobroController extends Controller
                     'saldo_total' => (float) $c->saldo,
                     'cuotas_vencidas' => (int) $c->cuotas_vencidas,
                     'para_estar_al_dia' => round((float) $c->para_estar_al_dia, 2),
+                    'ubicacion' => [
+                        'latitud' => (float) $c->latitud,
+                        'longitud' => (float) $c->longitud,
+                    ],
                     'ventas' => $c->ventas->map(fn ($v) => [
                         'id'              => $v->id,
                         'numero_venta'    => $v->numero_venta,
@@ -175,7 +179,7 @@ class CobroController extends Controller
 
         $clientes = $ruta->clientes()
             ->where('activo', true)
-            ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento', 'ruta_cobro_id')
+            ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento', 'latitud', 'longitud', 'ruta_cobro_id')
             ->with(['ventas' => fn ($v) => $v
                 ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
                 ->where('saldo_pendiente', '>', 0)
@@ -209,6 +213,10 @@ class CobroController extends Controller
                 'cuotas_vencidas' => (int) $c->cuotas_vencidas,
                 'para_estar_al_dia' => round((float) $c->para_estar_al_dia, 2),
                 'direccion' => "{$c->direccion}, {$c->municipio}, {$c->departamento}",
+                'ubicacion' => [
+                    'latitud' => (float) $c->latitud,
+                    'longitud' => (float) $c->longitud,
+                ],
                 'ventas' => $c->ventas->map(fn ($v) => [
                     'id'              => $v->id,
                     'numero_venta'    => $v->numero_venta,
