@@ -650,4 +650,103 @@ class CobroController extends Controller
             'venta_saldo' => $result['venta_saldo'],
         ]);
     }
+
+    #[OA\Get(
+        path: '/cobros/resumen-dia',
+        summary: 'Resumen de cobros del día por cobrador',
+        description: 'Muestra cuánto cobró cada cobrador en una fecha (default: hoy). Incluye desglose por método de pago, número de pagos realizados y clientes visitados.',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(
+                name: 'fecha',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'string', format: 'date', example: '2026-06-15'),
+                description: 'Fecha a consultar. Default: hoy.'
+            ),
+            new OA\Parameter(
+                name: 'cobrador_id',
+                in: 'query',
+                required: false,
+                schema: new OA\Schema(type: 'integer'),
+                description: 'Filtrar por un cobrador específico.'
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Resumen por cobrador'),
+            new OA\Response(response: 401, description: 'No autenticado'),
+        ],
+    )]
+    public function resumenDia(Request $request): JsonResponse
+    {
+        $fecha      = $request->filled('fecha') ? $request->date('fecha') : today();
+        $cobradorId = $request->integer('cobrador_id') ?: null;
+
+        // Todos los cobradores activos (o uno específico)
+        $cobradores = Cobrador::with('user')
+            ->where('activo', true)
+            ->when($cobradorId, fn ($q) => $q->where('id', $cobradorId))
+            ->get();
+
+        $resumen = $cobradores->map(function ($cobrador) use ($fecha) {
+            // Pagos del día registrados por el user de este cobrador
+            $pagos = PagoVenta::where('user_id', $cobrador->user_id)
+                ->whereDate('fecha_pago', $fecha)
+                ->selectRaw('
+                    COUNT(*)                    AS total_pagos,
+                    COUNT(DISTINCT cliente_id)  AS clientes_visitados,
+                    SUM(monto)                  AS total_cobrado
+                ')
+                ->first();
+
+            // Desglose por método de pago
+            $porMetodo = PagoVenta::where('user_id', $cobrador->user_id)
+                ->whereDate('fecha_pago', $fecha)
+                ->selectRaw('metodo_pago, COUNT(*) AS cantidad, SUM(monto) AS monto')
+                ->groupBy('metodo_pago')
+                ->get()
+                ->mapWithKeys(fn ($row) => [
+                    $row->metodo_pago => [
+                        'cantidad' => (int) $row->cantidad,
+                        'monto'    => round((float) $row->monto, 2),
+                    ],
+                ]);
+
+            // Detalle de cada pago
+            $detalle = PagoVenta::where('user_id', $cobrador->user_id)
+                ->whereDate('fecha_pago', $fecha)
+                ->with('cliente:id,nombre,apellido', 'venta:id,numero_venta')
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn ($p) => [
+                    'cliente'      => $p->cliente?->nombre_completo,
+                    'venta'        => $p->venta?->numero_venta,
+                    'monto'        => (float) $p->monto,
+                    'metodo_pago'  => $p->metodo_pago,
+                    'referencia'   => $p->referencia,
+                    'hora'         => $p->created_at->format('H:i'),
+                ]);
+
+            return [
+                'cobrador_id'       => $cobrador->id,
+                'cobrador'          => trim(($cobrador->nombre ?? '') . ' ' . ($cobrador->apellido ?? '')),
+                'total_cobrado'     => round((float) ($pagos->total_cobrado ?? 0), 2),
+                'total_pagos'       => (int) ($pagos->total_pagos ?? 0),
+                'clientes_visitados' => (int) ($pagos->clientes_visitados ?? 0),
+                'por_metodo'        => $porMetodo,
+                'detalle'           => $detalle,
+            ];
+        });
+
+        return response()->json([
+            'fecha'    => $fecha->toDateString(),
+            'cobradores' => $resumen,
+            'totales'  => [
+                'total_cobrado'     => round($resumen->sum('total_cobrado'), 2),
+                'total_pagos'       => $resumen->sum('total_pagos'),
+                'clientes_visitados' => $resumen->sum('clientes_visitados'),
+            ],
+        ]);
+    }
 }

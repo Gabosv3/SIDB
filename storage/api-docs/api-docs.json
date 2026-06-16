@@ -269,17 +269,18 @@
                 "tags": [
                     "Clientes"
                 ],
-                "summary": "Listar clientes activos",
-                "description": "Permite buscar por nombre, apellido, DUI o teléfono.",
+                "summary": "Listar y buscar clientes activos",
+                "description": "Permite buscar por nombre, apellido, DUI, código anterior o teléfono. Devuelve resultados paginados.",
                 "operationId": "b910fa16d64cfa03d6400b20f5ffbf0d",
                 "parameters": [
                     {
                         "name": "q",
                         "in": "query",
-                        "description": "Buscar por nombre, apellido, DUI o teléfono",
+                        "description": "Buscar por nombre, apellido, DUI, código anterior o teléfono",
                         "required": false,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "example": "7338"
                         }
                     },
                     {
@@ -337,6 +338,213 @@
                     },
                     "401": {
                         "description": "No autenticado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Crear un nuevo cliente",
+                "operationId": "c39fe211a2fc59a9150faf90e77f5568",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "nombre",
+                                    "apellido"
+                                ],
+                                "properties": {
+                                    "nombre": {
+                                        "type": "string",
+                                        "example": "Maria"
+                                    },
+                                    "apellido": {
+                                        "type": "string",
+                                        "example": "Hernandez"
+                                    },
+                                    "dui": {
+                                        "type": "string",
+                                        "example": "02741470-9"
+                                    },
+                                    "codigo_anterior": {
+                                        "type": "string",
+                                        "example": "7338"
+                                    },
+                                    "telefono_normal": {
+                                        "type": "string",
+                                        "example": "77856915"
+                                    },
+                                    "telefono_whatsapp": {
+                                        "type": "string",
+                                        "example": "77856915"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "example": "maria@email.com"
+                                    },
+                                    "direccion": {
+                                        "type": "string"
+                                    },
+                                    "departamento": {
+                                        "type": "string"
+                                    },
+                                    "municipio": {
+                                        "type": "string"
+                                    },
+                                    "latitud": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 13.945
+                                    },
+                                    "longitud": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": -87.87
+                                    },
+                                    "ruta_cobro_id": {
+                                        "type": "integer"
+                                    },
+                                    "foto_casa": {
+                                        "description": "Foto de la casa (JPG, PNG, WEBP, máx 4MB)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Cliente creado"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/clientes/{id}/ubicacion": {
+            "patch": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Actualizar latitud y longitud de un cliente",
+                "operationId": "6f6e68210e8ae63aa58615e98dce1dc0",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "latitud",
+                                    "longitud"
+                                ],
+                                "properties": {
+                                    "latitud": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 13.945
+                                    },
+                                    "longitud": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": -87.87
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Ubicación actualizada"
+                    },
+                    "404": {
+                        "description": "Cliente no encontrado"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/clientes/{id}/telefonos": {
+            "patch": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Actualizar teléfonos de un cliente",
+                "operationId": "f783e7ab7a8e066fbb31d3bc1e1be45c",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "telefono_normal": {
+                                        "type": "string",
+                                        "example": "75123456"
+                                    },
+                                    "telefono_whatsapp": {
+                                        "type": "string",
+                                        "example": "75123456"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Teléfonos actualizados"
+                    },
+                    "404": {
+                        "description": "Cliente no encontrado"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
                     }
                 },
                 "security": [
@@ -509,6 +717,88 @@
                 ]
             }
         },
+        "/cobros/clientes/{id}/pagar": {
+            "post": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Registrar pago directo a un cliente (opcionalmente a una venta específica)",
+                "operationId": "8427107a942f00171b38c1159a31e6b3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "monto",
+                                    "metodo_pago",
+                                    "venta_id"
+                                ],
+                                "properties": {
+                                    "monto": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 14
+                                    },
+                                    "metodo_pago": {
+                                        "type": "string",
+                                        "enum": [
+                                            "efectivo",
+                                            "transferencia",
+                                            "cheque",
+                                            "deposito"
+                                        ]
+                                    },
+                                    "venta_id": {
+                                        "description": "ID de la venta a la que se aplica el pago",
+                                        "type": "integer",
+                                        "example": 20
+                                    },
+                                    "referencia": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "observaciones": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pago registrado"
+                    },
+                    "404": {
+                        "description": "No hay cuotas pendientes"
+                    },
+                    "403": {
+                        "description": "Cliente no pertenece a tus rutas o venta no pertenece al cliente"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/cobros/gestiones/{id}/pagar": {
             "post": {
                 "tags": [
@@ -573,6 +863,51 @@
                     },
                     "422": {
                         "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/resumen-dia": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Resumen de cobros del día por cobrador",
+                "description": "Muestra cuánto cobró cada cobrador en una fecha (default: hoy). Incluye desglose por método de pago, número de pagos realizados y clientes visitados.",
+                "operationId": "4e7f17c614f961ee2ec1c2aa99a12676",
+                "parameters": [
+                    {
+                        "name": "fecha",
+                        "in": "query",
+                        "description": "Fecha a consultar. Default: hoy.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-06-15"
+                        }
+                    },
+                    {
+                        "name": "cobrador_id",
+                        "in": "query",
+                        "description": "Filtrar por un cobrador específico.",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Resumen por cobrador"
+                    },
+                    "401": {
+                        "description": "No autenticado"
                     }
                 },
                 "security": [
@@ -921,6 +1256,409 @@
                     },
                     "404": {
                         "description": "No encontrado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/reintegros/candidatos": {
+            "get": {
+                "tags": [
+                    "Reintegros"
+                ],
+                "summary": "Ventas candidatas a reintegro por cuotas vencidas",
+                "description": "Devuelve ventas con cuotas vencidas hace N días (default 30), con los productos de la venta y datos del cliente. Filtra por sucursal del usuario autenticado.",
+                "operationId": "90d3820952d2c97514e465acaf25f940",
+                "parameters": [
+                    {
+                        "name": "dias_vencidos",
+                        "in": "query",
+                        "description": "Días mínimos de vencimiento para considerar candidato",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista paginada de candidatos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "current_page": {
+                                            "type": "integer"
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "venta_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "numero_venta": {
+                                                        "type": "string"
+                                                    },
+                                                    "fecha_venta": {
+                                                        "type": "string",
+                                                        "format": "date"
+                                                    },
+                                                    "saldo_pendiente": {
+                                                        "type": "number"
+                                                    },
+                                                    "cuotas_vencidas": {
+                                                        "type": "integer"
+                                                    },
+                                                    "monto_adeudado_vencido": {
+                                                        "type": "number"
+                                                    },
+                                                    "ya_en_reintegro": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "cliente": {
+                                                        "type": "object"
+                                                    },
+                                                    "productos": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/reintegros/vendedores": {
+            "get": {
+                "tags": [
+                    "Reintegros"
+                ],
+                "summary": "Listar vendedores disponibles para asignar reintegro",
+                "operationId": "381eee24b119752de52a037e0f438e0e",
+                "responses": {
+                    "200": {
+                        "description": "Lista de vendedores activos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "vendedores": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "codigo": {
+                                                        "type": "string"
+                                                    },
+                                                    "nombre": {
+                                                        "type": "string"
+                                                    },
+                                                    "telefono": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/reintegros": {
+            "get": {
+                "tags": [
+                    "Reintegros"
+                ],
+                "summary": "Listar reintegros del vendedor autenticado",
+                "operationId": "363c5c9428130c82876505c92e0d3e18",
+                "parameters": [
+                    {
+                        "name": "estado",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pendiente",
+                                "en_proceso",
+                                "recuperado",
+                                "no_recuperado"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista paginada de reintegros"
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Reintegros"
+                ],
+                "summary": "Crear reintegro sin asignación",
+                "description": "Registra una venta para reintegro. Queda sin vendedor asignado (pendiente). Un administrador asigna el vendedor desde el panel Filament.",
+                "operationId": "17a6645ae2b35bdc7e3ca965768384c9",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "venta_id"
+                                ],
+                                "properties": {
+                                    "venta_id": {
+                                        "description": "ID de la venta a recuperar",
+                                        "type": "integer",
+                                        "example": 12
+                                    },
+                                    "motivo": {
+                                        "type": "string",
+                                        "example": "4 cuotas sin pagar, cliente no contesta"
+                                    },
+                                    "observaciones": {
+                                        "type": "string",
+                                        "example": "Verificar que los productos estén completos"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Reintegro creado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "mensaje": {
+                                            "type": "string"
+                                        },
+                                        "reintegro": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "venta_id": {
+                                                    "type": "integer"
+                                                },
+                                                "numero_venta": {
+                                                    "type": "string"
+                                                },
+                                                "cliente": {
+                                                    "type": "string"
+                                                },
+                                                "vendedor": {
+                                                    "type": "string"
+                                                },
+                                                "estado": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "pendiente",
+                                                        "en_proceso",
+                                                        "recuperado",
+                                                        "no_recuperado"
+                                                    ]
+                                                },
+                                                "monto_adeudado": {
+                                                    "type": "number"
+                                                },
+                                                "cuotas_vencidas": {
+                                                    "type": "integer"
+                                                },
+                                                "fecha_asignacion": {
+                                                    "type": "string",
+                                                    "format": "date"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    },
+                    "422": {
+                        "description": "Sin ruta asignada, reintegro ya activo, o venta sin saldo pendiente"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/reintegros/{id}/estado": {
+            "patch": {
+                "tags": [
+                    "Reintegros"
+                ],
+                "summary": "Actualizar estado de un reintegro",
+                "description": "Cambia el estado luego de la visita al cliente. Al marcar recuperado o no_recuperado se registra la fecha de recuperación automáticamente.",
+                "operationId": "2afcc97861932b57e42135caf0aa976d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "estado"
+                                ],
+                                "properties": {
+                                    "estado": {
+                                        "type": "string",
+                                        "example": "recuperado",
+                                        "enum": [
+                                            "en_proceso",
+                                            "recuperado",
+                                            "no_recuperado"
+                                        ]
+                                    },
+                                    "observaciones": {
+                                        "type": "string",
+                                        "example": "Se recogieron todos los productos en buen estado"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Estado actualizado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "mensaje": {
+                                            "type": "string"
+                                        },
+                                        "reintegro": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "estado": {
+                                                    "type": "string"
+                                                },
+                                                "fecha_recuperacion": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado"
+                    },
+                    "404": {
+                        "description": "Reintegro no encontrado"
+                    },
+                    "422": {
+                        "description": "Estado inválido"
                     }
                 },
                 "security": [
@@ -1507,6 +2245,10 @@
         {
             "name": "Productos",
             "description": "Productos"
+        },
+        {
+            "name": "Reintegros",
+            "description": "Reintegros"
         },
         {
             "name": "Ventas",

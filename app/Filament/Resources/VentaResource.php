@@ -355,14 +355,24 @@ class VentaResource extends Resource implements HasShieldPermissions
                     ->placeholder('—')
                     ->badge()
                     ->color('gray')
-                    ->searchable(),
+                    ->searchable(query: fn ($query, $search) =>
+                        $query->whereHas('cliente', fn ($q) =>
+                            $q->where('codigo_anterior', 'like', "%{$search}%")
+                        )
+                    ),
 
                 Tables\Columns\TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->formatStateUsing(fn ($record) =>
                         ($record->cliente?->nombre ?? '') . ' ' . ($record->cliente?->apellido ?? '')
                     )
-                    ->searchable(['clientes.nombre', 'clientes.apellido'])
+                    ->searchable(query: fn ($query, $search) =>
+                        $query->whereHas('cliente', fn ($q) =>
+                            $q->where('nombre', 'like', "%{$search}%")
+                              ->orWhere('apellido', 'like', "%{$search}%")
+                              ->orWhere('codigo_anterior', 'like', "%{$search}%")
+                        )
+                    )
                     ->sortable()
                     ->weight('semibold'),
 

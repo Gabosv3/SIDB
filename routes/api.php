@@ -5,9 +5,9 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CobroController;
-
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\ProductoController;
+use App\Http\Controllers\Api\ReintegroController;
 use App\Http\Controllers\Api\VentaController;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/productos/{id}/metodos-pago', [ProductoController::class, 'paymentOptions']);
         Route::get('/productos/{id}', [ProductoController::class, 'show']);
         Route::get('/clientes', [ClienteController::class, 'index']);
+        Route::post('/clientes', [ClienteController::class, 'store']);
+        Route::patch('/clientes/{id}/ubicacion', [ClienteController::class, 'actualizarUbicacion']);
+        Route::patch('/clientes/{id}/telefonos', [ClienteController::class, 'actualizarTelefonos']);
         Route::get('/clientes/{id}', [ClienteController::class, 'show']);
 
         // ── Consulta de ventas (solo del propio usuario) ──────────────────────
@@ -51,6 +54,20 @@ Route::middleware('auth:sanctum')->group(function () {
             // Consulta de asignación del día (solo lectura, el admin la crea en Filament)
             Route::get('/asignacion/hoy', [AsignacionController::class, 'hoy']);
             Route::post('/asignaciones/{id}/liquidar', [AsignacionController::class, 'liquidar']);
+        });
+
+        // ── Reintegros (vendedores y cobradores con acceso POS) ──────────────
+        Route::prefix('reintegros')->group(function () {
+            Route::get('/candidatos', [ReintegroController::class, 'candidatos']);
+            Route::get('/vendedores', [ReintegroController::class, 'vendedores']);
+            Route::get('/', [ReintegroController::class, 'index']);
+            Route::post('/', [ReintegroController::class, 'store']);
+            Route::patch('/{id}/estado', [ReintegroController::class, 'actualizarEstado']);
+        });
+
+        // ── Cobros: reportes accesibles por cualquier perfil POS ─────────────
+        Route::prefix('cobros')->group(function () {
+            Route::get('/resumen-dia', [CobroController::class, 'resumenDia']);
         });
 
         // ── Solo COBRADORES: módulo de cobros ────────────────────────────────
