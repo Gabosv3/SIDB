@@ -36,6 +36,7 @@ class Venta extends Model
         'impuesto_porcentaje',
         'impuesto_monto',
         'total',
+        'prima',
         'monto_pagado',
         'saldo_pendiente',
         'fecha_pago_limite',
@@ -51,6 +52,7 @@ class Venta extends Model
         'impuesto_porcentaje'  => 'decimal:2',
         'impuesto_monto'       => 'decimal:2',
         'total'                => 'decimal:2',
+        'prima'                => 'decimal:2',
         'monto_pagado'         => 'decimal:2',
         'saldo_pendiente'      => 'decimal:2',        'fecha_pago_limite'    => 'date',
         'dias_credito'         => 'integer',    ];

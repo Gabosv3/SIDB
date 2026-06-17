@@ -22,6 +22,7 @@ class DetalleVenta extends Model
         'subtotal',
         'cuotas',
         'precio_cuota',
+        'tipo_pago',
     ];
 
     protected $casts = [

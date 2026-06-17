@@ -145,17 +145,18 @@ class VentaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'cliente_id'            => 'required|exists:clientes,id',
-            'sucursal_id'           => 'required|exists:sucursales,id',
-            'tipo_pago'             => 'required|in:contado,credito',
-            'dias_credito'          => 'required_if:tipo_pago,credito|nullable|integer|min:1',
-            'descuento_porcentaje'  => 'nullable|numeric|min:0|max:100',
-            'observaciones'         => 'nullable|string|max:500',
-            'detalles'              => 'required|array|min:1',
+            'cliente_id'                     => 'required|exists:clientes,id',
+            'sucursal_id'                    => 'required|exists:sucursales,id',
+            'prima'                          => 'nullable|numeric|min:0',
+            'dias_credito'                   => 'nullable|integer|min:1',
+            'descuento_porcentaje'           => 'nullable|numeric|min:0|max:100',
+            'observaciones'                  => 'nullable|string|max:500',
+            'detalles'                       => 'required|array|min:1',
             'detalles.*.producto_id'         => 'required|exists:productos,id',
             'detalles.*.cantidad'            => 'required|integer|min:1',
             'detalles.*.precio_unitario'     => 'required|numeric|min:0',
             'detalles.*.descuento_porcentaje'=> 'nullable|numeric|min:0|max:100',
+            'detalles.*.tipo_pago'           => 'nullable|in:contado,credito',
             'detalles.*.cuotas'              => 'nullable|integer|min:2',
             'detalles.*.precio_cuota'        => 'nullable|numeric|min:0',
         ]);
@@ -208,16 +209,23 @@ class VentaController extends Controller
 
         $venta = DB::transaction(function () use ($data, $request, $asignacionDetalles) {
             $descuentoPct = (float) ($data['descuento_porcentaje'] ?? 0);
+            $prima        = (float) ($data['prima'] ?? 0);
 
-            // Calcular subtotal de líneas
-            $subtotal = 0;
+            // ── Preparar líneas de detalle ────────────────────────────────────────
+            $subtotal    = 0;
             $detallesPrep = [];
+
             foreach ($data['detalles'] as $item) {
                 $detalleAsignado = $asignacionDetalles->get((int) $item['producto_id']);
-                $precioUnitario = $detalleAsignado?->precio_venta ?? $item['precio_unitario'];
-                $dto = (float) ($item['descuento_porcentaje'] ?? 0);
-                $linea = round($item['cantidad'] * $precioUnitario * (1 - $dto / 100), 2);
-                $subtotal += $linea;
+                $precioUnitario  = $detalleAsignado?->precio_venta ?? $item['precio_unitario'];
+                $dto             = (float) ($item['descuento_porcentaje'] ?? 0);
+                $linea           = round($item['cantidad'] * $precioUnitario * (1 - $dto / 100), 2);
+                $subtotal       += $linea;
+
+                // tipo_pago por línea: si no viene, se hereda del tipo general de la venta
+                // (lo determinamos después de calcular totales)
+                $tipoPagoLinea = $item['tipo_pago'] ?? null;
+
                 $precioCuota = $item['precio_cuota'] ?? null;
                 if (isset($item['cuotas']) && $precioCuota === null) {
                     $precioCuota = $linea / $item['cuotas'];
@@ -229,6 +237,7 @@ class VentaController extends Controller
                     'precio_unitario'      => $precioUnitario,
                     'descuento_porcentaje' => $dto,
                     'subtotal'             => $linea,
+                    'tipo_pago'            => $tipoPagoLinea,  // resolvemos abajo
                     'cuotas'               => $item['cuotas'] ?? null,
                     'precio_cuota'         => $precioCuota !== null ? round($precioCuota, 2) : null,
                 ];
@@ -237,14 +246,54 @@ class VentaController extends Controller
             $descuentoMonto = round($subtotal * $descuentoPct / 100, 2);
             $total          = round($subtotal - $descuentoMonto, 2);
 
+            // ── Determinar tipo de venta ──────────────────────────────────────────
+            $tiposLinea = collect($detallesPrep)->pluck('tipo_pago')->filter()->unique()->values();
+
+            if ($tiposLinea->count() > 1) {
+                // Hay líneas contado Y crédito → mixta
+                $tipoPagoVenta = 'mixta';
+            } elseif ($tiposLinea->count() === 1) {
+                $tipoPagoVenta = $tiposLinea->first();
+            } else {
+                // Ninguna línea tiene tipo_pago → usar 'contado' como default
+                $tipoPagoVenta = 'contado';
+            }
+
+            // Asignar tipo_pago a las líneas que no lo tienen explícito
+            $detallesPrep = array_map(function ($d) use ($tipoPagoVenta) {
+                if ($d['tipo_pago'] === null) {
+                    $d['tipo_pago'] = $tipoPagoVenta === 'mixta' ? 'contado' : $tipoPagoVenta;
+                }
+                return $d;
+            }, $detallesPrep);
+
+            // ── Calcular montos según tipo ────────────────────────────────────────
+            $totalContado = collect($detallesPrep)
+                ->where('tipo_pago', 'contado')
+                ->sum('subtotal');
+
+            $totalCredito = collect($detallesPrep)
+                ->where('tipo_pago', 'credito')
+                ->sum('subtotal');
+
+            // Prima solo aplica al crédito; no puede ser mayor que el total crédito
+            $prima = min($prima, $totalCredito);
+
+            $montoPagado    = round($totalContado + $prima, 2);
+            $saldoPendiente = round($totalCredito - $prima, 2);
+
+            $estaCompletada = $saldoPendiente <= 0;
+
+            // ── Crear venta ───────────────────────────────────────────────────────
             $venta = Venta::create([
                 'cliente_id'           => $data['cliente_id'],
                 'sucursal_id'          => $data['sucursal_id'],
                 'user_id'              => $request->user()->id,
                 'vendedor_id'          => $request->user()->vendedor?->id,
-                'tipo_pago'            => $data['tipo_pago'],
-                'dias_credito'         => $data['dias_credito'] ?? 0,
-                'fecha_pago_limite'    => $data['tipo_pago'] === 'credito'
+                'tipo_pago'            => $tipoPagoVenta,
+                'prima'                => $prima,
+                'dias_credito'         => $data['dias_credito'] ?? 30,
+                'fecha_pago_limite'    => $totalCredito > 0
                     ? now()->addDays($data['dias_credito'] ?? 30)->toDateString()
                     : null,
                 'subtotal'             => $subtotal,
@@ -253,12 +302,13 @@ class VentaController extends Controller
                 'impuesto_porcentaje'  => 0,
                 'impuesto_monto'       => 0,
                 'total'                => $total,
-                'monto_pagado'         => $data['tipo_pago'] === 'contado' ? $total : 0,
-                'saldo_pendiente'      => $data['tipo_pago'] === 'contado' ? 0 : $total,
-                'estado'               => $data['tipo_pago'] === 'contado' ? 'completada' : 'pendiente',
+                'monto_pagado'         => $montoPagado,
+                'saldo_pendiente'      => $saldoPendiente,
+                'estado'               => $estaCompletada ? 'completada' : 'pendiente',
                 'observaciones'        => $data['observaciones'] ?? null,
             ]);
 
+            // ── Insertar detalles y actualizar asignación ─────────────────────────
             foreach ($detallesPrep as $d) {
                 DetalleVenta::create(array_merge(['venta_id' => $venta->id], $d));
 
@@ -272,38 +322,37 @@ class VentaController extends Controller
                 }
             }
 
-            // ── Crear gestiones de cobro por cuotas ──────────────────────────────
-            $cuotas = collect($detallesPrep)
-                ->filter(fn ($d) => $d['cuotas'] !== null)
-                ->pluck('cuotas')
-                ->unique()
-                ->values();
+            // ── Crear gestiones de cobro solo para líneas a crédito ───────────────
+            $lineasCredito = collect($detallesPrep)->where('tipo_pago', 'credito');
 
-            if ($cuotas->count() > 0) {
-                $numeroCuotas = $cuotas->first();
-                $montoCuotaBase = floor($total / $numeroCuotas * 100) / 100;
-                $residuo = round($total - ($montoCuotaBase * $numeroCuotas), 2);
-                $gestionesCobro = [];
+            if ($lineasCredito->isNotEmpty() && $saldoPendiente > 0) {
+                // Tomar el número de cuotas del primer detalle crédito que lo tenga
+                $numeroCuotas = $lineasCredito->filter(fn ($d) => $d['cuotas'])->first()['cuotas']
+                    ?? $lineasCredito->first()['cuotas']
+                    ?? 1;
 
+                $montoBase = floor($saldoPendiente / $numeroCuotas * 100) / 100;
+                $residuo   = round($saldoPendiente - ($montoBase * $numeroCuotas), 2);
+
+                $gestiones = [];
                 for ($i = 1; $i <= $numeroCuotas; $i++) {
-                    $montoCuota = $montoCuotaBase;
-                    if ($i === $numeroCuotas) {
-                        $montoCuota = round($montoCuotaBase + $residuo, 2);
-                    }
-                    $gestionesCobro[] = [
-                        'venta_id' => $venta->id,
-                        'cliente_id' => $data['cliente_id'],
-                        'numero_cuota' => $i,
-                        'total_cuotas' => $numeroCuotas,
-                        'monto_cuota' => $montoCuota,
-                        'fecha_vencimiento' => now()->addMonths($i)->toDateString(),
-                        'estado' => 'pendiente',
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                    $gestiones[] = [
+                        'venta_id'         => $venta->id,
+                        'cliente_id'       => $data['cliente_id'],
+                        'numero_cuota'     => $i,
+                        'total_cuotas'     => $numeroCuotas,
+                        'monto_cuota'      => $i === $numeroCuotas
+                            ? round($montoBase + $residuo, 2)
+                            : $montoBase,
+                        'monto_pagado'     => 0,
+                        'fecha_vencimiento'=> now()->addMonths($i)->toDateString(),
+                        'estado'           => 'pendiente',
+                        'created_at'       => now(),
+                        'updated_at'       => now(),
                     ];
                 }
 
-                GestionCobro::insert($gestionesCobro);
+                GestionCobro::insert($gestiones);
             }
 
             return $venta->load('detalles.producto:id,nombre,codigo');
