@@ -388,3 +388,110 @@ Content-Type: application/json
 - ✅ Cada pago genera un registro en `pagos_ventas` con el user_id del cobrador
 - ✅ Si una venta queda con saldo 0, cambia automáticamente a estado `completada`
 
+
+---
+
+## Registrar visita sin pago
+
+### `POST /cobros/clientes/{id}/visita`
+
+Registra que el cobrador visitó al cliente aunque no haya recibido ningún pago. Permite adjuntar una foto del hogar como comprobante.
+
+**Requiere:** `multipart/form-data` (para poder enviar la foto)
+
+**Parámetros del body:**
+
+| Campo              | Tipo    | Requerido | Descripción                                                      |
+|--------------------|---------|-----------|------------------------------------------------------------------|
+| `resultado`        | string  | Sí        | `sin_pago`, `promesa_pago`, `no_encontrado`, `rechazo`           |
+| `gestion_cobro_id` | integer | No        | ID de la cuota específica relacionada                            |
+| `observaciones`    | string  | No        | Notas sobre la visita (max 500 chars)                            |
+| `promesa_fecha`    | date    | Condicional | Requerido si `resultado = promesa_pago`. Fecha futura (YYYY-MM-DD) |
+| `foto_hogar`       | file    | No        | Foto del hogar como comprobante (jpg/png/webp, máx 5MB)          |
+| `latitud`          | decimal | No        | Coordenada GPS de la visita                                      |
+| `longitud`         | decimal | No        | Coordenada GPS de la visita                                      |
+
+**Valores de `resultado`:**
+
+| Valor           | Descripción                                      |
+|-----------------|--------------------------------------------------|
+| `sin_pago`      | El cliente estaba pero no pagó                   |
+| `promesa_pago`  | El cliente prometió pagar en una fecha específica|
+| `no_encontrado` | No había nadie en la dirección                   |
+| `rechazo`       | El cliente se negó a atender                     |
+
+---
+
+**Ejemplo 1 — Visita sin pago:**
+```json
+{
+  "resultado": "sin_pago",
+  "observaciones": "El cliente dice que no tiene efectivo hoy"
+}
+```
+
+**Ejemplo 2 — Promesa de pago:**
+```json
+{
+  "resultado": "promesa_pago",
+  "promesa_fecha": "2026-06-25",
+  "observaciones": "Dijo que cobra el viernes y paga el sábado"
+}
+```
+
+**Ejemplo 3 — Con foto (multipart/form-data):**
+```
+POST /cobros/clientes/42/visita
+Content-Type: multipart/form-data
+
+resultado=sin_pago
+observaciones=Casa cerrada, dejé nota
+foto_hogar=<archivo imagen>
+latitud=13.6929
+longitud=-89.2182
+```
+
+---
+
+**Respuesta 201:**
+```json
+{
+  "mensaje": "Visita registrada.",
+  "visita": {
+    "id": 15,
+    "cliente_id": 42,
+    "resultado": "sin_pago",
+    "promesa_fecha": null,
+    "fecha_visita": "18/06/2026 09:45",
+    "foto_hogar_url": "/storage/visitas/42/foto_abc123.jpg",
+    "observaciones": "Casa cerrada, dejé nota"
+  }
+}
+```
+
+**Errores:**
+
+| Código | Causa                                           |
+|--------|-------------------------------------------------|
+| 403    | El cliente no pertenece a tus rutas             |
+| 422    | `promesa_fecha` faltante cuando resultado es `promesa_pago` |
+| 422    | Archivo de foto muy grande (> 5MB) o formato inválido |
+
+---
+
+## Flujo recomendado en la app móvil
+
+```
+Cobrador llega a casa del cliente
+        ↓
+¿El cliente paga? → SÍ → POST /cobros/clientes/{id}/pagar
+        ↓ NO
+¿Qué pasó?
+  ├─ No estaba      → resultado: no_encontrado
+  ├─ No tiene dinero → resultado: sin_pago  (+foto opcional)
+  ├─ Prometió pagar  → resultado: promesa_pago + promesa_fecha
+  └─ Se negó         → resultado: rechazo
+        ↓
+POST /cobros/clientes/{id}/visita
+(con foto del hogar si es necesario como comprobante)
+```

@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Cobrador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
+use App\Models\VisitaCobro;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
@@ -694,7 +696,7 @@ class CobroController extends Controller
             $pagos = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fecha)
                 ->selectRaw('
-                    COUNT(*)                    AS total_pagos,
+                    COUNT(DISTINCT cliente_id)  AS total_pagos,
                     COUNT(DISTINCT cliente_id)  AS clientes_visitados,
                     SUM(monto)                  AS total_cobrado
                 ')
@@ -728,25 +730,133 @@ class CobroController extends Controller
                     'hora'         => $p->created_at->format('H:i'),
                 ]);
 
+            // Visitas sin cobro del día
+            $visitasSinCobro = VisitaCobro::where('user_id', $cobrador->user_id)
+                ->whereDate('created_at', $fecha)
+                ->with('cliente:id,nombre,apellido')
+                ->orderBy('created_at')
+                ->get()
+                ->map(fn ($v) => [
+                    'cliente'       => $v->cliente?->nombre_completo,
+                    'resultado'     => $v->resultado,
+                    'promesa_fecha' => $v->promesa_fecha?->format('d/m/Y'),
+                    'observaciones' => $v->observaciones,
+                    'foto_hogar_url'=> $v->foto_hogar ? \Illuminate\Support\Facades\Storage::url($v->foto_hogar) : null,
+                    'hora'          => $v->created_at->format('H:i'),
+                ]);
+
             return [
-                'cobrador_id'       => $cobrador->id,
-                'cobrador'          => trim(($cobrador->nombre ?? '') . ' ' . ($cobrador->apellido ?? '')),
-                'total_cobrado'     => round((float) ($pagos->total_cobrado ?? 0), 2),
-                'total_pagos'       => (int) ($pagos->total_pagos ?? 0),
+                'cobrador_id'        => $cobrador->id,
+                'cobrador'           => trim(($cobrador->nombre ?? '') . ' ' . ($cobrador->apellido ?? '')),
+                'total_cobrado'      => round((float) ($pagos->total_cobrado ?? 0), 2),
+                'total_pagos'        => (int) ($pagos->total_pagos ?? 0),
                 'clientes_visitados' => (int) ($pagos->clientes_visitados ?? 0),
-                'por_metodo'        => $porMetodo,
-                'detalle'           => $detalle,
+                'visitas_sin_cobro'  => $visitasSinCobro->count(),
+                'por_metodo'         => $porMetodo,
+                'detalle'            => $detalle,
+                'sin_cobro'          => $visitasSinCobro,
             ];
         });
 
         return response()->json([
-            'fecha'    => $fecha->toDateString(),
+            'fecha'      => $fecha->toDateString(),
             'cobradores' => $resumen,
-            'totales'  => [
-                'total_cobrado'     => round($resumen->sum('total_cobrado'), 2),
-                'total_pagos'       => $resumen->sum('total_pagos'),
+            'totales'    => [
+                'total_cobrado'      => round($resumen->sum('total_cobrado'), 2),
+                'total_pagos'        => $resumen->sum('total_pagos'),
                 'clientes_visitados' => $resumen->sum('clientes_visitados'),
+                'visitas_sin_cobro'  => $resumen->sum('visitas_sin_cobro'),
             ],
         ]);
+    }
+
+    // ── POST /cobros/clientes/{id}/visita ──────────────────────────────────────
+
+    #[OA\Post(
+        path: '/cobros/clientes/{id}/visita',
+        summary: 'Registrar visita sin cobro a un cliente',
+        description: 'Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante.',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer'), description: 'ID del cliente'),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    required: ['resultado'],
+                    properties: [
+                        new OA\Property(property: 'resultado', type: 'string', enum: ['sin_pago', 'promesa_pago', 'no_encontrado', 'rechazo'], example: 'sin_pago'),
+                        new OA\Property(property: 'gestion_cobro_id', type: 'integer', nullable: true, description: 'Cuota específica relacionada (opcional)'),
+                        new OA\Property(property: 'observaciones', type: 'string', nullable: true, example: 'El cliente dijo que paga el viernes'),
+                        new OA\Property(property: 'promesa_fecha', type: 'string', format: 'date', nullable: true, description: 'Requerido si resultado=promesa_pago'),
+                        new OA\Property(property: 'foto_hogar', type: 'string', format: 'binary', nullable: true, description: 'Foto del hogar como comprobante (jpg/png, max 5MB)'),
+                        new OA\Property(property: 'latitud', type: 'number', format: 'float', nullable: true),
+                        new OA\Property(property: 'longitud', type: 'number', format: 'float', nullable: true),
+                    ]
+                )
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Visita registrada'),
+            new OA\Response(response: 403, description: 'Cliente no pertenece a tus rutas'),
+            new OA\Response(response: 422, description: 'Validación fallida'),
+        ],
+    )]
+    public function registrarVisita(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'resultado'       => 'required|in:sin_pago,promesa_pago,no_encontrado,rechazo',
+            'gestion_cobro_id'=> 'nullable|integer|exists:gestion_cobros,id',
+            'observaciones'   => 'nullable|string|max:500',
+            'promesa_fecha'   => 'required_if:resultado,promesa_pago|nullable|date|after:today',
+            'foto_hogar'      => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
+            'latitud'         => 'nullable|numeric|between:-90,90',
+            'longitud'        => 'nullable|numeric|between:-180,180',
+        ]);
+
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $cliente = $this->clienteDeRuta($id, $cobrador);
+        if (! $cliente) {
+            return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
+        }
+
+        $fotoPath = null;
+        if ($request->hasFile('foto_hogar')) {
+            $fotoPath = $request->file('foto_hogar')
+                ->store("visitas/{$id}", 'public');
+        }
+
+        $visita = VisitaCobro::create([
+            'cliente_id'      => $id,
+            'user_id'         => $request->user()->id,
+            'gestion_cobro_id'=> $data['gestion_cobro_id'] ?? null,
+            'fecha_visita'    => now(),
+            'resultado'       => $data['resultado'],
+            'promesa_fecha'   => $data['promesa_fecha'] ?? null,
+            'foto_hogar'      => $fotoPath,
+            'observaciones'   => $data['observaciones'] ?? null,
+            'latitud'         => $data['latitud'] ?? null,
+            'longitud'        => $data['longitud'] ?? null,
+        ]);
+
+        return response()->json([
+            'mensaje' => 'Visita registrada.',
+            'visita'  => [
+                'id'            => $visita->id,
+                'cliente_id'    => $visita->cliente_id,
+                'resultado'     => $visita->resultado,
+                'promesa_fecha' => $visita->promesa_fecha?->format('d/m/Y'),
+                'fecha_visita'  => $visita->fecha_visita->format('d/m/Y H:i'),
+                'foto_hogar_url'=> $fotoPath ? Storage::url($fotoPath) : null,
+                'observaciones' => $visita->observaciones,
+            ],
+        ], 201);
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Filament\Pages;
 
 use App\Models\Cobrador;
+use App\Models\GestionCobro;
 use App\Models\PagoVenta;
+use App\Models\VisitaCobro;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
@@ -51,7 +53,7 @@ class ResumenCobrosDia extends Page
         $resumen = $cobradores->map(function ($cobrador) use ($fecha) {
             $pagos = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fecha)
-                ->selectRaw('COUNT(*) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_visitados, SUM(monto) AS total_cobrado')
+                ->selectRaw('COUNT(DISTINCT cliente_id) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_visitados, SUM(monto) AS total_cobrado')
                 ->first();
 
             $porMetodo = PagoVenta::where('user_id', $cobrador->user_id)
@@ -67,6 +69,35 @@ class ResumenCobrosDia extends Page
                 ->orderBy('created_at')
                 ->get();
 
+            // Visitas sin cobro del día
+            $visitas = VisitaCobro::where('user_id', $cobrador->user_id)
+                ->whereDate('created_at', $fecha)
+                ->with('cliente:id,nombre,apellido')
+                ->orderBy('created_at')
+                ->get();
+
+            // Clientes NO visitados: en rutas del cobrador con cuotas pendientes,
+            // sin pago ni visita registrada en la fecha seleccionada
+            $diasEs = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+            $diaFecha = $diasEs[$fecha->dayOfWeekIso - 1];
+
+            $rutasIds = $cobrador->rutasCobro()
+                ->where('dia_semana', $diaFecha)
+                ->pluck('id');
+
+            $clientesConPago   = PagoVenta::where('user_id', $cobrador->user_id)
+                ->whereDate('fecha_pago', $fecha)->pluck('cliente_id');
+            $clientesConVisita = VisitaCobro::where('user_id', $cobrador->user_id)
+                ->whereDate('created_at', $fecha)->pluck('cliente_id');
+            $clientesAtendidos = $clientesConPago->merge($clientesConVisita)->unique();
+
+            $noVisitados = \App\Models\Cliente::whereIn('ruta_cobro_id', $rutasIds)
+                ->whereNotIn('id', $clientesAtendidos)
+                ->whereHas('gestionesCobro', fn ($q) => $q->whereIn('estado', ['pendiente', 'parcialmente_cobrado']))
+                ->select('id', 'nombre', 'apellido', 'telefono_normal')
+                ->orderBy('nombre')
+                ->get();
+
             return [
                 'cobrador'           => $cobrador,
                 'total_cobrado'      => (float) ($pagos->total_cobrado ?? 0),
@@ -74,18 +105,23 @@ class ResumenCobrosDia extends Page
                 'clientes_visitados' => (int) ($pagos->clientes_visitados ?? 0),
                 'por_metodo'         => $porMetodo,
                 'detalle'            => $detalle,
+                'visitas_sin_cobro'  => $visitas,
+                'no_visitados'       => $noVisitados,
             ];
-        })->filter(fn ($r) => $r['total_pagos'] > 0 || ! $this->cobrador_id);
+        })->filter(fn ($r) => $r['total_pagos'] > 0 || $r['visitas_sin_cobro']->isNotEmpty() || $r['no_visitados']->isNotEmpty() || ! $this->cobrador_id);
 
         return $resumen->values()->all();
     }
 
     public function getTotalesGenerales(array $resumen): array
     {
+        $col = collect($resumen);
         return [
-            'total_cobrado'      => round(collect($resumen)->sum('total_cobrado'), 2),
-            'total_pagos'        => collect($resumen)->sum('total_pagos'),
-            'clientes_visitados' => collect($resumen)->sum('clientes_visitados'),
+            'total_cobrado'      => round($col->sum('total_cobrado'), 2),
+            'total_pagos'        => $col->sum('total_pagos'),
+            'clientes_visitados' => $col->sum('clientes_visitados'),
+            'total_sin_cobro'    => $col->sum(fn ($r) => $r['visitas_sin_cobro']->count()),
+            'total_no_visitados' => $col->sum(fn ($r) => $r['no_visitados']->count()),
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CobroController;
 use App\Http\Controllers\Api\PagoVentaController;
+use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\ReintegroController;
 use App\Http\Controllers\Api\VentaController;
@@ -31,6 +32,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Rutas exclusivas para Vendedores y Cobradores activos ───────────────
     Route::middleware('pos.acceso')->group(function () {
+
+        // ── POS: heartbeat de estado del dispositivo ────────────────────────
+        Route::post('/pos/heartbeat', [PosController::class, 'heartbeat']);
 
         // ── Catálogos (cualquier perfil POS puede leer) ──────────────────────
         Route::get('/categorias', [CategoriaController::class, 'index']);
@@ -87,6 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // Registrar pago: a una gestión específica
             Route::post('/gestiones/{id}/pagar', [CobroController::class, 'pagar']);
+
+            // Registrar visita sin pago (con foto opcional)
+            Route::post('/clientes/{id}/visita', [CobroController::class, 'registrarVisita']);
         });
     });
 });
