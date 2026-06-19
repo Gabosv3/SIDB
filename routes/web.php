@@ -55,6 +55,16 @@ Route::middleware(['web', 'auth'])->prefix('reportes')->name('reporte.')->group(
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Monitor POS
+Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function () {
+    Route::get('{tenant}/monitor', 'App\Http\Controllers\PosMonitorController@index')
+        ->name('monitor')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/monitor/data', 'App\Http\Controllers\PosMonitorController@data')
+        ->name('monitor.data')
+        ->where('tenant', '[0-9]+');
+});
+
 // WhatsApp Center
 // ─────────────────────────────────────────────────────────────────────────────
 Route::middleware(['web', 'auth'])->prefix('whatsapp')->name('whatsapp.')->group(function () {

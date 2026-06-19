@@ -72,6 +72,11 @@ class AdministrativoPanelProvider extends PanelProvider
                 'panels::scripts.after',
                 fn (): string => '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
             )
+            // ── Botón Monitor POS en el sidebar ──────────────────────────────────
+            ->renderHook(
+                'panels::sidebar.nav.end',
+                fn (): string => view('filament.pos-sidebar-button')->render(),
+            )
             // ── Botón WhatsApp en el sidebar ─────────────────────────────────────
             ->renderHook(
                 'panels::sidebar.nav.end',
@@ -94,6 +99,8 @@ class AdministrativoPanelProvider extends PanelProvider
                 Dashboard::class,
             ])
             ->navigationGroups([
+                NavigationGroup::make('POS'),
+                NavigationGroup::make('Cobros'),
                 NavigationGroup::make('Ventas'),
                 NavigationGroup::make('Comercial'),
                 NavigationGroup::make('Comunicación'),
