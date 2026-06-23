@@ -23,7 +23,7 @@ return [
             'pages' => true,
             'widgets' => true,
             'resources' => true,
-            'custom_permissions' => false,
+            'custom_permissions' => true,
         ],
     ],
 
@@ -228,7 +228,17 @@ return [
     |
     */
 
-    'custom_permissions' => [],
+    'custom_permissions' => [
+        'View:MonitorPos' => 'Ver Monitor POS',
+        'View:ResumenDia' => 'Ver Resumen del Día',
+        'View:WhatsappCenter' => 'Ver WhatsApp Center',
+        'Manage:WhatsappSettings' => 'Gestionar configuración de WhatsApp (cuentas, plantillas, automatizaciones)',
+        'View:PagosUbicacion' => 'Ver Pagos y Ubicación (masivo)',
+        'View:AsignacionesDiarias' => 'Ver Asignaciones Diarias',
+        'View:Reportes' => 'Ver Reportes',
+        'Export:Clientes' => 'Exportar Clientes (CSV)',
+        'View:PerfilEmpleado' => 'Ver Perfil de Empleado',
+    ],
 
     /*
     |--------------------------------------------------------------------------

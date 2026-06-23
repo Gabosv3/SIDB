@@ -21,6 +21,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
     use InteractsWithForms;
     use InteractsWithTable;
 
+    protected string $view = 'filament.pages.asignar-rutas-clientes';
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {

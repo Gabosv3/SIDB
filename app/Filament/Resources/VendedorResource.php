@@ -63,14 +63,13 @@ class VendedorResource extends Resource
                             name: 'user',
                             titleAttribute: 'name',
                             modifyQueryUsing: fn ($query, $record) => $query
-                                ->whereDoesntHave('vendedor', fn ($q) => $q->when($record, fn ($q) => $q->where('id', '!=', $record?->id)))
-                                ->whereDoesntHave('cobrador'),
+                                ->whereDoesntHave('vendedor', fn ($q) => $q->when($record, fn ($q) => $q->where('id', '!=', $record?->id))),
                         )
-                        ->getOptionLabelFromRecordUsing(fn (User $u) => "{$u->name} ({$u->email})")
+                        ->getOptionLabelFromRecordUsing(fn (User $u) => "{$u->name} ({$u->email})".($u->cobrador ? ' — también es cobrador' : ''))
                         ->searchable()
                         ->preload()
                         ->nullable()
-                        ->helperText('Solo usuarios sin perfil asignado. Requerido para acceder al POS.'),
+                        ->helperText('Un usuario puede tener perfil de vendedor y de cobrador a la vez. Requerido para acceder al POS.'),
 
                     Forms\Components\Toggle::make('es_cobrador')
                         ->label('También es cobrador')
@@ -193,6 +192,13 @@ class VendedorResource extends Resource
                     ->label('Estado'),
             ])
             ->actions([
+                Actions\Action::make('verPerfil')
+                    ->label('Ver perfil')
+                    ->icon('heroicon-m-identification')
+                    ->color('gray')
+                    ->visible(fn (Vendedor $record) => $record->user_id !== null)
+                    ->url(fn (Vendedor $record) => route('empleados.show', [\Filament\Facades\Filament::getTenant()?->id ?? 1, $record->user_id]))
+                    ->openUrlInNewTab(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])

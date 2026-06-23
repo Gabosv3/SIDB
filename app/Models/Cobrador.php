@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Cobrador extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'cobradores';
 
@@ -37,6 +39,20 @@ class Cobrador extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /** Datos personales/laborales extendidos (vía el mismo user_id) */
+    public function employeeProfile(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeProfile::class, 'user_id', 'user_id');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn (string $eventName) => "Cobrador {$eventName}");
     }
 
     public function clientes(): \Illuminate\Database\Eloquent\Relations\HasManyThrough

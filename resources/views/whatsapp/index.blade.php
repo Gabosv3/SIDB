@@ -12,6 +12,11 @@
         <link rel="icon" href="{{ asset('storage/' . $config->favicon) }}" type="image/x-icon">
     @endif
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script>
+        (function () {
+            if (localStorage.getItem('sidb-theme') === 'dark') document.documentElement.classList.add('dark');
+        })();
+    </script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -30,6 +35,55 @@
             --radius:      12px;
             --shadow:      0 2px 8px rgba(0,0,0,.08);
         }
+
+        html.dark {
+            --bg:          #15151a;
+            --white:       #1e1e24;
+            --border:      #2e2e3a;
+            --text:        #f1f5f9;
+            --muted:       #94a3b8;
+            --sidebar-bg:  #1e1e24;
+            --chat-bg:     #0f1115;
+            --header-bg:   #1e1e24;
+            --shadow:      none;
+        }
+        html.dark .topbar-nav a:hover, html.dark .topbar-nav a.active { background:rgba(37,211,102,.15); color:#4ade80; }
+        html.dark .topbar-search input:focus { background:var(--white); }
+        html.dark .stat-item:hover { background:rgba(37,211,102,.1); }
+        html.dark .stat-icon.green  { background:rgba(34,197,94,.18); }
+        html.dark .stat-icon.blue   { background:rgba(37,99,235,.18); }
+        html.dark .stat-icon.orange { background:rgba(234,88,12,.18); }
+        html.dark .stat-icon.red    { background:rgba(220,38,38,.18); }
+        html.dark .filter-chip { background:var(--white); }
+        html.dark .conv-item { border-bottom-color:#2a2a35; }
+        html.dark .conv-item:hover { background:#252530; }
+        html.dark .conv-item.active { background:rgba(37,211,102,.1); }
+        html.dark .badge-vencida       { background:rgba(220,38,38,.18); color:#fca5a5; }
+        html.dark .badge-pendiente     { background:rgba(234,88,12,.18); color:#fdba74; }
+        html.dark .badge-promesa       { background:rgba(202,138,4,.18); color:#fde047; }
+        html.dark .badge-pagado        { background:rgba(22,163,74,.18); color:#86efac; }
+        html.dark .badge-sin_respuesta { background:rgba(79,70,229,.18); color:#a5b4fc; }
+        html.dark .badge-cerrada       { background:rgba(148,163,184,.18); color:#cbd5e1; }
+        html.dark .icon-btn { background:var(--white); }
+        html.dark .icon-btn:hover { border-color:#3f3f50; }
+        html.dark .msg-row.out .msg-bubble { background:#1f5536; color:#e7f9ed; }
+        html.dark .msg-row.in  .msg-bubble { background:var(--white); color:var(--text); }
+        html.dark .day-divider span { background:rgba(30,30,36,.85); }
+        html.dark .quick-btn { background:var(--white); color:#cbd5e1; }
+        html.dark .quick-btn:hover { background:rgba(37,211,102,.12); }
+        html.dark .msg-textarea:focus { background:var(--white); }
+        html.dark .cuota-card.vencida { background:rgba(220,38,38,.12); }
+        html.dark .automation-row { border-bottom-color:#2a2a35; }
+        html.dark .toggle-slider { background:#3f3f50; }
+        html.dark ::-webkit-scrollbar-thumb { background:#3f3f50; }
+        html.dark .check-sent { color:#64748b; }
+
+        .theme-toggle { width:36px; height:36px; border-radius:50%; border:1px solid var(--border); background:none; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--muted); flex-shrink:0; }
+        .theme-toggle:hover { background:var(--bg); }
+        .theme-toggle svg { width:18px; height:18px; }
+        .theme-toggle .icon-sun { display:none; }
+        html.dark .theme-toggle .icon-moon { display:none; }
+        html.dark .theme-toggle .icon-sun { display:block; }
 
         html, body { height: 100vh; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background: var(--bg); color: var(--text); overflow: hidden; font-size: 14px; }
 
@@ -358,6 +412,10 @@
             @if(($cuentas ?? 0) === 0)
                 <a href="{{ route('whatsapp.accounts.create', $tenant) }}" style="font-size:12px;color:#dc2626;text-decoration:none;">⚠️ Sin número configurado</a>
             @endif
+            <button type="button" class="theme-toggle" onclick="toggleTheme()" title="Cambiar modo claro/oscuro">
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
             <div class="user-pill">
                 <div class="user-avatar">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</div>
                 <div class="user-info">
@@ -480,6 +538,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+    function toggleTheme() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('sidb-theme', isDark ? 'dark' : 'light');
+    }
+
     const TENANT = '{{ $tenant }}';
     const CSRF   = document.querySelector('meta[name="csrf-token"]').content;
     let activeConvId = {{ $conversacionActiva?->id ?? 'null' }};

@@ -1,7 +1,3 @@
-@php
-    $this->previousUrl ??= url()->previous();
-@endphp
-
 <x-filament-panels::page>
     <div class="space-y-6">
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">

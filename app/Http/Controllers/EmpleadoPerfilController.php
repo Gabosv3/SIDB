@@ -1,0 +1,311 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AsignacionDiaria;
+use App\Models\Cobrador;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeeProfile;
+use App\Models\PagoVenta;
+use App\Models\PosDevice;
+use App\Models\User;
+use App\Models\Vendedor;
+use App\Models\Venta;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class EmpleadoPerfilController extends Controller
+{
+    public function show(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $perfilLaboral = $empleado->vendedor ?? $empleado->cobrador;
+        $employeeProfile = $empleado->employeeProfile;
+        $tipoPerfil = $this->tipoPerfil($empleado);
+        $posDevice = PosDevice::where('user_id', $empleado->id)->latest('ultimo_ping')->first();
+        $documentos = EmployeeDocument::where('user_id', $empleado->id)->latest()->get();
+        $actividad = $this->actividadReciente($empleado, $employeeProfile);
+        $historial = $this->historialPerfil($employeeProfile);
+        $asignacionHoy = $empleado->vendedor?->asignacionHoy();
+
+        $ventasMes = $this->ventasMes($empleado);
+        $cobrosMes = $this->cobrosMes($empleado);
+        $clientesAsignados = $empleado->cobrador?->clientes()->count() ?? 0;
+        $clientesActivos = $empleado->cobrador
+            ? $empleado->cobrador->clientes()->where('activo', true)->count()
+            : 0;
+
+        $metaVentasPct = $employeeProfile?->meta_ventas_mensual > 0
+            ? min(100, round(($ventasMes / $employeeProfile->meta_ventas_mensual) * 100))
+            : null;
+        $metaCobrosPct = $employeeProfile?->meta_cobros_mensual > 0
+            ? min(100, round(($cobrosMes / $employeeProfile->meta_cobros_mensual) * 100))
+            : null;
+
+        $supervisor = $employeeProfile?->supervisor;
+        $ventasSemana = $this->serieUltimosDias(fn ($dia) => $empleado->vendedor
+            ? (float) Venta::where('vendedor_id', $empleado->vendedor->id)->whereDate('fecha_venta', $dia)->sum('total')
+            : 0.0);
+        $cobrosSemana = $this->serieUltimosDias(fn ($dia) => (float) PagoVenta::where('user_id', $empleado->id)->whereDate('fecha_pago', $dia)->sum('monto'));
+
+        return view('empleados.perfil', compact(
+            'tenant', 'empleado', 'perfilLaboral', 'employeeProfile', 'tipoPerfil', 'posDevice',
+            'documentos', 'actividad', 'historial', 'asignacionHoy', 'ventasMes', 'cobrosMes',
+            'clientesAsignados', 'clientesActivos', 'metaVentasPct', 'metaCobrosPct', 'supervisor',
+            'ventasSemana', 'cobrosSemana'
+        ));
+    }
+
+    public function actualizarPersonal(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $data = $request->validate([
+            'foto' => ['nullable', 'image', 'max:4096'],
+            'dui' => ['nullable', 'string', 'max:10'],
+            'nit' => ['nullable', 'string', 'max:20'],
+            'fecha_nacimiento' => ['nullable', 'date', 'before_or_equal:today'],
+            'genero' => ['nullable', 'in:masculino,femenino,otro'],
+            'estado_civil' => ['nullable', 'in:soltero,casado,divorciado,viudo,acompanado'],
+            'tipo_sangre' => ['nullable', 'string', 'max:5'],
+            'telefono_whatsapp' => ['nullable', 'string', 'max:20'],
+            'direccion' => ['nullable', 'string', 'max:500'],
+            'departamento' => ['nullable', 'string', 'max:100'],
+            'municipio' => ['nullable', 'string', 'max:100'],
+            'nacionalidad' => ['nullable', 'string', 'max:100'],
+            'numero_afiliacion' => ['nullable', 'string', 'max:50'],
+            'contacto_emergencia_nombre' => ['nullable', 'string', 'max:150'],
+            'contacto_emergencia_telefono' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        if ($request->hasFile('foto')) {
+            $data['foto'] = $request->file('foto')->store('empleados/fotos', 'public');
+        } else {
+            unset($data['foto']);
+        }
+
+        EmployeeProfile::updateOrCreate(['user_id' => $empleado->id], $data);
+
+        return redirect()->back()->with('success', 'Información personal actualizada.');
+    }
+
+    public function actualizarLaboral(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $data = $request->validate([
+            'cargo' => ['nullable', 'string', 'max:150'],
+            'tipo_empleado' => ['nullable', 'in:vendedor,cobrador,administrador,supervisor,tecnico,otro'],
+            'fecha_ingreso' => ['nullable', 'date'],
+            'fecha_salida' => ['nullable', 'date'],
+            'salario_base' => ['nullable', 'numeric', 'min:0'],
+            'meta_ventas_mensual' => ['nullable', 'numeric', 'min:0'],
+            'meta_cobros_mensual' => ['nullable', 'numeric', 'min:0'],
+            'tipo_contrato' => ['nullable', 'in:indefinido,temporal,por_obra,practica'],
+            'horario_laboral' => ['nullable', 'string', 'max:150'],
+            'estado_laboral' => ['required', 'in:activo,suspendido,inactivo,despedido,renuncia'],
+            'supervisor_id' => ['nullable', 'exists:users,id'],
+            'puede_usar_pos_movil' => ['nullable', 'boolean'],
+        ]);
+
+        $data['puede_usar_pos_movil'] = $request->boolean('puede_usar_pos_movil');
+
+        EmployeeProfile::updateOrCreate(['user_id' => $empleado->id], $data);
+
+        return redirect()->back()->with('success', 'Información laboral actualizada.');
+    }
+
+    public function toggleBloqueo(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+        $bloqueado = $empleado->estaBloqueado();
+
+        $empleado->update(['account_status' => $bloqueado ? 'activa' : 'bloqueada']);
+
+        if (! $bloqueado) {
+            $empleado->cerrarTodasLasSesiones();
+        }
+
+        return redirect()->back()->with('success', $bloqueado ? 'Acceso reactivado.' : 'Acceso bloqueado.');
+    }
+
+    public function resetearPassword(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $nueva = Str::password(12);
+        $empleado->update(['password' => $nueva]);
+
+        return redirect()->back()->with('password_temporal', $nueva);
+    }
+
+    public function cerrarSesiones(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+        $empleado->cerrarTodasLasSesiones();
+
+        return redirect()->back()->with('success', 'Sesiones cerradas en todos los dispositivos.');
+    }
+
+    public function subirDocumento(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $data = $request->validate([
+            'tipo' => ['required', 'in:dui_frente,dui_reverso,contrato,comprobante_domicilio,licencia,otro'],
+            'archivo' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+        ]);
+
+        $path = $request->file('archivo')->store('empleados/documentos', 'public');
+
+        EmployeeDocument::create([
+            'user_id' => $empleado->id,
+            'tipo' => $data['tipo'],
+            'archivo' => $path,
+            'nombre_original' => $request->file('archivo')->getClientOriginalName(),
+        ]);
+
+        return redirect()->back()->with('success', 'Documento subido correctamente.');
+    }
+
+    public function verificarDocumento(Request $request, $tenant, $user, $documento)
+    {
+        $data = $request->validate([
+            'estado' => ['required', 'in:verificado,rechazado,pendiente'],
+        ]);
+
+        $doc = EmployeeDocument::where('user_id', $user)->findOrFail($documento);
+        $doc->update([
+            'estado_verificacion' => $data['estado'],
+            'verificado_por' => auth()->id(),
+            'verificado_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Documento actualizado.');
+    }
+
+    public function eliminarDocumento(Request $request, $tenant, $user, $documento)
+    {
+        $doc = EmployeeDocument::where('user_id', $user)->findOrFail($documento);
+        Storage::disk('public')->delete($doc->archivo);
+        $doc->delete();
+
+        return redirect()->back()->with('success', 'Documento eliminado.');
+    }
+
+    public function descargarExpediente(Request $request, $tenant, $user): StreamedResponse
+    {
+        $empleado = User::query()->findOrFail($user);
+        $documentos = EmployeeDocument::where('user_id', $empleado->id)->get();
+
+        $tmpDir = storage_path('app/tmp');
+        if (! is_dir($tmpDir)) {
+            mkdir($tmpDir, 0755, true);
+        }
+
+        $zipPath = $tmpDir.'/expediente_'.$empleado->id.'_'.time().'.zip';
+
+        $zip = new \ZipArchive;
+        $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        foreach ($documentos as $doc) {
+            $fullPath = Storage::disk('public')->path($doc->archivo);
+            if (file_exists($fullPath)) {
+                $zip->addFile($fullPath, $doc->tipo.'_'.basename($doc->archivo));
+            }
+        }
+        $zip->close();
+
+        $nombre = $empleado->vendedor?->nombre_completo ?? $empleado->cobrador?->nombre_completo ?? $empleado->name;
+
+        return response()->streamDownload(function () use ($zipPath) {
+            readfile($zipPath);
+            unlink($zipPath);
+        }, 'expediente_'.Str::slug($nombre).'.zip');
+    }
+
+    // ── Helpers privados ────────────────────────────────────────────────────
+
+    private function tipoPerfil(User $empleado): ?string
+    {
+        $esVendedor = (bool) $empleado->vendedor;
+        $esCobrador = (bool) $empleado->cobrador;
+
+        return match (true) {
+            $esVendedor && $esCobrador => 'vendedor y cobrador',
+            $esVendedor => 'vendedor',
+            $esCobrador => 'cobrador',
+            default => null,
+        };
+    }
+
+    private function ventasMes(User $empleado): float
+    {
+        $vendedor = $empleado->vendedor;
+        if (! $vendedor) {
+            return 0.0;
+        }
+
+        return (float) Venta::where('vendedor_id', $vendedor->id)
+            ->whereMonth('fecha_venta', now()->month)
+            ->whereYear('fecha_venta', now()->year)
+            ->sum('total');
+    }
+
+    private function cobrosMes(User $empleado): float
+    {
+        return (float) PagoVenta::where('user_id', $empleado->id)
+            ->whereMonth('fecha_pago', now()->month)
+            ->whereYear('fecha_pago', now()->year)
+            ->sum('monto');
+    }
+
+    private function actividadReciente(User $empleado, ?EmployeeProfile $employeeProfile, int $limit = 50)
+    {
+        $perfilId = $employeeProfile?->id;
+
+        return Activity::query()
+            ->where(function ($q) use ($empleado, $perfilId) {
+                $q->where(function ($q2) use ($empleado) {
+                    $q2->where('causer_type', User::class)->where('causer_id', $empleado->id);
+                })->orWhere(function ($q2) use ($empleado) {
+                    $q2->where('subject_type', User::class)->where('subject_id', $empleado->id);
+                });
+
+                if ($perfilId) {
+                    $q->orWhere(function ($q2) use ($perfilId) {
+                        $q2->where('subject_type', EmployeeProfile::class)->where('subject_id', $perfilId);
+                    });
+                }
+            })
+            ->latest()
+            ->limit($limit)
+            ->get();
+    }
+
+    private function serieUltimosDias(callable $valorPorDia, int $dias = 7): array
+    {
+        $serie = [];
+        for ($i = $dias - 1; $i >= 0; $i--) {
+            $serie[] = $valorPorDia(now()->subDays($i)->toDateString());
+        }
+
+        return $serie;
+    }
+
+    private function historialPerfil(?EmployeeProfile $employeeProfile, int $limit = 50)
+    {
+        if (! $employeeProfile) {
+            return collect();
+        }
+
+        return Activity::where('subject_type', EmployeeProfile::class)
+            ->where('subject_id', $employeeProfile->id)
+            ->latest()
+            ->limit($limit)
+            ->get();
+    }
+}

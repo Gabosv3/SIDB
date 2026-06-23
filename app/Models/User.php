@@ -17,13 +17,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAuthentication, HasAppAuthenticationRecovery
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, LogsActivity, Notifiable;
     use InteractsWithAppAuthentication;
     use InteractsWithAppAuthenticationRecovery;
 
@@ -38,6 +42,10 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         'password',
         'app_authentication_secret',
         'app_authentication_recovery_codes',
+        'last_login_at',
+        'last_login_ip',
+        'last_login_device',
+        'account_status',
     ];
 
     /**
@@ -60,7 +68,17 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime',
         ];
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logExcept(['password', 'remember_token', 'app_authentication_secret', 'app_authentication_recovery_codes'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn (string $eventName) => "Usuario {$eventName}");
     }
 
     /** Sucursales a las que pertenece este usuario (multitenencia) */
@@ -81,6 +99,18 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return $this->hasOne(Cobrador::class, 'user_id');
     }
 
+    /** Perfil de empleado (datos personales/laborales, 1:1) */
+    public function employeeProfile(): HasOne
+    {
+        return $this->hasOne(EmployeeProfile::class, 'user_id');
+    }
+
+    /** Documentos del empleado */
+    public function documents(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(EmployeeDocument::class, 'user_id');
+    }
+
     /** ¿Este usuario puede operar como vendedor en el POS? */
     public function esVendedor(): bool
     {
@@ -97,17 +127,31 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return $this->vendedor()->where('activo', true)->where('es_cobrador', true)->exists();
     }
 
+    /** ¿La cuenta está bloqueada o desactivada administrativamente? */
+    public function estaBloqueado(): bool
+    {
+        return $this->account_status !== 'activa';
+    }
+
     /** ¿Tiene acceso a la API POS? */
     public function puedeUsarApi(): bool
     {
-        return $this->esVendedor() || $this->esCobrador();
+        return ! $this->estaBloqueado() && ($this->esVendedor() || $this->esCobrador());
+    }
+
+    /** Cierra todas las sesiones web y revoca todos los tokens del POS de este usuario. */
+    public function cerrarTodasLasSesiones(): void
+    {
+        DB::table('sessions')->where('user_id', $this->id)->delete();
+        $this->tokens()->delete();
+        $this->forceFill(['remember_token' => Str::random(60)])->save();
     }
 
     // ── Filament: FilamentUser ───────────────────────────────────────────────
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return true; // Controlar acceso con roles/permisos si se requiere
+        return ! $this->estaBloqueado();
     }
 
     // ── Filament: HasTenants ─────────────────────────────────────────────────

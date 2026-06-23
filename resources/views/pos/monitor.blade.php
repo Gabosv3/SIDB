@@ -31,9 +31,10 @@
     .leaflet-container { border-radius:0 0 .875rem .875rem; }
     .pm-chart-body { padding:.75rem 1rem 1rem; }
     .pm-metrics-row { display:grid; grid-template-columns:1fr 1fr; }
-    .pm-metric + .pm-metric { border-left:1px solid #f3f4f6; }
+    .pm-metric + .pm-metric { border-left:1px solid var(--border-2); }
     .pm-spark      { width:100%; height:40px; display:block; }
-    .pm-empty      { padding:2.5rem; text-align:center; color:#9ca3af; font-size:.82rem; }
+    .pm-empty      { padding:2.5rem; text-align:center; color:var(--muted-2); font-size:.82rem; }
+
     @media (max-width:1100px) {
         .pm-main-grid  { grid-template-columns:1fr; }
         .pm-stats-grid { grid-template-columns:repeat(2,1fr); }
@@ -42,9 +43,15 @@
 @endsection
 
 @section('content')
-<div class="pm-page-header">
-    <h1>Monitoreo de POS</h1>
-    <p>Seguimiento en tiempo real de todos los dispositivos punto de venta activos</p>
+<div class="pm-page-header" style="display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+    <div>
+        <h1>Monitoreo de POS</h1>
+        <p>Seguimiento en tiempo real de todos los dispositivos punto de venta activos</p>
+    </div>
+    <a href="{{ route('pos.resumen', $tenant) }}" style="display:inline-flex;align-items:center;gap:.4rem;background:var(--card);border:1px solid var(--border);border-radius:.625rem;padding:.55rem 1rem;font-size:.8rem;font-weight:600;color:var(--text-2);text-decoration:none;transition:all .15s;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M18.7 8 14 12.7l-3-3L7 13.4"/></svg>
+        Resumen del día
+    </a>
 </div>
 
 {{-- ── Stat cards ── --}}
@@ -133,6 +140,8 @@
                             <th>POS</th>
                             <th>Usuario / Cobrador</th>
                             <th>Estado</th>
+                            <th>Cobrado hoy</th>
+                            <th>Clientes</th>
                             <th>Última conexión</th>
                             <th>Batería</th>
                             <th>Internet</th>
@@ -165,14 +174,14 @@
                             $batColor = $bat > 50 ? '#16a34a' : ($bat > 20 ? '#d97706' : '#dc2626');
                         @endphp
                         <tr class="pm-tr" id="pm-row-{{ $d->id }}">
-                            <td class="pm-td" style="font-weight:700;color:#111827;">
+                            <td class="pm-td" style="font-weight:700;color:var(--text);">
                                 {{ $d->nombre }}
                                 @if($d->serial)
                                 <div style="font-size:.65rem;font-weight:400;color:#9ca3af;">{{ $d->serial }}</div>
                                 @endif
                             </td>
                             <td class="pm-td">
-                                <div style="font-weight:600;font-size:.8rem;color:#374151;">{{ optional($d->user)->name ?? '—' }}</div>
+                                <div style="font-weight:600;font-size:.8rem;color:var(--text-2);">{{ optional($d->user)->name ?? '—' }}</div>
                                 @if($d->cobrador)
                                 <div style="font-size:.68rem;color:#9ca3af;">{{ $d->cobrador->nombre }} {{ $d->cobrador->apellido }}</div>
                                 @endif
@@ -183,7 +192,13 @@
                                     {{ $estadoLabel }}
                                 </span>
                             </td>
-                            <td class="pm-td" style="color:#6b7280;font-size:.75rem;">
+                            <td class="pm-td" style="font-weight:700;color:#16a34a;">
+                                ${{ number_format($d->cobrado_hoy, 2) }}
+                            </td>
+                            <td class="pm-td" style="color:var(--text-2);">
+                                {{ $d->clientes_hoy }}
+                            </td>
+                            <td class="pm-td" style="color:var(--muted);font-size:.75rem;">
                                 {{ $d->ultimo_ping ? $d->ultimo_ping->diffForHumans() : 'Nunca' }}
                             </td>
                             <td class="pm-td">
@@ -470,7 +485,7 @@ function refreshTable(devices) {
     var tbody = document.getElementById('pm-devices-tbody');
     if (!tbody) return;
     if (!devices.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="pm-empty">No hay dispositivos POS registrados.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="pm-empty">No hay dispositivos POS registrados.</td></tr>';
         return;
     }
     devices.forEach(function (d) {
@@ -489,16 +504,18 @@ function refreshTable(devices) {
             row = tr;
         }
         row.innerHTML =
-            '<td class="pm-td" style="font-weight:700;color:#111827;">' + d.nombre +
+            '<td class="pm-td" style="font-weight:700;color:var(--text);">' + d.nombre +
                 (d.serial ? '<div style="font-size:.65rem;font-weight:400;color:#9ca3af;">' + d.serial + '</div>' : '') +
             '</td>' +
             '<td class="pm-td">' +
-                '<div style="font-weight:600;font-size:.8rem;color:#374151;">' + (d.usuario || '—') + '</div>' +
+                '<div style="font-weight:600;font-size:.8rem;color:var(--text-2);">' + (d.usuario || '—') + '</div>' +
                 (d.cobrador ? '<div style="font-size:.68rem;color:#9ca3af;">' + d.cobrador + '</div>' : '') +
             '</td>' +
             '<td class="pm-td"><span class="pm-badge" style="background:' + st.bg + ';color:' + st.color + ';">' +
                 '<span class="pm-dot" style="background:' + st.dot + ';"></span>' + st.label + '</span></td>' +
-            '<td class="pm-td" style="color:#6b7280;font-size:.75rem;">' + d.ultimo_ping + '</td>' +
+            '<td class="pm-td" style="font-weight:700;color:#16a34a;">$' + Number(d.cobrado_hoy || 0).toLocaleString('es-SV', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</td>' +
+            '<td class="pm-td" style="color:var(--text-2);">' + (d.clientes_hoy || 0) + '</td>' +
+            '<td class="pm-td" style="color:var(--muted);font-size:.75rem;">' + d.ultimo_ping + '</td>' +
             '<td class="pm-td">' + batHtml(d.bateria, d.bateria_color) + '</td>' +
             '<td class="pm-td" style="text-align:center;">' + wifiIcon(d.tiene_internet) + '</td>' +
             '<td class="pm-td">' + locHtml + '</td>';

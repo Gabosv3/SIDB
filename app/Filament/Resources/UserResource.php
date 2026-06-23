@@ -200,6 +200,12 @@ class UserResource extends Resource implements HasShieldPermissions
                     ->preload(),
             ])
             ->actions([
+                Actions\Action::make('verPerfil')
+                    ->label('Ver perfil')
+                    ->icon('heroicon-m-identification')
+                    ->color('gray')
+                    ->url(fn (User $record) => route('empleados.show', [\Filament\Facades\Filament::getTenant()?->id ?? 1, $record->id]))
+                    ->openUrlInNewTab(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])
