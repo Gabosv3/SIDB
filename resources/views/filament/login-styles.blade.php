@@ -11,14 +11,37 @@ html:has(.sidb-shell) body {
     overflow: hidden;
 }
 
+/*
+   Este login es un diseño de marca fijo (panel oscuro + panel blanco),
+   no debe adaptarse al modo oscuro de Filament/SO: si el dark mode está
+   activo, los textos oscuros (#111111, #1a1a1a) quedan casi invisibles
+   sobre el fondo oscuro que pinta Filament. Forzamos esquema claro siempre.
+*/
+html:has(.sidb-shell) {
+    color-scheme: light !important;
+    background-color: #ffffff !important;
+}
+
 .fi-body:has(.sidb-shell) {
     font-family: 'Inter', system-ui, sans-serif !important;
     min-height: 100vh !important;
     height: 100vh !important;
     overflow: hidden !important;
     display: block !important;
+    background-color: #ffffff !important;
 }
 .fi-body:has(.sidb-shell) > * { height: 100%; }
+
+.sidb-right .fi-simple-page,
+.sidb-right .fi-simple-page-content,
+.sidb-right .fi-simple-main,
+.sidb-right .fi-section,
+.sidb-right .fi-section-content,
+.sidb-right .fi-section-content-ctn {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
 
 /* 
    SHELL: dos columnas que llenan la pantalla completa
@@ -39,7 +62,7 @@ html:has(.sidb-shell) body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    background: #0d0d0d;
+    background: #0d0d0d !important;
     padding: 3rem 3.5rem;
     overflow: hidden;
 }
@@ -117,7 +140,7 @@ html:has(.sidb-shell) body {
     font-size: 0.9375rem;
     font-weight: 400;
     line-height: 1.55;
-    color: rgba(255,255,255,.3);
+    color: rgba(255,255,255,.4);
     letter-spacing: -0.01em;
 }
 
@@ -165,14 +188,15 @@ html:has(.sidb-shell) body {
     text-transform: uppercase;
 }
 
-/* 
+/*
    PANEL DERECHO  blanco puro, formulario amplio
  */
 .sidb-right {
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    background: #ffffff !important;
     overflow-y: auto;
+    height: 100%;
 }
 
 /* Topbar institucional */
@@ -190,7 +214,7 @@ html:has(.sidb-shell) body {
     font-weight: 500;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #bdbdbd;
+    color: #555555;
 }
 
 /* Área del formulario */
@@ -200,6 +224,7 @@ html:has(.sidb-shell) body {
     align-items: center;
     justify-content: center;
     padding: 3rem 3.5rem;
+    min-height: 0;
 }
 
 /* Formulario: amplio, sin tarjeta */
@@ -209,7 +234,12 @@ html:has(.sidb-shell) body {
 }
 
 /* Reset de contenedores Filament — solo dentro del panel derecho del login */
-.sidb-right .fi-simple-page,
+.sidb-right .fi-simple-page {
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+}
 .sidb-right .fi-simple-page-content {
     padding: 0 !important;
     width: 100% !important;
@@ -241,7 +271,7 @@ html:has(.sidb-shell) body {
 }
 .sidb-right .fi-simple-header-subheading {
     font-size: 0.9375rem !important;
-    color: #9e9e9e !important;
+    color: #666666 !important;
     font-weight: 400 !important;
     line-height: 1.5 !important;
     letter-spacing: -0.01em !important;
@@ -251,13 +281,21 @@ html:has(.sidb-shell) body {
 .sidb-right .fi-simple-page-content { padding-top: 2rem !important; }
 
 /*  Labels  */
-.sidb-right .fi-fo-field-wrp-label label,
-.sidb-right .fi-fo-field-wrp > label {
+.sidb-right .fi-fo-field-label,
+.sidb-right .fi-fo-field-label-content {
     font-family: 'Inter', sans-serif !important;
     font-size: 0.8125rem !important;
     font-weight: 600 !important;
-    color: #1a1a1a !important;
+    color: #333333 !important;
     letter-spacing: -0.005em !important;
+}
+.sidb-right .fi-checkbox-field .fi-fo-field-label-content {
+    font-size: 0.875rem !important;
+    color: #333333 !important;
+    font-weight: 500 !important;
+}
+.sidb-right .fi-fo-field-label-required-mark {
+    color: #ef4444 !important;
 }
 
 /*  Inputs  */
@@ -311,24 +349,43 @@ html:has(.sidb-shell) body {
 .sidb-right .fi-link,
 .sidb-right .fi-simple-page-content a {
     font-family: 'Inter', sans-serif !important;
-    color: #6b6b6b !important;
+    color: #333333 !important;
     font-weight: 500 !important;
-    text-decoration: underline !important;
-    text-decoration-color: #e0e0e0 !important;
-    text-underline-offset: 2px !important;
-    transition: color .12s, text-decoration-color .12s !important;
+    text-decoration: none !important;
+    transition: color .12s !important;
 }
 .sidb-right .fi-link:hover,
 .sidb-right .fi-simple-page-content a:hover {
     color: #111111 !important;
-    text-decoration-color: #9e9e9e !important;
 }
 
 /*  Checkbox  */
-.sidb-right .fi-checkbox-label {
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.875rem !important;
-    color: #6b6b6b !important;
+.sidb-right input[type="checkbox"] {
+    appearance: auto !important;
+    -webkit-appearance: checkbox !important;
+    accent-color: #111111 !important;
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    min-height: 18px !important;
+    cursor: pointer !important;
+    display: inline-block !important;
+    margin: 0 0.5rem 0 0 !important;
+}
+.sidb-right .fi-checkbox {
+    accent-color: #111111 !important;
+    width: 18px !important;
+    height: 18px !important;
+    cursor: pointer !important;
+}
+.sidb-right .fi-fo-checkbox {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+.sidb-right .fi-fo-checkbox-label {
+    color: #333333 !important;
+    font-weight: 500 !important;
 }
 
 /*  Espaciado de campos  */
@@ -345,7 +402,7 @@ html:has(.sidb-shell) body {
     padding: 0 3.5rem 1.5rem;
     font-size: 0.625rem;
     font-weight: 400;
-    color: #d4d4d4;
+    color: #555555;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     flex-shrink: 0;
