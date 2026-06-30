@@ -152,10 +152,16 @@
         <h1>Clientes por Ruta</h1>
         <p>Ordena la secuencia de visita y revisa que cada cliente esté en la ruta correcta.</p>
     </div>
-    <button type="button" class="cr-import-btn" id="cr-abrir-importar">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Importar Excel
-    </button>
+    <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+        <button type="button" class="cr-import-btn-secundario" id="cr-abrir-nuevo-cliente">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px; margin-right:.4rem;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            Nuevo Cliente
+        </button>
+        <button type="button" class="cr-import-btn" id="cr-abrir-importar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Importar Excel
+        </button>
+    </div>
 </div>
 
 <div class="cr-filter-bar">
@@ -354,6 +360,77 @@
         </div>
     </div>
 </div>
+
+<div class="cr-modal-overlay" id="cr-nuevo-overlay">
+    <div class="cr-modal">
+        <div class="cr-modal-header">
+            <span>Nuevo cliente</span>
+            <button type="button" class="cr-modal-close" id="cr-nuevo-close">&times;</button>
+        </div>
+        <div class="cr-modal-body">
+            <div class="cr-import-ruta-form">
+                <div class="cr-import-field">
+                    <label>Nombre completo *</label>
+                    <input type="text" id="cr-nuevo-nombre" class="cr-filter-input" placeholder="Ej. María Pérez">
+                </div>
+                <div class="cr-import-field">
+                    <label>Código (anterior)</label>
+                    <input type="text" id="cr-nuevo-codigo" class="cr-filter-input" placeholder="Opcional">
+                </div>
+                <div class="cr-import-field">
+                    <label>Teléfono</label>
+                    <input type="text" id="cr-nuevo-telefono" class="cr-filter-input" placeholder="Opcional">
+                </div>
+                <div class="cr-import-field">
+                    <label>Dirección</label>
+                    <input type="text" id="cr-nuevo-direccion" class="cr-filter-input" placeholder="Opcional">
+                </div>
+                <div class="cr-import-field">
+                    <label>Ruta</label>
+                    <select id="cr-nuevo-ruta" class="cr-filter-input">
+                        <option value="">— Sin ruta —</option>
+                        @foreach($rutas as $r)
+                            <option value="{{ $r->id }}">{{ $r->nombre }} — {{ ucfirst($r->dia_semana) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="cr-import-divider"></div>
+
+            <label class="cr-toggle-wrap" style="margin-bottom:.75rem;">
+                <input type="checkbox" id="cr-nuevo-tiene-venta" checked>
+                Tiene venta a crédito (cuotas)
+            </label>
+
+            <div id="cr-nuevo-venta-form" class="cr-import-ruta-form">
+                <div class="cr-import-field">
+                    <label>Producto</label>
+                    <input type="text" id="cr-nuevo-producto" class="cr-filter-input" placeholder="Ej. Ropero Teresa">
+                </div>
+                <div class="cr-import-field">
+                    <label>Valor total *</label>
+                    <input type="number" step="0.01" min="0" id="cr-nuevo-valor" class="cr-filter-input" placeholder="160.00">
+                </div>
+                <div class="cr-import-field">
+                    <label>Monto ya cobrado (abono inicial)</label>
+                    <input type="number" step="0.01" min="0" id="cr-nuevo-cobrado" class="cr-filter-input" placeholder="0.00">
+                </div>
+                <div class="cr-import-field">
+                    <label>Fecha de venta</label>
+                    <input type="date" id="cr-nuevo-fecha" class="cr-filter-input">
+                </div>
+            </div>
+
+            <p class="cr-import-error" id="cr-nuevo-error"></p>
+
+            <div class="cr-import-actions">
+                <button type="button" class="cr-import-btn-secundario" id="cr-nuevo-cancelar">Cancelar</button>
+                <button type="button" class="cr-import-btn" id="cr-nuevo-guardar">Crear cliente</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -439,7 +516,10 @@
         var rows = clientesFiltrados.map(function (c, idx) {
             var saldoClass = c.saldo > 0 ? 'cr-saldo-pos' : 'cr-saldo-zero';
             var dirWarn = !c.direccion ? '<span class="cr-warn-badge" title="Sin dirección registrada">⚠</span>' : '';
-            var codigoHtml = c.codigo_anterior ? ' <span style="color:var(--muted-2);">(' + c.codigo_anterior + ')</span>' : '';
+            var codigoHtml = '<div class="cr-abono-wrap" style="font-size:.7rem; color:var(--muted-2);">' +
+                'Cód: ' + (c.codigo_anterior || '—') +
+                campoEditBtn(c.id, 'codigo_anterior', c.codigo_anterior, 'Código anterior') +
+                '</div>';
             var rutaActualHtml = modo === 'todos' ? '<div style="font-size:.68rem; color:var(--muted-2); margin-top:.15rem;">' + (c.ruta_nombre || 'Sin ruta') + '</div>' : '';
 
             var abonoHtml;
@@ -479,7 +559,7 @@
                 '<tr class="pm-tr cr-row' + (estaRevisado ? ' cr-revisado' : '') + '" data-id="' + c.id + '">' +
                     '<td class="pm-td cr-sticky-1"><span class="cr-handle">⠿⠿</span></td>' +
                     '<td class="pm-td cr-sticky-2"><span class="cr-orden-badge">' + (idx + 1) + '</span></td>' +
-                    '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><strong>' + c.nombre + '</strong>' + codigoHtml + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div></td>' +
+                    '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
                     '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + '</div></td>' +
@@ -710,6 +790,95 @@
         cargar();
     });
     overlay.addEventListener('click', function (e) { if (e.target === overlay) cerrarImportModal(); });
+
+    // ── Nuevo Cliente ─────────────────────────────────────────────────────
+    var nuevoOverlay = document.getElementById('cr-nuevo-overlay');
+    var nuevoTieneVenta = document.getElementById('cr-nuevo-tiene-venta');
+    var nuevoVentaForm = document.getElementById('cr-nuevo-venta-form');
+
+    function abrirNuevoModal() {
+        ['nombre', 'codigo', 'telefono', 'direccion', 'producto', 'valor', 'cobrado', 'fecha'].forEach(function (campo) {
+            document.getElementById('cr-nuevo-' + campo).value = '';
+        });
+        document.getElementById('cr-nuevo-error').textContent = '';
+        nuevoTieneVenta.checked = true;
+        nuevoVentaForm.style.display = '';
+
+        var rutaSel = document.getElementById('cr-nuevo-ruta');
+        var actual = rutaSelect.value;
+        rutaSel.value = (actual !== 'todos' && actual !== 'sin_ruta') ? actual : '';
+
+        nuevoOverlay.classList.add('show');
+    }
+    function cerrarNuevoModal() { nuevoOverlay.classList.remove('show'); }
+
+    document.getElementById('cr-abrir-nuevo-cliente').addEventListener('click', abrirNuevoModal);
+    document.getElementById('cr-nuevo-close').addEventListener('click', cerrarNuevoModal);
+    document.getElementById('cr-nuevo-cancelar').addEventListener('click', cerrarNuevoModal);
+    nuevoOverlay.addEventListener('click', function (e) { if (e.target === nuevoOverlay) cerrarNuevoModal(); });
+
+    nuevoTieneVenta.addEventListener('change', function () {
+        nuevoVentaForm.style.display = this.checked ? '' : 'none';
+    });
+
+    document.getElementById('cr-nuevo-guardar').addEventListener('click', function () {
+        var errorEl = document.getElementById('cr-nuevo-error');
+        errorEl.textContent = '';
+
+        var nombre = document.getElementById('cr-nuevo-nombre').value.trim();
+        if (!nombre) {
+            errorEl.textContent = 'El nombre es obligatorio.';
+            return;
+        }
+
+        var tieneVenta = nuevoTieneVenta.checked;
+        var valor = document.getElementById('cr-nuevo-valor').value;
+        if (tieneVenta && (!valor || Number(valor) <= 0)) {
+            errorEl.textContent = 'Escribe el valor total de la venta.';
+            return;
+        }
+
+        var payload = {
+            nombre: nombre,
+            codigo_anterior: document.getElementById('cr-nuevo-codigo').value.trim() || null,
+            telefono: document.getElementById('cr-nuevo-telefono').value.trim() || null,
+            direccion: document.getElementById('cr-nuevo-direccion').value.trim() || null,
+            ruta_cobro_id: document.getElementById('cr-nuevo-ruta').value || null,
+            tiene_venta: tieneVenta,
+            producto: document.getElementById('cr-nuevo-producto').value.trim() || null,
+            valor_total: tieneVenta ? Number(valor) : null,
+            monto_cobrado: tieneVenta ? Number(document.getElementById('cr-nuevo-cobrado').value || 0) : null,
+            fecha_venta: document.getElementById('cr-nuevo-fecha').value || null,
+        };
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+
+        fetch(baseUrl + '/clientes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify(payload),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Crear cliente';
+            if (!res.ok) {
+                errorEl.textContent = res.body.mensaje || 'Error al crear el cliente.';
+                return;
+            }
+            cerrarNuevoModal();
+            showToast(res.body.mensaje || 'Cliente creado.');
+            cargar();
+        }).catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Crear cliente';
+            errorEl.textContent = 'Error de conexión al guardar.';
+        });
+    });
 
     document.getElementById('cr-import-subir').addEventListener('click', function () {
         var fileInput = document.getElementById('cr-import-file');

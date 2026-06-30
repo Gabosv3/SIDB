@@ -274,7 +274,7 @@ class ClientesRutaController extends Controller
     public function actualizarCampo(Request $request, $tenant, Cliente $cliente): JsonResponse
     {
         $data = $request->validate([
-            'campo' => 'required|in:nombre,telefono,direccion,saldo',
+            'campo' => 'required|in:nombre,codigo_anterior,telefono,direccion,saldo',
             'valor' => 'required',
         ]);
 
@@ -287,6 +287,10 @@ class ClientesRutaController extends Controller
                 $partes = preg_split('/\s+/', $valor, 2);
                 $cliente->nombre = $partes[0];
                 $cliente->apellido = $partes[1] ?? '';
+                break;
+
+            case 'codigo_anterior':
+                $cliente->codigo_anterior = trim((string) $data['valor']) ?: null;
                 break;
 
             case 'telefono':
@@ -438,7 +442,6 @@ class ClientesRutaController extends Controller
                 }
 
                 $nombreProducto = $get('producto') ?: 'Producto importado';
-                $productoId = $this->resolverProducto($nombreProducto, $productoCache);
 
                 $vendedorNombre = $get('vendedor');
                 $vendedorId = null;
@@ -452,84 +455,14 @@ class ClientesRutaController extends Controller
                     $vendedorId = $vendedorCache[$vendedorNombre];
                 }
 
-                $estado = $saldo <= 0 ? 'completada' : 'pendiente';
-
-                $venta = Venta::create([
-                    'cliente_id' => $cliente->id,
-                    'user_id' => auth()->id() ?? 1,
-                    'vendedor_id' => $vendedorId,
-                    'sucursal_id' => 1,
-                    'fecha_venta' => $fechaVenta,
-                    'dias_credito' => 0,
-                    'estado' => $estado,
-                    'tipo_pago' => 'credito',
-                    'subtotal' => $valorTotal,
-                    'descuento_porcentaje' => 0,
-                    'descuento_monto' => 0,
-                    'impuesto_porcentaje' => 0,
-                    'impuesto_monto' => 0,
-                    'total' => $valorTotal,
-                    'prima' => 0,
-                    'monto_pagado' => $montoCobrado,
-                    'saldo_pendiente' => $saldo,
-                    'observaciones' => 'Importado. Código anterior: ' . ($get('codigo_anterior') ?? '—') . ". Producto: {$nombreProducto}",
-                ]);
+                $resultadoVenta = $this->crearVentaCredito(
+                    $cliente, $valorTotal, $montoCobrado, $saldo, $fechaVenta,
+                    $nombreProducto, $vendedorId, ($get('codigo_anterior') ?? '—'),
+                    $productoCache,
+                );
                 $ventasCreadas++;
-
-                DetalleVenta::create([
-                    'venta_id' => $venta->id,
-                    'producto_id' => $productoId,
-                    'cantidad' => 1,
-                    'precio_unitario' => $valorTotal,
-                    'descuento_porcentaje' => 0,
-                    'subtotal' => $valorTotal,
-                    'tipo_pago' => 'credito',
-                ]);
-
-                // Cuotas: 20 base + 4 extra, quincenales desde la fecha de venta
-                $montoBase = floor(($valorTotal / 20) * 100) / 100;
-                $residuo = round($valorTotal - ($montoBase * 20), 2);
-                $restante = $montoCobrado;
-                $gestiones = [];
-
-                for ($n = 1; $n <= 24; $n++) {
-                    $montoCuota = ($n === 20) ? round($montoBase + $residuo, 2) : $montoBase;
-                    $pagadoCuota = round(min($restante, $montoCuota), 2);
-                    $restante = round($restante - $pagadoCuota, 2);
-
-                    $estadoCuota = 'pendiente';
-                    if ($pagadoCuota >= $montoCuota) { $estadoCuota = 'cobrado'; }
-                    elseif ($pagadoCuota > 0) { $estadoCuota = 'parcialmente_cobrado'; }
-
-                    $gestiones[] = [
-                        'venta_id' => $venta->id,
-                        'cliente_id' => $cliente->id,
-                        'numero_cuota' => $n,
-                        'total_cuotas' => 24,
-                        'monto_cuota' => $montoCuota,
-                        'monto_pagado' => $pagadoCuota,
-                        'fecha_vencimiento' => $fechaVenta->copy()->addDays(14 * $n)->toDateString(),
-                        'estado' => $estadoCuota,
-                        'observaciones' => $n > 20 ? 'Cuota extra' : null,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-                GestionCobro::insert($gestiones);
-                $cuotasCreadas += count($gestiones);
-
-                if ($montoCobrado > 0) {
-                    PagoVenta::create([
-                        'venta_id' => $venta->id,
-                        'cliente_id' => $cliente->id,
-                        'user_id' => auth()->id() ?? 1,
-                        'monto' => $montoCobrado,
-                        'fecha_pago' => $fechaVenta->toDateString(),
-                        'metodo_pago' => 'efectivo',
-                        'observaciones' => 'Saldo inicial importado (cobro en papel)',
-                    ]);
-                    $pagosCreados++;
-                }
+                $cuotasCreadas += $resultadoVenta['cuotas'];
+                if ($resultadoVenta['tuvo_pago']) $pagosCreados++;
             }
 
             return [
@@ -553,6 +486,168 @@ class ClientesRutaController extends Controller
             'cuotas' => $resultado['cuotas'],
             'filas_omitidas' => $resultado['omitidas'],
         ]);
+    }
+
+    /**
+     * Crea una venta a crédito completa para un cliente: venta, detalle, las 24
+     * cuotas quincenales (20 + 4 de colchón) y el abono inicial si aplica.
+     * Usa $productoCache (nombre normalizado => id) compartido entre llamadas
+     * para no repetir búsquedas en `productos`.
+     */
+    private function crearVentaCredito(
+        Cliente $cliente,
+        float $valorTotal,
+        float $montoCobrado,
+        float $saldo,
+        \Carbon\Carbon $fechaVenta,
+        string $nombreProducto,
+        ?int $vendedorId,
+        string $codigoParaObservacion,
+        array &$productoCache = [],
+    ): array {
+        $productoId = $this->resolverProducto($nombreProducto, $productoCache);
+        $estado = $saldo <= 0 ? 'completada' : 'pendiente';
+
+        $venta = Venta::create([
+            'cliente_id' => $cliente->id,
+            'user_id' => auth()->id() ?? 1,
+            'vendedor_id' => $vendedorId,
+            'sucursal_id' => 1,
+            'fecha_venta' => $fechaVenta,
+            'dias_credito' => 0,
+            'estado' => $estado,
+            'tipo_pago' => 'credito',
+            'subtotal' => $valorTotal,
+            'descuento_porcentaje' => 0,
+            'descuento_monto' => 0,
+            'impuesto_porcentaje' => 0,
+            'impuesto_monto' => 0,
+            'total' => $valorTotal,
+            'prima' => 0,
+            'monto_pagado' => $montoCobrado,
+            'saldo_pendiente' => $saldo,
+            'observaciones' => "Código anterior: {$codigoParaObservacion}. Producto: {$nombreProducto}",
+        ]);
+
+        DetalleVenta::create([
+            'venta_id' => $venta->id,
+            'producto_id' => $productoId,
+            'cantidad' => 1,
+            'precio_unitario' => $valorTotal,
+            'descuento_porcentaje' => 0,
+            'subtotal' => $valorTotal,
+            'tipo_pago' => 'credito',
+        ]);
+
+        // Cuotas: 20 base + 4 extra, quincenales desde la fecha de venta
+        $montoBase = floor(($valorTotal / 20) * 100) / 100;
+        $residuo = round($valorTotal - ($montoBase * 20), 2);
+        $restante = $montoCobrado;
+        $gestiones = [];
+
+        for ($n = 1; $n <= 24; $n++) {
+            $montoCuota = ($n === 20) ? round($montoBase + $residuo, 2) : $montoBase;
+            $pagadoCuota = round(min($restante, $montoCuota), 2);
+            $restante = round($restante - $pagadoCuota, 2);
+
+            $estadoCuota = 'pendiente';
+            if ($pagadoCuota >= $montoCuota) { $estadoCuota = 'cobrado'; }
+            elseif ($pagadoCuota > 0) { $estadoCuota = 'parcialmente_cobrado'; }
+
+            $gestiones[] = [
+                'venta_id' => $venta->id,
+                'cliente_id' => $cliente->id,
+                'numero_cuota' => $n,
+                'total_cuotas' => 24,
+                'monto_cuota' => $montoCuota,
+                'monto_pagado' => $pagadoCuota,
+                'fecha_vencimiento' => $fechaVenta->copy()->addDays(14 * $n)->toDateString(),
+                'estado' => $estadoCuota,
+                'observaciones' => $n > 20 ? 'Cuota extra' : null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        GestionCobro::insert($gestiones);
+
+        $tuvoPago = false;
+        if ($montoCobrado > 0) {
+            PagoVenta::create([
+                'venta_id' => $venta->id,
+                'cliente_id' => $cliente->id,
+                'user_id' => auth()->id() ?? 1,
+                'monto' => $montoCobrado,
+                'fecha_pago' => $fechaVenta->toDateString(),
+                'metodo_pago' => 'efectivo',
+                'observaciones' => 'Saldo inicial importado (cobro en papel)',
+            ]);
+            $tuvoPago = true;
+        }
+
+        return ['venta' => $venta, 'cuotas' => count($gestiones), 'tuvo_pago' => $tuvoPago];
+    }
+
+    public function crearCliente(Request $request, $tenant): JsonResponse
+    {
+        $data = $request->validate([
+            'codigo_anterior' => 'nullable|string|max:100',
+            'nombre' => 'required|string|max:200',
+            'telefono' => 'nullable|string|max:30',
+            'direccion' => 'nullable|string|max:500',
+            'ruta_cobro_id' => 'nullable|integer|exists:rutas_cobro,id',
+            'tiene_venta' => 'required|boolean',
+            'producto' => 'nullable|string|max:150',
+            'valor_total' => 'required_if:tiene_venta,1|nullable|numeric|min:0.01',
+            'monto_cobrado' => 'nullable|numeric|min:0',
+            'fecha_venta' => 'nullable|date',
+        ]);
+
+        $partes = preg_split('/\s+/', trim($data['nombre']), 2);
+        $nombre = $partes[0];
+        $apellido = $partes[1] ?? '';
+
+        $montoCobrado = (float) ($data['monto_cobrado'] ?? 0);
+        $valorTotal = (float) ($data['valor_total'] ?? 0);
+
+        if ($data['tiene_venta'] && $montoCobrado > $valorTotal) {
+            return response()->json(['mensaje' => 'El monto ya cobrado no puede ser mayor al valor total.'], 422);
+        }
+
+        $resultado = DB::transaction(function () use ($data, $nombre, $apellido, $montoCobrado, $valorTotal) {
+            $cliente = Cliente::create([
+                'codigo_anterior' => $data['codigo_anterior'] ?? null,
+                'sucursal_id' => 1,
+                'nombre' => $nombre,
+                'apellido' => $apellido,
+                'telefono_normal' => $data['telefono'] ?? null,
+                'telefono_whatsapp' => $data['telefono'] ?? null,
+                'direccion' => $data['direccion'] ?? null,
+                'saldo' => $data['tiene_venta'] ? round($valorTotal - $montoCobrado, 2) : 0,
+                'activo' => true,
+                'ruta_cobro_id' => $data['ruta_cobro_id'] ?? null,
+            ]);
+
+            $ventaInfo = null;
+            if ($data['tiene_venta']) {
+                $fechaVenta = ! empty($data['fecha_venta']) ? \Carbon\Carbon::parse($data['fecha_venta']) : now();
+                $saldo = round($valorTotal - $montoCobrado, 2);
+                $productoCache = [];
+
+                $resultadoVenta = $this->crearVentaCredito(
+                    $cliente, $valorTotal, $montoCobrado, $saldo, $fechaVenta,
+                    $data['producto'] ?: 'Producto', null,
+                    $data['codigo_anterior'] ?? '—', $productoCache,
+                );
+                $ventaInfo = $resultadoVenta['venta'];
+            }
+
+            return ['cliente' => $cliente, 'venta' => $ventaInfo];
+        });
+
+        return response()->json([
+            'mensaje' => 'Cliente "' . $resultado['cliente']->nombre_completo . '" creado correctamente.',
+            'cliente_id' => $resultado['cliente']->id,
+        ], 201);
     }
 
     /**
