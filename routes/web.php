@@ -84,6 +84,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::get('{tenant}/data', 'App\Http\Controllers\ClientesRutaController@data')
         ->name('data')
         ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/clientes/{cliente}/detalle', 'App\Http\Controllers\ClientesRutaController@detalleCliente')
+        ->name('detalle')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
     Route::post('{tenant}/reordenar', 'App\Http\Controllers\ClientesRutaController@reordenar')
         ->name('reordenar')
         ->where('tenant', '[0-9]+');

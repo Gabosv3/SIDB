@@ -15,8 +15,9 @@
     .cr-search-icon { position:absolute; left:.75rem; bottom:.62rem; color:var(--muted-2); pointer-events:none; }
 
     /* ── Stat cards ── */
-    .cr-stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.25rem; }
-    @media (max-width:1100px) { .cr-stat-grid { grid-template-columns:repeat(2,1fr); } }
+    .cr-stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:1rem; margin-bottom:1.25rem; }
+    @media (max-width:1300px) { .cr-stat-grid { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:760px) { .cr-stat-grid { grid-template-columns:repeat(2,1fr); } }
     @media (max-width:480px) { .cr-stat-grid { grid-template-columns:1fr; } }
 
     /* ── Revisión temporal ── */
@@ -59,6 +60,25 @@
     .cr-abono-wrap { display:inline-flex; align-items:center; gap:.4rem; }
     .cr-abono-edit { background:none; border:1px solid transparent; cursor:pointer; color:var(--muted-2); padding:.3rem; border-radius:.4rem; display:inline-flex; }
     .cr-abono-edit:hover { background:var(--subtle); border-color:var(--border); color:#10b981; }
+
+    .cr-ver-detalle { background:none; border:1px solid transparent; cursor:pointer; color:#6366f1; padding:.3rem; border-radius:.4rem; display:inline-flex; flex-shrink:0; }
+    .cr-ver-detalle:hover { background:var(--subtle); border-color:var(--border); }
+
+    /* ── Modal de detalle ── */
+    .cr-detalle-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
+    .cr-detalle-nombre { font-size:1.1rem; font-weight:700; color:var(--text); }
+    .cr-detalle-sub { font-size:.78rem; color:var(--muted); margin-top:.2rem; line-height:1.5; }
+    .cr-detalle-resumen { display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; margin-bottom:1.25rem; }
+    .cr-detalle-resumen-item { background:var(--subtle); border-radius:.625rem; padding:.7rem; text-align:center; }
+    .cr-detalle-resumen-num { font-size:1.05rem; font-weight:800; color:var(--text); }
+    .cr-detalle-resumen-label { font-size:.64rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-top:.15rem; }
+    .cr-venta-card { border:1px solid var(--border); border-radius:.75rem; padding:1rem; margin-bottom:1rem; }
+    .cr-venta-card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.75rem; flex-wrap:wrap; }
+    .cr-venta-badge { display:inline-flex; align-items:center; padding:.2rem .6rem; border-radius:9999px; font-size:.68rem; font-weight:700; }
+    .cr-venta-cuotas-bar { height:6px; border-radius:3px; background:var(--border); overflow:hidden; display:flex; margin-top:.5rem; }
+    .cr-venta-pagos-list { margin-top:.75rem; border-top:1px solid var(--border-2); padding-top:.6rem; }
+    .cr-venta-pago-row { display:flex; justify-content:space-between; font-size:.78rem; padding:.25rem 0; color:var(--text-2); }
+    .cr-detalle-loading { text-align:center; padding:2rem; color:var(--muted); font-size:.85rem; }
 
     .cr-save-toast {
         position:fixed; bottom:1.25rem; right:1.25rem; background:#16a34a; color:#fff;
@@ -217,6 +237,17 @@
             <div>
                 <div class="pm-stat-label">Saldo total pendiente</div>
                 <div class="pm-stat-num" id="cr-total-saldo">—</div>
+            </div>
+        </div>
+    </div>
+    <div class="pm-card">
+        <div class="pm-stat">
+            <div class="pm-stat-icon" style="background:#dbeafe;color:#2563eb;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div>
+                <div class="pm-stat-label">Total cobrado a clientes</div>
+                <div class="pm-stat-num" id="cr-total-pagado">—</div>
             </div>
         </div>
     </div>
@@ -431,6 +462,18 @@
         </div>
     </div>
 </div>
+
+<div class="cr-modal-overlay" id="cr-detalle-overlay">
+    <div class="cr-modal" style="max-width:760px;">
+        <div class="cr-modal-header">
+            <span>Detalle del cliente</span>
+            <button type="button" class="cr-modal-close" id="cr-detalle-close">&times;</button>
+        </div>
+        <div class="cr-modal-body" id="cr-detalle-body">
+            <div class="cr-detalle-loading">Cargando...</div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -497,6 +540,7 @@
 
         document.getElementById('cr-total-clientes').textContent = data.total_clientes;
         document.getElementById('cr-total-saldo').textContent = money(data.total_saldo);
+        document.getElementById('cr-total-pagado').textContent = money(data.total_pagado);
         document.getElementById('cr-sin-gps').textContent = data.clientes.filter(function (c) { return !c.tiene_ubicacion; }).length;
 
         var revisadosEnLista = data.clientes.filter(function (c) { return revisados.has(c.id); }).length;
@@ -559,7 +603,7 @@
                 '<tr class="pm-tr cr-row' + (estaRevisado ? ' cr-revisado' : '') + '" data-id="' + c.id + '">' +
                     '<td class="pm-td cr-sticky-1"><span class="cr-handle">⠿⠿</span></td>' +
                     '<td class="pm-td cr-sticky-2"><span class="cr-orden-badge">' + (idx + 1) + '</span></td>' +
-                    '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
+                    '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><button type="button" class="cr-ver-detalle" data-cliente="' + c.id + '" title="Ver detalle del cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
                     '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + '</div></td>' +
@@ -879,6 +923,100 @@
             errorEl.textContent = 'Error de conexión al guardar.';
         });
     });
+
+    // ── Ver detalle del cliente ──────────────────────────────────────────
+    var detalleOverlay = document.getElementById('cr-detalle-overlay');
+    var detalleBody = document.getElementById('cr-detalle-body');
+
+    var estadoLabels = { pendiente: 'Pendiente', completada: 'Completada', cancelada: 'Cancelada', devuelta: 'Devuelta' };
+    var estadoColores = {
+        pendiente: ['#fef9c3', '#854d0e'], completada: ['#dcfce7', '#16a34a'],
+        cancelada: ['#fee2e2', '#dc2626'], devuelta: ['#e0f2fe', '#0369a1'],
+    };
+
+    function abrirDetalle(clienteId) {
+        detalleBody.innerHTML = '<div class="cr-detalle-loading">Cargando...</div>';
+        detalleOverlay.classList.add('show');
+
+        fetch(baseUrl + '/clientes/' + clienteId + '/detalle')
+            .then(function (r) { return r.json(); })
+            .then(renderDetalle)
+            .catch(function () {
+                detalleBody.innerHTML = '<div class="cr-detalle-loading">Error al cargar el detalle.</div>';
+            });
+    }
+    function cerrarDetalle() { detalleOverlay.classList.remove('show'); }
+
+    function renderDetalle(data) {
+        var c = data.cliente;
+        var r = data.resumen;
+
+        var html = '<div class="cr-detalle-header"><div>' +
+            '<div class="cr-detalle-nombre">' + c.nombre + (c.codigo_anterior ? ' <span style="color:var(--muted-2); font-weight:400;">(' + c.codigo_anterior + ')</span>' : '') + '</div>' +
+            '<div class="cr-detalle-sub">' +
+                (c.telefono ? '📞 ' + c.telefono + '<br>' : '') +
+                (c.direccion ? '📍 ' + c.direccion + '<br>' : '') +
+                (c.ruta_nombre ? '🚚 ' + c.ruta_nombre + (c.ruta_dia ? ' (' + c.ruta_dia + ')' : '') : '<span style="color:#dc2626;">⚠ Sin ruta asignada</span>') +
+            '</div></div></div>';
+
+        html += '<div class="cr-detalle-resumen">' +
+            '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num">' + r.total_ventas + '</div><div class="cr-detalle-resumen-label">Ventas</div></div>' +
+            '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num" style="color:#16a34a;">' + money(r.total_pagado) + '</div><div class="cr-detalle-resumen-label">Pagado</div></div>' +
+            '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num" style="color:#dc2626;">' + money(r.total_pendiente) + '</div><div class="cr-detalle-resumen-label">Pendiente</div></div>' +
+        '</div>';
+
+        if (data.ventas.length === 0) {
+            html += '<p style="text-align:center; color:var(--muted); font-size:.85rem;">Este cliente no tiene ventas registradas.</p>';
+        }
+
+        data.ventas.forEach(function (v) {
+            var colores = estadoColores[v.estado] || ['#f1f5f9', '#475569'];
+            var pct = v.total > 0 ? Math.min(100, Math.round((v.monto_pagado / v.total) * 100)) : 0;
+
+            html += '<div class="cr-venta-card">' +
+                '<div class="cr-venta-card-header">' +
+                    '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')</span></div>' +
+                    '<span class="cr-venta-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (estadoLabels[v.estado] || v.estado) + '</span>' +
+                '</div>' +
+                '<div style="display:flex; gap:1.5rem; font-size:.82rem; flex-wrap:wrap;">' +
+                    '<div>Total: <strong>' + money(v.total) + '</strong></div>' +
+                    '<div style="color:#16a34a;">Pagado: <strong>' + money(v.monto_pagado) + '</strong></div>' +
+                    '<div style="color:' + (v.saldo_pendiente > 0 ? '#dc2626' : '#16a34a') + ';">Saldo: <strong>' + money(v.saldo_pendiente) + '</strong></div>' +
+                '</div>' +
+                '<div class="cr-venta-cuotas-bar"><div style="width:' + pct + '%; background:#16a34a;"></div></div>';
+
+            if (v.cuotas_resumen) {
+                html += '<div style="font-size:.74rem; color:var(--muted); margin-top:.4rem;">' +
+                    v.cuotas_resumen.cobradas + ' de ' + v.cuotas_resumen.total + ' cuotas cobradas' +
+                    (v.cuotas_resumen.vencidas > 0 ? ' · <span style="color:#dc2626; font-weight:600;">' + v.cuotas_resumen.vencidas + ' vencidas</span>' : '') +
+                '</div>';
+            }
+
+            if (v.proxima_cuota) {
+                html += '<div style="font-size:.74rem; color:var(--muted-2); margin-top:.2rem;">Próxima cuota: #' + v.proxima_cuota.numero_cuota + '/' + v.proxima_cuota.total_cuotas + ' — vence ' + v.proxima_cuota.fecha_vencimiento.substring(8,10) + '/' + v.proxima_cuota.fecha_vencimiento.substring(5,7) + '/' + v.proxima_cuota.fecha_vencimiento.substring(0,4) + '</div>';
+            }
+
+            if (v.pagos.length > 0) {
+                html += '<div class="cr-venta-pagos-list">';
+                v.pagos.forEach(function (p) {
+                    html += '<div class="cr-venta-pago-row"><span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + '</span><strong style="color:#16a34a;">' + money(p.monto) + '</strong></div>';
+                });
+                html += '</div>';
+            }
+
+            html += '</div>';
+        });
+
+        detalleBody.innerHTML = html;
+    }
+
+    tbody.addEventListener('click', function (e) {
+        var btn = e.target.closest('.cr-ver-detalle');
+        if (btn) abrirDetalle(btn.dataset.cliente);
+    });
+
+    document.getElementById('cr-detalle-close').addEventListener('click', cerrarDetalle);
+    detalleOverlay.addEventListener('click', function (e) { if (e.target === detalleOverlay) cerrarDetalle(); });
 
     document.getElementById('cr-import-subir').addEventListener('click', function () {
         var fileInput = document.getElementById('cr-import-file');

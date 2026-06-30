@@ -82,6 +82,7 @@ class ClientesRutaController extends Controller
                     'venta_id' => $v->id,
                     'total' => (float) $v->total,
                     'saldo_pendiente' => (float) $v->saldo_pendiente,
+                    'monto_pagado' => (float) $v->monto_pagado,
                     'abono_inicial' => $v->pagos->first() ? (float) $v->pagos->first()->monto : null,
                 ])->values();
 
@@ -99,6 +100,7 @@ class ClientesRutaController extends Controller
                     'ruta_cobro_id' => $c->ruta_cobro_id,
                     'ruta_nombre' => $c->rutaCobro?->nombre,
                     'ventas_credito' => $ventasCredito,
+                    'total_pagado_cliente' => round($ventasCredito->sum('monto_pagado'), 2),
                 ];
             })
             ->values();
@@ -106,7 +108,73 @@ class ClientesRutaController extends Controller
         return response()->json([
             'clientes' => $clientes,
             'total_saldo' => round($clientes->sum('saldo'), 2),
+            'total_pagado' => round($clientes->sum('total_pagado_cliente'), 2),
             'total_clientes' => $clientes->count(),
+        ]);
+    }
+
+    public function detalleCliente(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        $cliente->load([
+            'rutaCobro:id,nombre,dia_semana',
+            'ventas' => fn ($q) => $q->orderBy('fecha_venta')
+                ->with([
+                    'pagos' => fn ($p) => $p->orderBy('fecha_pago'),
+                    'gestionesCobro' => fn ($g) => $g->orderBy('numero_cuota'),
+                ]),
+        ]);
+
+        $ventas = $cliente->ventas->map(function (Venta $v) {
+            $cuotas = $v->gestionesCobro;
+            $hoy = now()->startOfDay();
+
+            return [
+                'id' => $v->id,
+                'numero_venta' => $v->numero_venta,
+                'fecha_venta' => $v->fecha_venta?->format('d/m/Y'),
+                'tipo_pago' => $v->tipo_pago,
+                'estado' => $v->estado,
+                'total' => (float) $v->total,
+                'monto_pagado' => (float) $v->monto_pagado,
+                'saldo_pendiente' => (float) $v->saldo_pendiente,
+                'observaciones' => $v->observaciones,
+                'pagos' => $v->pagos->map(fn ($p) => [
+                    'monto' => (float) $p->monto,
+                    'fecha' => $p->fecha_pago?->format('d/m/Y'),
+                    'metodo_pago' => $p->metodo_pago,
+                    'observaciones' => $p->observaciones,
+                ])->values(),
+                'cuotas_resumen' => $cuotas->isEmpty() ? null : [
+                    'total' => $cuotas->count(),
+                    'cobradas' => $cuotas->where('estado', 'cobrado')->count(),
+                    'pendientes' => $cuotas->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count(),
+                    'vencidas' => $cuotas->filter(fn ($g) => $g->estado !== 'cobrado' && \Carbon\Carbon::parse($g->fecha_vencimiento)->lt($hoy))->count(),
+                ],
+                'proxima_cuota' => $cuotas->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->sortBy('fecha_vencimiento')->first()?->only(['numero_cuota', 'total_cuotas', 'monto_cuota', 'monto_pagado', 'fecha_vencimiento']),
+            ];
+        })->values();
+
+        return response()->json([
+            'cliente' => [
+                'id' => $cliente->id,
+                'codigo_anterior' => $cliente->codigo_anterior,
+                'nombre' => $cliente->nombre_completo,
+                'dui' => $cliente->dui,
+                'telefono' => $cliente->telefono_normal,
+                'whatsapp' => $cliente->telefono_whatsapp,
+                'direccion' => $cliente->direccion,
+                'saldo' => (float) $cliente->saldo,
+                'ruta_nombre' => $cliente->rutaCobro?->nombre,
+                'ruta_dia' => $cliente->rutaCobro?->dia_semana,
+                'activo' => (bool) $cliente->activo,
+            ],
+            'ventas' => $ventas,
+            'resumen' => [
+                'total_ventas' => $ventas->count(),
+                'total_comprado' => round($ventas->sum('total'), 2),
+                'total_pagado' => round($ventas->sum('monto_pagado'), 2),
+                'total_pendiente' => round($ventas->sum('saldo_pendiente'), 2),
+            ],
         ]);
     }
 
