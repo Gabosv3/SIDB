@@ -238,6 +238,7 @@ return [
         'View:Reportes' => 'Ver Reportes',
         'Export:Clientes' => 'Exportar Clientes (CSV)',
         'View:PerfilEmpleado' => 'Ver Perfil de Empleado',
+        'View:ClientesRuta' => 'Ver Clientes por Ruta',
     ],
 
     /*
