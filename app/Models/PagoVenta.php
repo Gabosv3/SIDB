@@ -37,7 +37,7 @@ class PagoVenta extends Model
         static::created(function (PagoVenta $pago): void {
             $venta = $pago->venta;
             if ($venta) {
-                $totalPagado = $venta->pagos()->sum('monto');
+                $totalPagado = $venta->prima + $venta->pagos()->sum('monto');
                 $venta->monto_pagado    = $totalPagado;
                 $venta->saldo_pendiente = max(0, $venta->total - $totalPagado);
                 if ($venta->saldo_pendiente <= 0) {
@@ -60,7 +60,7 @@ class PagoVenta extends Model
         static::deleting(function (PagoVenta $pago): void {
             $venta = $pago->venta;
             if ($venta) {
-                $totalPagado = $venta->pagos()->where('id', '!=', $pago->id)->sum('monto');
+                $totalPagado = $venta->prima + $venta->pagos()->where('id', '!=', $pago->id)->sum('monto');
                 $venta->monto_pagado    = $totalPagado;
                 $venta->saldo_pendiente = max(0, $venta->total - $totalPagado);
                 if ($venta->saldo_pendiente > 0 && $venta->estado === 'completada') {

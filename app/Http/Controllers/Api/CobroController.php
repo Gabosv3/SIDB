@@ -488,13 +488,9 @@ class CobroController extends Controller
                 $estadoCuota = $gestion->monto_pagado >= $gestion->monto_cuota ? 'cobrado' : 'parcialmente_cobrado';
                 $gestion->update(['estado' => $estadoCuota]);
 
+                // La venta se actualiza automáticamente en PagoVenta::boot
                 $venta = $gestion->venta;
-                $venta->increment('monto_pagado', $aplicar);
-                $venta->decrement('saldo_pendiente', min($aplicar, $venta->saldo_pendiente));
                 $venta->refresh();
-                if ($venta->saldo_pendiente <= 0) {
-                    $venta->update(['estado' => 'completada']);
-                }
 
                 $cuotasPagadas[] = [
                     'id'              => $gestion->id,
@@ -623,14 +619,9 @@ class CobroController extends Controller
             $estado = $gestion->monto_pagado >= $gestion->monto_cuota ? 'cobrado' : 'parcialmente_cobrado';
             $gestion->update(['estado' => $estado]);
 
-            // Actualizar venta atómicamente
+            // La venta se actualiza automáticamente en PagoVenta::boot
             $venta = $gestion->venta;
-            $venta->increment('monto_pagado', $monto);
-            $venta->decrement('saldo_pendiente', min($monto, $venta->saldo_pendiente));
             $venta->refresh();
-            if ($venta->saldo_pendiente <= 0) {
-                $venta->update(['estado' => 'completada']);
-            }
 
             return [
                 'estado' => $estado,
