@@ -3,14 +3,36 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
+use App\Models\Cobrador;
+use App\Models\DetalleVenta;
+use App\Models\GestionCobro;
 use App\Models\PagoVenta;
+use App\Models\Producto;
 use App\Models\RutaCobro;
+use App\Models\Vendedor;
+use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ClientesRutaController extends Controller
 {
+    private const CAMPOS_IMPORTACION = [
+        'codigo_anterior' => 'Código (anterior)',
+        'nombre' => 'Nombre completo',
+        'telefono' => 'Teléfono',
+        'direccion' => 'Dirección',
+        'producto' => 'Producto',
+        'valor_total' => 'Valor total de la venta',
+        'monto_cobrado' => 'Monto ya cobrado (abono inicial)',
+        'saldo_pendiente' => 'Saldo pendiente',
+        'fecha_venta' => 'Fecha de venta',
+        'vendedor' => 'Vendedor',
+    ];
+
     public function index(Request $request, $tenant)
     {
         $rutaId = $request->get('ruta_cobro_id') ?: null;
@@ -22,8 +44,10 @@ class ClientesRutaController extends Controller
         }
 
         $sinRuta = Cliente::whereNull('ruta_cobro_id')->where('activo', true)->count();
+        $cobradores = Cobrador::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
+        $camposImportacion = self::CAMPOS_IMPORTACION;
 
-        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta'));
+        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'camposImportacion'));
     }
 
     public function data(Request $request, $tenant): JsonResponse
@@ -221,5 +245,339 @@ class ClientesRutaController extends Controller
         $cliente->save();
 
         return response()->json(['mensaje' => 'Cliente actualizado.']);
+    }
+
+    // ── Importación de Excel ─────────────────────────────────────────────────
+
+    public function previewExcel(Request $request, $tenant): JsonResponse
+    {
+        $request->validate([
+            'archivo' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+        ]);
+
+        $archivo = $request->file('archivo');
+        $token = Str::random(20) . '.' . $archivo->getClientOriginalExtension();
+        $path = $archivo->storeAs('imports-temp', $token, 'local');
+
+        [$filas, $totalFilas] = $this->leerExcel(Storage::disk('local')->path($path), limite: 6);
+
+        if (empty($filas)) {
+            Storage::disk('local')->delete($path);
+            return response()->json(['mensaje' => 'El archivo no tiene datos legibles.'], 422);
+        }
+
+        $encabezados = array_keys($filas[0]);
+
+        return response()->json([
+            'token' => $token,
+            'encabezados' => $encabezados,
+            'muestra' => $filas,
+            'total_filas_detectadas' => $totalFilas,
+            'campos' => self::CAMPOS_IMPORTACION,
+        ]);
+    }
+
+    public function procesarExcel(Request $request, $tenant): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => 'required|string',
+            'mapeo' => 'required|array',
+            'mapeo.*' => 'nullable|string',
+            'mapeo.nombre' => 'required|string',
+            'mapeo.valor_total' => 'required|string',
+            'fila_inicio' => 'required|integer|min:1',
+            'ruta_modo' => 'required|in:nueva,existente',
+            'ruta_cobro_id' => 'required_if:ruta_modo,existente|nullable|integer|exists:rutas_cobro,id',
+            'ruta_nombre' => 'required_if:ruta_modo,nueva|nullable|string|max:150',
+            'ruta_dia' => 'required_if:ruta_modo,nueva|nullable|in:lunes,martes,miércoles,jueves,viernes,sábado,domingo',
+            'ruta_cobrador_id' => 'required_if:ruta_modo,nueva|nullable|integer|exists:cobradores,id',
+        ]);
+
+        $path = Storage::disk('local')->path('imports-temp/' . basename($data['token']));
+        if (! file_exists($path)) {
+            return response()->json(['mensaje' => 'El archivo expiró, vuelve a subirlo.'], 422);
+        }
+
+        [$todasLasFilas] = $this->leerExcel($path, limite: null, desde: $data['fila_inicio']);
+
+        if (empty($todasLasFilas)) {
+            return response()->json(['mensaje' => 'No se encontraron filas de datos a partir de la fila indicada.'], 422);
+        }
+
+        $mapeo = $data['mapeo'];
+
+        $resultado = DB::transaction(function () use ($data, $mapeo, $todasLasFilas) {
+            if ($data['ruta_modo'] === 'nueva') {
+                $ruta = RutaCobro::create([
+                    'sucursal_id' => 1,
+                    'cobrador_id' => $data['ruta_cobrador_id'],
+                    'nombre' => $data['ruta_nombre'],
+                    'dia_semana' => $data['ruta_dia'],
+                    'descripcion' => 'Importada desde Excel',
+                    'activa' => true,
+                ]);
+            } else {
+                $ruta = RutaCobro::findOrFail($data['ruta_cobro_id']);
+            }
+
+            $vendedorCache = [];
+            $productoCache = [];
+            foreach (Producto::all(['id', 'nombre']) as $p) {
+                $productoCache[mb_strtolower(trim($p->nombre))] = $p->id;
+            }
+
+            $clientesCreados = 0;
+            $ventasCreadas = 0;
+            $pagosCreados = 0;
+            $cuotasCreadas = 0;
+            $omitidas = [];
+
+            foreach ($todasLasFilas as $i => $fila) {
+                $get = fn (string $campo) => isset($mapeo[$campo], $fila[$mapeo[$campo]]) ? trim((string) $fila[$mapeo[$campo]]) : null;
+
+                $nombreCompleto = $get('nombre');
+                $valorTotalRaw = $get('valor_total');
+                $valorTotalNum = $this->parseNumero($valorTotalRaw);
+
+                if (! $nombreCompleto || $valorTotalNum === null) {
+                    $omitidas[] = $i + 1;
+                    continue;
+                }
+
+                $valorTotal = $valorTotalNum;
+                $montoCobrado = $this->parseNumero($get('monto_cobrado')) ?? 0.0;
+                $saldoNum = $this->parseNumero($get('saldo_pendiente'));
+                $saldo = $saldoNum ?? round($valorTotal - $montoCobrado, 2);
+
+                $partes = preg_split('/\s+/', $nombreCompleto, 2);
+                $nombre = $partes[0];
+                $apellido = $partes[1] ?? '';
+
+                $cliente = Cliente::create([
+                    'codigo_anterior' => $get('codigo_anterior'),
+                    'sucursal_id' => 1,
+                    'nombre' => $nombre,
+                    'apellido' => $apellido,
+                    'telefono_normal' => $get('telefono'),
+                    'telefono_whatsapp' => $get('telefono'),
+                    'direccion' => $get('direccion'),
+                    'saldo' => $saldo,
+                    'activo' => true,
+                    'ruta_cobro_id' => $ruta->id,
+                ]);
+                $clientesCreados++;
+
+                $fechaRaw = $get('fecha_venta');
+                try {
+                    $fechaVenta = $fechaRaw ? \Carbon\Carbon::parse($fechaRaw) : now();
+                } catch (\Throwable) {
+                    $fechaVenta = now();
+                }
+
+                $nombreProducto = $get('producto') ?: 'Producto importado';
+                $productoId = $this->resolverProducto($nombreProducto, $productoCache);
+
+                $vendedorNombre = $get('vendedor');
+                $vendedorId = null;
+                if ($vendedorNombre) {
+                    if (! isset($vendedorCache[$vendedorNombre])) {
+                        $vendedorCache[$vendedorNombre] = Vendedor::firstOrCreate(
+                            ['nombre' => $vendedorNombre],
+                            ['sucursal_id' => 1, 'apellido' => '', 'activo' => true]
+                        )->id;
+                    }
+                    $vendedorId = $vendedorCache[$vendedorNombre];
+                }
+
+                $estado = $saldo <= 0 ? 'completada' : 'pendiente';
+
+                $venta = Venta::create([
+                    'cliente_id' => $cliente->id,
+                    'user_id' => auth()->id() ?? 1,
+                    'vendedor_id' => $vendedorId,
+                    'sucursal_id' => 1,
+                    'fecha_venta' => $fechaVenta,
+                    'dias_credito' => 0,
+                    'estado' => $estado,
+                    'tipo_pago' => 'credito',
+                    'subtotal' => $valorTotal,
+                    'descuento_porcentaje' => 0,
+                    'descuento_monto' => 0,
+                    'impuesto_porcentaje' => 0,
+                    'impuesto_monto' => 0,
+                    'total' => $valorTotal,
+                    'prima' => 0,
+                    'monto_pagado' => $montoCobrado,
+                    'saldo_pendiente' => $saldo,
+                    'observaciones' => 'Importado. Código anterior: ' . ($get('codigo_anterior') ?? '—') . ". Producto: {$nombreProducto}",
+                ]);
+                $ventasCreadas++;
+
+                DetalleVenta::create([
+                    'venta_id' => $venta->id,
+                    'producto_id' => $productoId,
+                    'cantidad' => 1,
+                    'precio_unitario' => $valorTotal,
+                    'descuento_porcentaje' => 0,
+                    'subtotal' => $valorTotal,
+                    'tipo_pago' => 'credito',
+                ]);
+
+                // Cuotas: 20 base + 4 extra, quincenales desde la fecha de venta
+                $montoBase = floor(($valorTotal / 20) * 100) / 100;
+                $residuo = round($valorTotal - ($montoBase * 20), 2);
+                $restante = $montoCobrado;
+                $gestiones = [];
+
+                for ($n = 1; $n <= 24; $n++) {
+                    $montoCuota = ($n === 20) ? round($montoBase + $residuo, 2) : $montoBase;
+                    $pagadoCuota = round(min($restante, $montoCuota), 2);
+                    $restante = round($restante - $pagadoCuota, 2);
+
+                    $estadoCuota = 'pendiente';
+                    if ($pagadoCuota >= $montoCuota) { $estadoCuota = 'cobrado'; }
+                    elseif ($pagadoCuota > 0) { $estadoCuota = 'parcialmente_cobrado'; }
+
+                    $gestiones[] = [
+                        'venta_id' => $venta->id,
+                        'cliente_id' => $cliente->id,
+                        'numero_cuota' => $n,
+                        'total_cuotas' => 24,
+                        'monto_cuota' => $montoCuota,
+                        'monto_pagado' => $pagadoCuota,
+                        'fecha_vencimiento' => $fechaVenta->copy()->addDays(14 * $n)->toDateString(),
+                        'estado' => $estadoCuota,
+                        'observaciones' => $n > 20 ? 'Cuota extra' : null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+                GestionCobro::insert($gestiones);
+                $cuotasCreadas += count($gestiones);
+
+                if ($montoCobrado > 0) {
+                    PagoVenta::create([
+                        'venta_id' => $venta->id,
+                        'cliente_id' => $cliente->id,
+                        'user_id' => auth()->id() ?? 1,
+                        'monto' => $montoCobrado,
+                        'fecha_pago' => $fechaVenta->toDateString(),
+                        'metodo_pago' => 'efectivo',
+                        'observaciones' => 'Saldo inicial importado (cobro en papel)',
+                    ]);
+                    $pagosCreados++;
+                }
+            }
+
+            return [
+                'ruta' => $ruta,
+                'clientes' => $clientesCreados,
+                'ventas' => $ventasCreadas,
+                'pagos' => $pagosCreados,
+                'cuotas' => $cuotasCreadas,
+                'omitidas' => $omitidas,
+            ];
+        });
+
+        Storage::disk('local')->delete('imports-temp/' . basename($data['token']));
+
+        return response()->json([
+            'mensaje' => "Importación completa: {$resultado['clientes']} clientes en la ruta \"{$resultado['ruta']->nombre}\".",
+            'ruta_id' => $resultado['ruta']->id,
+            'clientes' => $resultado['clientes'],
+            'ventas' => $resultado['ventas'],
+            'pagos' => $resultado['pagos'],
+            'cuotas' => $resultado['cuotas'],
+            'filas_omitidas' => $resultado['omitidas'],
+        ]);
+    }
+
+    /**
+     * Convierte valores tipo " $ 160.00 ", "160,00", "8.00" a float.
+     * Devuelve null si no se puede interpretar como número.
+     */
+    private function parseNumero(?string $valor): ?float
+    {
+        if ($valor === null) return null;
+        $limpio = preg_replace('/[^0-9.,\-]/', '', $valor);
+        $limpio = str_replace(',', '', $limpio);
+        if ($limpio === '' || ! is_numeric($limpio)) return null;
+        return (float) $limpio;
+    }
+
+    private function resolverProducto(string $nombre, array &$cache): int
+    {
+        $norm = mb_strtolower(trim($nombre));
+        $sinPrefijo = preg_replace('/^1\s+/', '', $norm);
+
+        if (isset($cache[$norm])) return $cache[$norm];
+        if (isset($cache[$sinPrefijo])) return $cache[$sinPrefijo];
+
+        foreach ($cache as $nombreExistente => $id) {
+            if (str_contains($nombreExistente, $sinPrefijo) || str_contains($sinPrefijo, $nombreExistente)) {
+                return $id;
+            }
+        }
+
+        $nuevo = Producto::create([
+            'nombre' => $nombre,
+            'codigo' => 'PROD-' . strtoupper(Str::random(6)),
+            'unidad_medida' => 'unidad',
+            'precio_compra' => 0,
+            'precio_venta' => 0,
+            'stock' => 0,
+            'stock_minimo' => 0,
+            'activo' => true,
+            'sucursal_id' => 1,
+        ]);
+        $cache[$norm] = $nuevo->id;
+
+        return $nuevo->id;
+    }
+
+    /**
+     * @return array{0: array<int, array<string, mixed>>, 1: int}
+     */
+    private function leerExcel(string $path, ?int $limite, int $desde = 1): array
+    {
+        $spreadsheet = IOFactory::load($path);
+        $hoja = $spreadsheet->getActiveSheet();
+        $filasCrudas = $hoja->toArray(null, true, true, true);
+
+        $filasNoVacias = array_filter($filasCrudas, fn ($f) => collect($f)->filter(fn ($v) => $v !== null && trim((string) $v) !== '')->isNotEmpty());
+
+        if (empty($filasNoVacias)) {
+            return [[], 0];
+        }
+
+        $primeraFilaNum = array_key_first($filasNoVacias);
+        $encabezados = $filasCrudas[$primeraFilaNum];
+        $encabezados = array_map(fn ($v) => $v !== null ? trim((string) $v) : '', $encabezados);
+
+        // columnas sin encabezado legible -> usar letra de columna
+        foreach ($encabezados as $col => $nombre) {
+            if ($nombre === '') $encabezados[$col] = "Columna {$col}";
+        }
+
+        $filasDatos = [];
+        foreach ($filasCrudas as $numFila => $fila) {
+            if ($numFila <= $primeraFilaNum) continue;
+            if ($numFila < $desde) continue;
+            $vacia = collect($fila)->filter(fn ($v) => $v !== null && trim((string) $v) !== '')->isEmpty();
+            if ($vacia) continue;
+
+            $filaAsoc = [];
+            foreach ($encabezados as $col => $nombreCol) {
+                $valor = $fila[$col] ?? null;
+                $filaAsoc[$nombreCol] = $valor;
+            }
+            $filasDatos[] = $filaAsoc;
+
+            if ($limite !== null && count($filasDatos) >= $limite) break;
+        }
+
+        $total = $limite !== null ? count(array_filter($filasCrudas, fn ($f, $n) => $n > $primeraFilaNum && collect($f)->filter(fn ($v) => $v !== null && trim((string) $v) !== '')->isNotEmpty(), ARRAY_FILTER_USE_BOTH)) : count($filasDatos);
+
+        return [$filasDatos, $total];
     }
 }

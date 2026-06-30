@@ -96,6 +96,12 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/clientes/{cliente}/campo', 'App\Http\Controllers\ClientesRutaController@actualizarCampo')
         ->name('campo')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/importar/preview', 'App\Http\Controllers\ClientesRutaController@previewExcel')
+        ->name('importar.preview')
+        ->where('tenant', '[0-9]+');
+    Route::post('{tenant}/importar/procesar', 'App\Http\Controllers\ClientesRutaController@procesarExcel')
+        ->name('importar.procesar')
+        ->where('tenant', '[0-9]+');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

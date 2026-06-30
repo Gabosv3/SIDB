@@ -60,6 +60,47 @@
     }
     .cr-save-toast.show { opacity:1; transform:translateY(0); }
 
+    /* ── Botón importar ── */
+    .cr-import-btn { display:inline-flex; align-items:center; gap:.5rem; background:#10b981; color:#fff; border:none; border-radius:.625rem; padding:.6rem 1.1rem; font-size:.82rem; font-weight:600; cursor:pointer; transition:background .15s; }
+    .cr-import-btn:hover { background:#059669; }
+    .cr-import-btn-secundario { background:var(--subtle); color:var(--text-2); border:1px solid var(--border); border-radius:.625rem; padding:.6rem 1.1rem; font-size:.82rem; font-weight:600; cursor:pointer; }
+    .cr-import-btn-secundario:hover { background:var(--border); }
+
+    /* ── Modal ── */
+    .cr-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center; padding:1rem; }
+    .cr-modal-overlay.show { display:flex; }
+    .cr-modal { background:var(--card); border-radius:1rem; width:100%; max-width:620px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+    .cr-modal-header { display:flex; align-items:center; justify-content:space-between; padding:1.1rem 1.4rem; border-bottom:1px solid var(--border); font-weight:700; font-size:.95rem; color:var(--text); }
+    .cr-modal-close { background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:var(--muted); padding:0; }
+    .cr-modal-close:hover { color:var(--text); }
+    .cr-modal-body { padding:1.4rem; overflow-y:auto; }
+
+    .cr-import-hint { font-size:.82rem; color:var(--muted); margin-bottom:.75rem; line-height:1.5; }
+    .cr-import-error { color:#dc2626; font-size:.78rem; margin-top:.6rem; min-height:1em; }
+    #cr-import-file { width:100%; padding:.6rem; border:1px dashed var(--border); border-radius:.625rem; font-size:.82rem; background:var(--subtle); color:var(--text-2); }
+
+    .cr-import-mapeo-row { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; align-items:center; margin-bottom:.6rem; }
+    .cr-import-mapeo-row label { font-size:.8rem; font-weight:600; color:var(--text-2); }
+    .cr-import-mapeo-row select { width:100%; }
+
+    .cr-import-divider { height:1px; background:var(--border); margin:1.1rem 0; }
+
+    .cr-import-ruta-modo { display:flex; gap:1.25rem; margin-bottom:1rem; font-size:.84rem; color:var(--text-2); }
+    .cr-import-ruta-modo label { display:flex; align-items:center; gap:.4rem; cursor:pointer; }
+
+    .cr-import-ruta-form { display:flex; flex-direction:column; gap:.6rem; }
+    .cr-import-field label { display:block; font-size:.72rem; font-weight:600; color:var(--muted); margin-bottom:.25rem; }
+    .cr-import-field select, .cr-import-field input { width:100%; }
+
+    .cr-import-actions { display:flex; justify-content:space-between; gap:.75rem; margin-top:1.25rem; }
+
+    .cr-import-resultado-icon { width:56px; height:56px; border-radius:50%; background:#dcfce7; color:#16a34a; font-size:1.75rem; display:flex; align-items:center; justify-content:center; margin:0 auto 1rem; }
+    html.dark .cr-import-resultado-icon { background:rgba(34,197,94,.15); }
+    .cr-import-resultado-stats { display:grid; grid-template-columns:repeat(2,1fr); gap:.6rem; margin-top:1rem; }
+    .cr-import-resultado-stat { background:var(--subtle); border-radius:.625rem; padding:.7rem; text-align:center; }
+    .cr-import-resultado-stat-num { font-size:1.25rem; font-weight:800; color:var(--text); }
+    .cr-import-resultado-stat-label { font-size:.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-top:.15rem; }
+
     /* ── Responsive: telefono ── */
     @media (max-width:768px) {
         .pm-body { padding:.875rem; }
@@ -84,14 +125,29 @@
         .cr-abono-edit svg { width:15px; height:15px; }
 
         .cr-save-toast { left:.875rem; right:.875rem; bottom:.875rem; text-align:center; max-width:none; }
+
+        .pm-page-header { flex-direction:column; }
+        .cr-import-btn { width:100%; justify-content:center; }
+        .cr-modal { max-height:95vh; }
+        .cr-modal-body { padding:1rem; }
+        .cr-import-mapeo-row { grid-template-columns:1fr; gap:.25rem; }
+        .cr-import-ruta-modo { flex-direction:column; gap:.5rem; }
+        .cr-import-actions { flex-direction:column-reverse; }
+        .cr-import-actions button { width:100%; }
     }
 </style>
 @endsection
 
 @section('content')
-<div class="pm-page-header">
-    <h1>Clientes por Ruta</h1>
-    <p>Ordena la secuencia de visita y revisa que cada cliente esté en la ruta correcta.</p>
+<div class="pm-page-header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+    <div>
+        <h1>Clientes por Ruta</h1>
+        <p>Ordena la secuencia de visita y revisa que cada cliente esté en la ruta correcta.</p>
+    </div>
+    <button type="button" class="cr-import-btn" id="cr-abrir-importar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importar Excel
+    </button>
 </div>
 
 <div class="cr-filter-bar">
@@ -184,6 +240,91 @@
 </div>
 
 <div class="cr-save-toast" id="cr-toast">Guardado</div>
+
+<div class="cr-modal-overlay" id="cr-import-overlay">
+    <div class="cr-modal">
+        <div class="cr-modal-header">
+            <span>Importar clientes desde Excel</span>
+            <button type="button" class="cr-modal-close" id="cr-import-close">&times;</button>
+        </div>
+        <div class="cr-modal-body" id="cr-import-body">
+
+            <div id="cr-import-step-upload">
+                <p class="cr-import-hint">Sube el archivo Excel (.xlsx, .xls o .csv) con los clientes de la ruta.</p>
+                <input type="file" id="cr-import-file" accept=".xlsx,.xls,.csv">
+                <button type="button" class="cr-import-btn" id="cr-import-subir" style="margin-top:1rem;">Subir y previsualizar</button>
+                <p class="cr-import-error" id="cr-import-upload-error"></p>
+            </div>
+
+            <div id="cr-import-step-mapeo" style="display:none;">
+                <p class="cr-import-hint">Detectamos <strong id="cr-import-total-filas">0</strong> filas de datos. Indica qué columna corresponde a cada campo (los marcados con * son obligatorios):</p>
+
+                <div id="cr-import-mapeo-campos"></div>
+
+                <div class="cr-import-divider"></div>
+
+                <p class="cr-import-hint"><strong>¿A qué ruta van estos clientes?</strong></p>
+                <div class="cr-import-ruta-modo">
+                    <label><input type="radio" name="cr-ruta-modo" value="nueva" checked> Crear ruta nueva</label>
+                    <label><input type="radio" name="cr-ruta-modo" value="existente"> Agregar a ruta existente</label>
+                </div>
+
+                <div id="cr-import-ruta-nueva" class="cr-import-ruta-form">
+                    <div class="cr-import-field">
+                        <label>Nombre de la ruta</label>
+                        <input type="text" id="cr-import-ruta-nombre" class="cr-filter-input" placeholder="Ej. Zona 2 Ruta día Jueves">
+                    </div>
+                    <div class="cr-import-field">
+                        <label>Día de cobro</label>
+                        <select id="cr-import-ruta-dia" class="cr-filter-input">
+                            <option value="lunes">Lunes</option>
+                            <option value="martes">Martes</option>
+                            <option value="miércoles">Miércoles</option>
+                            <option value="jueves">Jueves</option>
+                            <option value="viernes">Viernes</option>
+                            <option value="sábado">Sábado</option>
+                            <option value="domingo">Domingo</option>
+                        </select>
+                    </div>
+                    <div class="cr-import-field">
+                        <label>Cobrador</label>
+                        <select id="cr-import-ruta-cobrador" class="cr-filter-input">
+                            @foreach($cobradores as $c)
+                                <option value="{{ $c->id }}">{{ trim($c->nombre.' '.$c->apellido) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div id="cr-import-ruta-existente" class="cr-import-ruta-form" style="display:none;">
+                    <div class="cr-import-field">
+                        <label>Ruta</label>
+                        <select id="cr-import-ruta-existente-select" class="cr-filter-input">
+                            @foreach($rutas as $r)
+                                <option value="{{ $r->id }}">{{ $r->nombre }} — {{ ucfirst($r->dia_semana) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <p class="cr-import-error" id="cr-import-mapeo-error"></p>
+
+                <div class="cr-import-actions">
+                    <button type="button" class="cr-import-btn-secundario" id="cr-import-volver">← Volver</button>
+                    <button type="button" class="cr-import-btn" id="cr-import-confirmar">Importar</button>
+                </div>
+            </div>
+
+            <div id="cr-import-step-resultado" style="display:none;">
+                <div class="cr-import-resultado-icon">✓</div>
+                <p id="cr-import-resultado-msg" style="text-align:center; font-weight:600;"></p>
+                <div class="cr-import-resultado-stats" id="cr-import-resultado-stats"></div>
+                <button type="button" class="cr-import-btn" id="cr-import-cerrar-final" style="width:100%; margin-top:1rem;">Listo</button>
+            </div>
+
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -408,6 +549,196 @@
     });
 
     document.getElementById('cr-refresh-link').addEventListener('click', cargar);
+
+    // ── Importar Excel ───────────────────────────────────────────────────
+    var camposImportacion = @json($camposImportacion);
+    var overlay = document.getElementById('cr-import-overlay');
+    var stepUpload = document.getElementById('cr-import-step-upload');
+    var stepMapeo = document.getElementById('cr-import-step-mapeo');
+    var stepResultado = document.getElementById('cr-import-step-resultado');
+    var importToken = null;
+
+    function resetImportModal() {
+        stepUpload.style.display = '';
+        stepMapeo.style.display = 'none';
+        stepResultado.style.display = 'none';
+        document.getElementById('cr-import-file').value = '';
+        document.getElementById('cr-import-upload-error').textContent = '';
+        document.getElementById('cr-import-mapeo-error').textContent = '';
+        importToken = null;
+    }
+
+    function abrirImportModal() {
+        resetImportModal();
+        overlay.classList.add('show');
+    }
+    function cerrarImportModal() {
+        overlay.classList.remove('show');
+    }
+
+    document.getElementById('cr-abrir-importar').addEventListener('click', abrirImportModal);
+    document.getElementById('cr-import-close').addEventListener('click', cerrarImportModal);
+    document.getElementById('cr-import-cerrar-final').addEventListener('click', function () {
+        cerrarImportModal();
+        cargar();
+    });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) cerrarImportModal(); });
+
+    document.getElementById('cr-import-subir').addEventListener('click', function () {
+        var fileInput = document.getElementById('cr-import-file');
+        var errorEl = document.getElementById('cr-import-upload-error');
+        errorEl.textContent = '';
+
+        if (!fileInput.files.length) {
+            errorEl.textContent = 'Selecciona un archivo primero.';
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('archivo', fileInput.files[0]);
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Subiendo...';
+
+        fetch(baseUrl + '/importar/preview', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+            body: formData,
+        })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Subir y previsualizar';
+            if (!res.ok) {
+                errorEl.textContent = res.body.mensaje || 'Error al leer el archivo.';
+                return;
+            }
+            importToken = res.body.token;
+            document.getElementById('cr-import-total-filas').textContent = res.body.total_filas_detectadas;
+            renderMapeo(res.body.encabezados, camposImportacion);
+            stepUpload.style.display = 'none';
+            stepMapeo.style.display = '';
+        })
+        .catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Subir y previsualizar';
+            errorEl.textContent = 'Error de conexión al subir el archivo.';
+        });
+    });
+
+    function renderMapeo(encabezados, campos) {
+        var cont = document.getElementById('cr-import-mapeo-campos');
+        var requeridos = ['nombre', 'valor_total'];
+        var html = '';
+        Object.keys(campos).forEach(function (clave) {
+            var esRequerido = requeridos.indexOf(clave) !== -1;
+            html += '<div class="cr-import-mapeo-row">' +
+                '<label>' + campos[clave] + (esRequerido ? ' *' : '') + '</label>' +
+                '<select class="cr-filter-input cr-import-mapeo-select" data-campo="' + clave + '">' +
+                    '<option value="">— No usar —</option>' +
+                    encabezados.map(function (h) {
+                        var autoSel = h.toLowerCase().indexOf(clave.split('_')[0]) !== -1 ? ' selected' : '';
+                        return '<option value="' + h.replace(/"/g, '&quot;') + '"' + autoSel + '>' + h + '</option>';
+                    }).join('') +
+                '</select>' +
+            '</div>';
+        });
+        cont.innerHTML = html;
+    }
+
+    document.querySelectorAll('input[name="cr-ruta-modo"]').forEach(function (radio) {
+        radio.addEventListener('change', function () {
+            document.getElementById('cr-import-ruta-nueva').style.display = this.value === 'nueva' ? '' : 'none';
+            document.getElementById('cr-import-ruta-existente').style.display = this.value === 'existente' ? '' : 'none';
+        });
+    });
+
+    document.getElementById('cr-import-volver').addEventListener('click', function () {
+        stepMapeo.style.display = 'none';
+        stepUpload.style.display = '';
+    });
+
+    document.getElementById('cr-import-confirmar').addEventListener('click', function () {
+        var errorEl = document.getElementById('cr-import-mapeo-error');
+        errorEl.textContent = '';
+
+        var mapeo = {};
+        document.querySelectorAll('.cr-import-mapeo-select').forEach(function (sel) {
+            if (sel.value) mapeo[sel.dataset.campo] = sel.value;
+        });
+
+        if (!mapeo.nombre || !mapeo.valor_total) {
+            errorEl.textContent = 'Debes mapear al menos "Nombre completo" y "Valor total de la venta".';
+            return;
+        }
+
+        var rutaModo = document.querySelector('input[name="cr-ruta-modo"]:checked').value;
+        var payload = {
+            token: importToken,
+            mapeo: mapeo,
+            fila_inicio: 1,
+            ruta_modo: rutaModo,
+        };
+
+        if (rutaModo === 'nueva') {
+            var nombreRuta = document.getElementById('cr-import-ruta-nombre').value.trim();
+            if (!nombreRuta) {
+                errorEl.textContent = 'Escribe un nombre para la ruta nueva.';
+                return;
+            }
+            payload.ruta_nombre = nombreRuta;
+            payload.ruta_dia = document.getElementById('cr-import-ruta-dia').value;
+            payload.ruta_cobrador_id = document.getElementById('cr-import-ruta-cobrador').value;
+        } else {
+            payload.ruta_cobro_id = document.getElementById('cr-import-ruta-existente-select').value;
+        }
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Importando...';
+
+        fetch(baseUrl + '/importar/procesar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Importar';
+            if (!res.ok) {
+                errorEl.textContent = res.body.mensaje || 'Error al importar.';
+                return;
+            }
+
+            stepMapeo.style.display = 'none';
+            stepResultado.style.display = '';
+            document.getElementById('cr-import-resultado-msg').textContent = res.body.mensaje;
+
+            var stats = [
+                ['Clientes', res.body.clientes],
+                ['Ventas', res.body.ventas],
+                ['Abonos', res.body.pagos],
+                ['Cuotas', res.body.cuotas],
+            ];
+            document.getElementById('cr-import-resultado-stats').innerHTML = stats.map(function (s) {
+                return '<div class="cr-import-resultado-stat"><div class="cr-import-resultado-stat-num">' + s[1] + '</div><div class="cr-import-resultado-stat-label">' + s[0] + '</div></div>';
+            }).join('');
+
+            if (res.body.filas_omitidas && res.body.filas_omitidas.length) {
+                document.getElementById('cr-import-resultado-msg').textContent += ' (' + res.body.filas_omitidas.length + ' filas omitidas por datos incompletos)';
+            }
+        })
+        .catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Importar';
+            errorEl.textContent = 'Error de conexión al importar.';
+        });
+    });
 
     cargar();
 })();
