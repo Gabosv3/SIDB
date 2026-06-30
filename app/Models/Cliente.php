@@ -43,6 +43,7 @@ class Cliente extends Model
         'limite_credito',
         'saldo',
         'ruta_cobro_id',
+        'orden',
         'activo',
         // Referencias familiares
         'ref_fam1_nombre',

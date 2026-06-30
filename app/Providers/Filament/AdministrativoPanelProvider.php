@@ -77,6 +77,13 @@ class AdministrativoPanelProvider extends PanelProvider
                 'panels::sidebar.nav.end',
                 fn (): string => view('filament.pos-sidebar-button')->render(),
             )
+            // ── Botón Clientes por Ruta en el sidebar ────────────────────────────
+            ->renderHook(
+                'panels::sidebar.nav.end',
+                fn (): string => auth()->user()?->can('View:ClientesRuta')
+                    ? view('filament.clientes-ruta-sidebar-button')->render()
+                    : '',
+            )
             // ── Botón WhatsApp en el sidebar ─────────────────────────────────────
             ->renderHook(
                 'panels::sidebar.nav.end',

@@ -76,6 +76,29 @@ Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Clientes por Ruta (orden de visita y revisión de asignación)
+Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ruta')->name('clientes-ruta.')->group(function () {
+    Route::get('{tenant}', 'App\Http\Controllers\ClientesRutaController@index')
+        ->name('index')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/data', 'App\Http\Controllers\ClientesRutaController@data')
+        ->name('data')
+        ->where('tenant', '[0-9]+');
+    Route::post('{tenant}/reordenar', 'App\Http\Controllers\ClientesRutaController@reordenar')
+        ->name('reordenar')
+        ->where('tenant', '[0-9]+');
+    Route::post('{tenant}/clientes/{cliente}/ruta', 'App\Http\Controllers\ClientesRutaController@cambiarRuta')
+        ->name('cambiar-ruta')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/clientes/{cliente}/abono-inicial', 'App\Http\Controllers\ClientesRutaController@actualizarAbonoInicial')
+        ->name('abono-inicial')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/clientes/{cliente}/campo', 'App\Http\Controllers\ClientesRutaController@actualizarCampo')
+        ->name('campo')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Perfil de Empleado
 Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados')->name('empleados.')->group(function () {
     Route::get('{tenant}/{user}', 'App\Http\Controllers\EmpleadoPerfilController@show')
