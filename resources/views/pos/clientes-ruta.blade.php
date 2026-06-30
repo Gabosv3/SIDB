@@ -227,13 +227,14 @@
                     <th>Teléfono</th>
                     <th>Dirección</th>
                     <th>Saldo</th>
+                    <th>Precio</th>
                     <th>Abono inicial</th>
                     <th>Ventas</th>
                     <th>Ruta asignada</th>
                 </tr>
             </thead>
             <tbody id="cr-tbody">
-                <tr><td class="pm-td" colspan="9">Cargando...</td></tr>
+                <tr><td class="pm-td" colspan="10">Cargando...</td></tr>
             </tbody>
         </table>
     </div>
@@ -374,7 +375,7 @@
         document.getElementById('cr-sin-gps').textContent = data.clientes.filter(function (c) { return !c.tiene_ubicacion; }).length;
 
         if (data.clientes.length === 0) {
-            tbody.innerHTML = '<tr><td class="pm-td" colspan="9">No hay clientes en esta selección.</td></tr>';
+            tbody.innerHTML = '<tr><td class="pm-td" colspan="10">No hay clientes en esta selección.</td></tr>';
             return;
         }
 
@@ -386,10 +387,22 @@
             var rutaActualHtml = modo === 'todos' ? '<div style="font-size:.68rem; color:var(--muted-2); margin-top:.15rem;">' + (c.ruta_nombre || 'Sin ruta') + '</div>' : '';
 
             var abonoHtml;
+            var precioHtml;
             var nombreAttr = c.nombre.replace(/"/g, '&quot;');
             if (c.ventas_credito && c.ventas_credito.length > 0) {
+                precioHtml = c.ventas_credito.map(function (v, i) {
+                    var etiqueta = c.ventas_credito.length > 1 ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ': </span>' : '';
+                    return '<div class="cr-abono-wrap" style="margin-bottom:2px;">' +
+                        etiqueta +
+                        '<span>' + money(v.total) + '</span>' +
+                        '<button type="button" class="cr-abono-edit cr-precio-edit" data-cliente="' + c.id + '" data-venta="' + v.venta_id + '" data-total="' + v.total + '" data-pagado="' + (v.abono_inicial || 0) + '" data-nombre="' + nombreAttr + '" title="Editar precio de la venta">' +
+                            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
+                        '</button>' +
+                    '</div>';
+                }).join('');
+
                 abonoHtml = c.ventas_credito.map(function (v, i) {
-                    var etiqueta = c.ventas_credito.length > 1 ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ' (' + money(v.total) + '): </span>' : '';
+                    var etiqueta = c.ventas_credito.length > 1 ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ': </span>' : '';
                     return '<div class="cr-abono-wrap" style="margin-bottom:2px;">' +
                         etiqueta +
                         '<span>' + (v.abono_inicial !== null ? money(v.abono_inicial) : '—') + '</span>' +
@@ -399,6 +412,7 @@
                     '</div>';
                 }).join('');
             } else {
+                precioHtml = '<span style="color:var(--muted-2);">—</span>';
                 abonoHtml = '<span style="color:var(--muted-2);">— sin crédito —</span>';
             }
 
@@ -412,6 +426,7 @@
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span class="' + saldoClass + '">' + money(c.saldo) + '</span>' + campoEditBtn(c.id, 'saldo', c.saldo, 'Saldo') + '</div></td>' +
+                    '<td class="pm-td">' + precioHtml + '</td>' +
                     '<td class="pm-td">' + abonoHtml + '</td>' +
                     '<td class="pm-td"><span class="' + ventasClass + '">' + c.ventas_pendientes + '</span></td>' +
                     '<td class="pm-td"><select class="cr-ruta-select" data-id="' + c.id + '">' + rutaOptionsHtml(c.ruta_cobro_id) + '</select>' + rutaActualHtml + '</td>' +
@@ -475,6 +490,35 @@
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     },
                     body: JSON.stringify({ venta_id: Number(ventaId), monto: Number(nuevo) }),
+                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                  .then(function (res) {
+                    showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
+                    if (res.ok) cargar();
+                });
+            });
+        });
+
+        tbody.querySelectorAll('.cr-precio-edit').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var clienteId = this.dataset.cliente;
+                var ventaId = this.dataset.venta;
+                var totalActual = this.dataset.total;
+                var pagado = this.dataset.pagado;
+                var nombre = this.dataset.nombre;
+                var nuevo = window.prompt('Precio de la venta de ' + nombre + ' (ya pagado: ' + money(pagado) + '):', totalActual);
+                if (nuevo === null) return;
+                nuevo = nuevo.replace(',', '.').trim();
+                if (nuevo === '' || isNaN(nuevo) || Number(nuevo) <= 0) {
+                    showToast('Precio inválido.');
+                    return;
+                }
+                fetch(baseUrl + '/clientes/' + clienteId + '/precio-venta', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ venta_id: Number(ventaId), total: Number(nuevo) }),
                 }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
                   .then(function (res) {
                     showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));

@@ -186,19 +186,7 @@ class ClientesRutaController extends Controller
             $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
             $venta->save();
 
-            // Redistribuir las cuotas en orden segun el nuevo total pagado (misma lógica FIFO usada al generarlas)
-            $restante = $totalPagado;
-            foreach ($venta->gestionesCobro()->orderBy('numero_cuota')->get() as $cuota) {
-                $montoCuota = (float) $cuota->monto_cuota;
-                $pagadoCuota = round(min($restante, $montoCuota), 2);
-                $restante = round($restante - $pagadoCuota, 2);
-
-                $estado = 'pendiente';
-                if ($pagadoCuota >= $montoCuota) { $estado = 'cobrado'; }
-                elseif ($pagadoCuota > 0) { $estado = 'parcialmente_cobrado'; }
-
-                $cuota->update(['monto_pagado' => $pagadoCuota, 'estado' => $estado]);
-            }
+            $this->redistribuirCuotas($venta, $totalPagado);
 
             $cliente = $venta->cliente;
             $cliente->saldo = round($cliente->ventas()->sum('saldo_pendiente'), 2);
@@ -206,6 +194,81 @@ class ClientesRutaController extends Controller
         });
 
         return response()->json(['mensaje' => 'Abono inicial actualizado.']);
+    }
+
+    public function actualizarPrecioVenta(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        $data = $request->validate([
+            'venta_id' => 'required|integer',
+            'total' => 'required|numeric|min:0.01',
+        ]);
+
+        $venta = $cliente->ventas()->where('tipo_pago', 'credito')->where('id', $data['venta_id'])->first();
+
+        if (! $venta) {
+            return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
+        }
+
+        $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+        $nuevoTotal = round((float) $data['total'], 2);
+
+        if ($nuevoTotal < $totalPagado) {
+            return response()->json(['mensaje' => 'El nuevo precio ($'.number_format($nuevoTotal, 2).') no puede ser menor a lo ya pagado ($'.number_format($totalPagado, 2).').'], 422);
+        }
+
+        DB::transaction(function () use ($venta, $nuevoTotal, $totalPagado) {
+            $venta->subtotal = $nuevoTotal;
+            $venta->total = $nuevoTotal;
+            $venta->saldo_pendiente = max(0, round($nuevoTotal - $totalPagado, 2));
+            $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
+            $venta->save();
+
+            $detalle = $venta->detalles()->first();
+            if ($detalle) {
+                $detalle->update(['precio_unitario' => $nuevoTotal, 'subtotal' => $nuevoTotal]);
+            }
+
+            $this->redistribuirCuotas($venta, $totalPagado, recalcularMontoCuota: true);
+
+            $cliente = $venta->cliente;
+            $cliente->saldo = round($cliente->ventas()->sum('saldo_pendiente'), 2);
+            $cliente->save();
+        });
+
+        return response()->json(['mensaje' => 'Precio de la venta actualizado.']);
+    }
+
+    /**
+     * Redistribuye el total pagado entre las cuotas en orden (FIFO).
+     * Si $recalcularMontoCuota es true, primero recalcula monto_cuota = venta->total / 20
+     * (cuotas 1-20, residuo en la 20; las cuotas 21-24 son de colchón con el mismo valor base).
+     */
+    private function redistribuirCuotas(Venta $venta, float $totalPagado, bool $recalcularMontoCuota = false): void
+    {
+        $cuotas = $venta->gestionesCobro()->orderBy('numero_cuota')->get();
+
+        if ($recalcularMontoCuota) {
+            $montoBase = floor(($venta->total / 20) * 100) / 100;
+            $residuo = round($venta->total - ($montoBase * 20), 2);
+        }
+
+        $restante = $totalPagado;
+        foreach ($cuotas as $cuota) {
+            if ($recalcularMontoCuota) {
+                $montoCuota = ($cuota->numero_cuota === 20) ? round($montoBase + $residuo, 2) : $montoBase;
+            } else {
+                $montoCuota = (float) $cuota->monto_cuota;
+            }
+
+            $pagadoCuota = round(min($restante, $montoCuota), 2);
+            $restante = round($restante - $pagadoCuota, 2);
+
+            $estado = 'pendiente';
+            if ($pagadoCuota >= $montoCuota) { $estado = 'cobrado'; }
+            elseif ($pagadoCuota > 0) { $estado = 'parcialmente_cobrado'; }
+
+            $cuota->update(['monto_cuota' => $montoCuota, 'monto_pagado' => $pagadoCuota, 'estado' => $estado]);
+        }
     }
 
     public function actualizarCampo(Request $request, $tenant, Cliente $cliente): JsonResponse
