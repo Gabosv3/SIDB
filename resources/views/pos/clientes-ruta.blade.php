@@ -15,9 +15,17 @@
     .cr-search-icon { position:absolute; left:.75rem; bottom:.62rem; color:var(--muted-2); pointer-events:none; }
 
     /* ── Stat cards ── */
-    .cr-stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.25rem; }
-    @media (max-width:760px) { .cr-stat-grid { grid-template-columns:repeat(2,1fr); gap:.75rem; } }
+    .cr-stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.25rem; }
+    @media (max-width:1100px) { .cr-stat-grid { grid-template-columns:repeat(2,1fr); } }
     @media (max-width:480px) { .cr-stat-grid { grid-template-columns:1fr; } }
+
+    /* ── Revisión temporal ── */
+    .cr-check { width:18px; height:18px; cursor:pointer; accent-color:#10b981; }
+    .cr-row.cr-revisado { background:rgba(16,185,129,.05); }
+    .cr-revision-reset { font-size:.68rem; color:var(--muted); text-decoration:underline; cursor:pointer; background:none; border:none; padding:0; margin-top:.3rem; }
+    .cr-revision-reset:hover { color:#dc2626; }
+    .cr-toggle-wrap { display:flex; align-items:center; gap:.4rem; font-size:.78rem; color:var(--text-2); white-space:nowrap; }
+    .cr-toggle-wrap input { width:16px; height:16px; accent-color:#10b981; cursor:pointer; }
 
     /* ── Tabla: scroll horizontal con columnas clave fijas ── */
     .pm-table-wrap { -webkit-overflow-scrolling:touch; }
@@ -174,6 +182,13 @@
         </span>
         <input type="text" id="cr-buscar" class="cr-filter-input" placeholder="Ej. 7304 o nombre del cliente...">
     </div>
+    <div class="cr-filter-group" style="justify-content:flex-end;">
+        <label class="cr-filter-label">&nbsp;</label>
+        <label class="cr-toggle-wrap">
+            <input type="checkbox" id="cr-solo-sin-revisar">
+            Mostrar solo sin revisar
+        </label>
+    </div>
 </div>
 
 <div class="cr-stat-grid">
@@ -210,6 +225,18 @@
             </div>
         </div>
     </div>
+    <div class="pm-card">
+        <div class="pm-stat">
+            <div class="pm-stat-icon" style="background:#dcfce7;color:#16a34a;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <div>
+                <div class="pm-stat-label">Revisados (temporal)</div>
+                <div class="pm-stat-num" id="cr-revisados">—</div>
+                <button type="button" class="cr-revision-reset" id="cr-revision-limpiar">Limpiar revisión de esta ruta</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="pm-card">
@@ -224,6 +251,7 @@
                     <th class="cr-sticky-1"></th>
                     <th class="cr-sticky-2">#</th>
                     <th class="cr-sticky-3" style="min-width:160px;">Cliente</th>
+                    <th title="Marca aquí mientras comparas con tus tarjetas físicas">✓</th>
                     <th>Teléfono</th>
                     <th>Dirección</th>
                     <th>Saldo</th>
@@ -234,7 +262,7 @@
                 </tr>
             </thead>
             <tbody id="cr-tbody">
-                <tr><td class="pm-td" colspan="10">Cargando...</td></tr>
+                <tr><td class="pm-td" colspan="11">Cargando...</td></tr>
             </tbody>
         </table>
     </div>
@@ -341,6 +369,24 @@
     var rutasDisponibles = @json($rutas->map(fn($r) => ['id' => $r->id, 'nombre' => $r->nombre])->values());
     var sortable = null;
     var buscarTimeout = null;
+    var soloSinRevisarInput = document.getElementById('cr-solo-sin-revisar');
+
+    // ── Revisión temporal (checklist para comparar contra tarjetas físicas) ──
+    // Se guarda en localStorage por ruta, no toca la base de datos, y es de
+    // este navegador/dispositivo únicamente.
+    function revisionKey() {
+        return 'cr-revisado-ruta-' + rutaSelect.value;
+    }
+    function cargarRevisados() {
+        try {
+            return new Set(JSON.parse(localStorage.getItem(revisionKey()) || '[]'));
+        } catch (e) { return new Set(); }
+    }
+    function guardarRevisados(set) {
+        localStorage.setItem(revisionKey(), JSON.stringify(Array.from(set)));
+    }
+    var revisados = cargarRevisados();
+    var ultimoData = null;
 
     function showToast(msg) {
         toast.textContent = msg;
@@ -370,17 +416,27 @@
     }
 
     function render(data) {
+        revisados = cargarRevisados();
+
         document.getElementById('cr-total-clientes').textContent = data.total_clientes;
         document.getElementById('cr-total-saldo').textContent = money(data.total_saldo);
         document.getElementById('cr-sin-gps').textContent = data.clientes.filter(function (c) { return !c.tiene_ubicacion; }).length;
 
-        if (data.clientes.length === 0) {
-            tbody.innerHTML = '<tr><td class="pm-td" colspan="10">No hay clientes en esta selección.</td></tr>';
+        var revisadosEnLista = data.clientes.filter(function (c) { return revisados.has(c.id); }).length;
+        document.getElementById('cr-revisados').textContent = revisadosEnLista + ' / ' + data.clientes.length;
+
+        var clientesFiltrados = soloSinRevisarInput.checked
+            ? data.clientes.filter(function (c) { return !revisados.has(c.id); })
+            : data.clientes;
+
+        if (clientesFiltrados.length === 0) {
+            var msg = data.clientes.length === 0 ? 'No hay clientes en esta selección.' : 'Todos los clientes de esta lista ya están marcados como revisados. 🎉';
+            tbody.innerHTML = '<tr><td class="pm-td" colspan="11">' + msg + '</td></tr>';
             return;
         }
 
         var modo = rutaSelect.value;
-        var rows = data.clientes.map(function (c, idx) {
+        var rows = clientesFiltrados.map(function (c, idx) {
             var saldoClass = c.saldo > 0 ? 'cr-saldo-pos' : 'cr-saldo-zero';
             var dirWarn = !c.direccion ? '<span class="cr-warn-badge" title="Sin dirección registrada">⚠</span>' : '';
             var codigoHtml = c.codigo_anterior ? ' <span style="color:var(--muted-2);">(' + c.codigo_anterior + ')</span>' : '';
@@ -417,12 +473,14 @@
             }
 
             var ventasClass = c.ventas_pendientes > 0 ? 'cr-pill has' : 'cr-pill';
+            var estaRevisado = revisados.has(c.id);
 
             return '' +
-                '<tr class="pm-tr cr-row" data-id="' + c.id + '">' +
+                '<tr class="pm-tr cr-row' + (estaRevisado ? ' cr-revisado' : '') + '" data-id="' + c.id + '">' +
                     '<td class="pm-td cr-sticky-1"><span class="cr-handle">⠿⠿</span></td>' +
                     '<td class="pm-td cr-sticky-2"><span class="cr-orden-badge">' + (idx + 1) + '</span></td>' +
                     '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><strong>' + c.nombre + '</strong>' + codigoHtml + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div></td>' +
+                    '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span class="' + saldoClass + '">' + money(c.saldo) + '</span>' + campoEditBtn(c.id, 'saldo', c.saldo, 'Saldo') + '</div></td>' +
@@ -434,6 +492,16 @@
         }).join('');
 
         tbody.innerHTML = rows;
+
+        tbody.querySelectorAll('.cr-revisar-check').forEach(function (chk) {
+            chk.addEventListener('change', function () {
+                var clienteId = Number(this.dataset.cliente);
+                if (this.checked) revisados.add(clienteId);
+                else revisados.delete(clienteId);
+                guardarRevisados(revisados);
+                render(ultimoData);
+            });
+        });
 
         tbody.querySelectorAll('.cr-campo-edit').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -546,7 +614,8 @@
         });
 
         if (sortable) sortable.destroy();
-        if (modo !== 'todos') {
+        var puedeReordenar = modo !== 'todos' && !soloSinRevisarInput.checked;
+        if (puedeReordenar) {
             sortable = Sortable.create(tbody, {
                 handle: '.cr-handle',
                 animation: 150,
@@ -577,8 +646,22 @@
         if (buscar !== '') url += '&buscar=' + encodeURIComponent(buscar);
         fetch(url)
             .then(function (r) { return r.json(); })
-            .then(render);
+            .then(function (data) {
+                ultimoData = data;
+                render(data);
+            });
     }
+
+    soloSinRevisarInput.addEventListener('change', function () { render(ultimoData); });
+
+    document.getElementById('cr-revision-limpiar').addEventListener('click', function () {
+        if (!confirm('¿Limpiar la revisión temporal de esta ruta? Esto solo afecta el checklist en este navegador, no borra nada de la base de datos.')) return;
+        localStorage.removeItem(revisionKey());
+        revisados = new Set();
+        soloSinRevisarInput.checked = false;
+        render(ultimoData);
+        showToast('Revisión reiniciada.');
+    });
 
     rutaSelect.addEventListener('change', function () {
         var url = new URL(window.location);
