@@ -938,6 +938,41 @@
     var detalleOverlay = document.getElementById('cr-detalle-overlay');
     var detalleBody = document.getElementById('cr-detalle-body');
 
+    detalleBody.addEventListener('click', function (e) {
+        var btn = e.target.closest('.cr-pago-fecha-edit');
+        if (!btn) return;
+
+        var clienteId = btn.dataset.cliente;
+        var ventaId = btn.dataset.venta;
+        var fechaIso = btn.dataset.fechaIso;
+        var fecha = btn.dataset.fecha;
+        var montoActual = btn.dataset.monto;
+
+        var nuevo = window.prompt('Monto total de los pagos del ' + fecha + ':', montoActual);
+        if (nuevo === null) return;
+        nuevo = nuevo.replace(',', '.').trim();
+        if (nuevo === '' || isNaN(nuevo) || Number(nuevo) < 0) {
+            showToast('Monto inválido.');
+            return;
+        }
+
+        fetch(baseUrl + '/clientes/' + clienteId + '/pago-fecha', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ venta_id: Number(ventaId), fecha_pago: fechaIso, monto: Number(nuevo) }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
+            if (res.ok) {
+                abrirDetalle(clienteId);
+                cargar();
+            }
+        });
+    });
+
     var estadoLabels = { pendiente: 'Pendiente', completada: 'Completada', cancelada: 'Cancelada', devuelta: 'Devuelta' };
     var estadoColores = {
         pendiente: ['#fef9c3', '#854d0e'], completada: ['#dcfce7', '#16a34a'],
@@ -1021,7 +1056,16 @@
             if (v.pagos.length > 0) {
                 card += '<div class="cr-venta-pagos-list">';
                 v.pagos.forEach(function (p) {
-                    card += '<div class="cr-venta-pago-row"><span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + '</span><strong style="color:#16a34a;">' + money(p.monto) + '</strong></div>';
+                    var cantidadNota = p.cantidad > 1 ? ' <span style="color:var(--muted-2);">(' + p.cantidad + ' pagos)</span>' : '';
+                    card += '<div class="cr-venta-pago-row">' +
+                        '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + '</span>' +
+                        '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
+                            '<strong style="color:#16a34a;">' + money(p.monto) + '</strong>' +
+                            '<button type="button" class="cr-abono-edit cr-pago-fecha-edit" data-cliente="' + c.id + '" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" title="Corregir este pago">' +
+                                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
+                            '</button>' +
+                        '</span>' +
+                    '</div>';
                 });
                 card += '</div>';
             }

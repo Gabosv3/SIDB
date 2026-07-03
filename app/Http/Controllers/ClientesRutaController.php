@@ -138,12 +138,26 @@ class ClientesRutaController extends Controller
                 'monto_pagado' => (float) $v->monto_pagado,
                 'saldo_pendiente' => (float) $v->saldo_pendiente,
                 'observaciones' => $v->observaciones,
-                'pagos' => $v->pagos->map(fn ($p) => [
-                    'monto' => (float) $p->monto,
-                    'fecha' => $p->fecha_pago?->format('d/m/Y'),
-                    'metodo_pago' => $p->metodo_pago,
-                    'observaciones' => $p->observaciones,
-                ])->values(),
+                // Varios pagos de una misma visita quedan repartidos entre cuotas (uno por
+                // cuota que se llenó ese día), así que se agrupan por fecha para que se vean
+                // como un solo monto y se puedan editar/corregir como una unidad.
+                'pagos' => $v->pagos
+                    ->groupBy(fn ($p) => $p->fecha_pago?->toDateString())
+                    ->map(function ($grupo, $fechaIso) {
+                        $primero = $grupo->first();
+
+                        return [
+                            'fecha' => $primero->fecha_pago?->format('d/m/Y'),
+                            'fecha_iso' => $fechaIso,
+                            'monto' => round((float) $grupo->sum('monto'), 2),
+                            'metodo_pago' => $grupo->pluck('metodo_pago')->unique()->count() === 1
+                                ? $primero->metodo_pago
+                                : 'mixto',
+                            'observaciones' => $primero->observaciones,
+                            'cantidad' => $grupo->count(),
+                        ];
+                    })
+                    ->values(),
                 'cuotas_resumen' => $cuotas->isEmpty() ? null : [
                     'total' => $cuotas->count(),
                     'cobradas' => $cuotas->where('estado', 'cobrado')->count(),
@@ -262,6 +276,60 @@ class ClientesRutaController extends Controller
         });
 
         return response()->json(['mensaje' => 'Abono inicial actualizado.']);
+    }
+
+    /**
+     * Corrige el monto total de los pagos de una venta registrados en una
+     * misma fecha (p.ej. una sola visita del cobrador que quedó repartida en
+     * varios pagos, uno por cada cuota que se llenó ese día). Consolida todos
+     * esos pagos en uno solo con el monto correcto.
+     */
+    public function actualizarPagoFecha(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        $data = $request->validate([
+            'venta_id' => 'required|integer',
+            'fecha_pago' => 'required|date',
+            'monto' => 'required|numeric|min:0',
+        ]);
+
+        $venta = $cliente->ventas()->where('id', $data['venta_id'])->first();
+
+        if (! $venta) {
+            return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
+        }
+
+        $pagosDelDia = $venta->pagos()->whereDate('fecha_pago', $data['fecha_pago'])->orderBy('id')->get();
+
+        if ($pagosDelDia->isEmpty()) {
+            return response()->json(['mensaje' => 'No hay pagos registrados en esa fecha para esta venta.'], 422);
+        }
+
+        $otrosPagos = (float) $venta->pagos()->whereDate('fecha_pago', '!=', $data['fecha_pago'])->sum('monto');
+
+        if ($data['monto'] + $otrosPagos + (float) $venta->prima > (float) $venta->total) {
+            return response()->json(['mensaje' => 'El monto supera el total de la venta ($'.number_format($venta->total, 2).').'], 422);
+        }
+
+        DB::transaction(function () use ($venta, $pagosDelDia, $data) {
+            $principal = $pagosDelDia->first();
+            $pagosDelDia->skip(1)->each(fn (PagoVenta $p) => $p->delete());
+            $principal->update(['monto' => $data['monto']]);
+
+            $venta->refresh();
+            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+            $venta->monto_pagado = $totalPagado;
+            $venta->saldo_pendiente = max(0, round($venta->total - $totalPagado, 2));
+            $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
+            $venta->save();
+
+            $this->redistribuirCuotas($venta, $totalPagado);
+
+            $cliente = $venta->cliente;
+            $cliente->saldo = round($cliente->ventas()->sum('saldo_pendiente'), 2);
+            $cliente->save();
+        });
+
+        return response()->json(['mensaje' => 'Pago actualizado.']);
     }
 
     public function actualizarPrecioVenta(Request $request, $tenant, Cliente $cliente): JsonResponse
