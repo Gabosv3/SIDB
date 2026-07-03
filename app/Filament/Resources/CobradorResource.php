@@ -134,6 +134,11 @@ class CobradorResource extends Resource implements HasShieldPermissions
                         ->label('Cobrador activo')
                         ->default(true)
                         ->helperText('Los cobradores inactivos no aparecen en la asignación de clientes.'),
+
+                    Forms\Components\Toggle::make('excluir_reportes')
+                        ->label('Excluir de reportes (Resumen del Día y Liquidación Semanal)')
+                        ->default(false)
+                        ->helperText('Sus pagos y visitas no se mostrarán en "Resumen del Día" ni en "Liquidación Semanal". Útil para perfiles administrativos o de pruebas que no son cobradores reales de ruta.'),
                 ]),
         ]);
     }

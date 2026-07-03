@@ -47,13 +47,7 @@ class PagoVenta extends Model
             }
             // Actualizar saldo del cliente
             if ($pago->cliente_id) {
-                $cliente = $pago->cliente;
-                if ($cliente) {
-                    $saldoTotal = \App\Models\Venta::where('cliente_id', $pago->cliente_id)
-                        ->sum('saldo_pendiente');
-                    $cliente->saldo = $saldoTotal;
-                    $cliente->save();
-                }
+                Cliente::recalcularSaldo($pago->cliente_id);
             }
         });
 
@@ -67,6 +61,12 @@ class PagoVenta extends Model
                     $venta->estado = 'pendiente';
                 }
                 $venta->save();
+            }
+            // Actualizar saldo del cliente (se había quedado desactualizado tras eliminar un pago).
+            // $venta ya se guardó arriba con su saldo_pendiente recalculado, por lo que esta
+            // suma ya lo refleja.
+            if ($pago->cliente_id) {
+                Cliente::recalcularSaldo($pago->cliente_id);
             }
         });
     }

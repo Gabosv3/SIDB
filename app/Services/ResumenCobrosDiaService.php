@@ -19,6 +19,7 @@ class ResumenCobrosDiaService
 
         $cobradores = Cobrador::with('user')
             ->where('activo', true)
+            ->where('excluir_reportes', false)
             ->when($cobradorId, fn ($q) => $q->where('id', $cobradorId))
             ->get();
 
@@ -37,14 +38,14 @@ class ResumenCobrosDiaService
 
             $detalle = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fechaCarbon)
-                ->with('cliente:id,nombre,apellido', 'venta:id,numero_venta')
+                ->with('cliente:id,nombre,apellido,codigo_anterior', 'venta:id,numero_venta')
                 ->orderBy('created_at')
                 ->get();
 
             // Visitas sin cobro del día
             $visitas = VisitaCobro::where('user_id', $cobrador->user_id)
                 ->whereDate('created_at', $fechaCarbon)
-                ->with('cliente:id,nombre,apellido')
+                ->with('cliente:id,nombre,apellido,codigo_anterior')
                 ->orderBy('created_at')
                 ->get();
 
@@ -66,7 +67,7 @@ class ResumenCobrosDiaService
             $noVisitados = Cliente::whereIn('ruta_cobro_id', $rutasIds)
                 ->whereNotIn('id', $clientesAtendidos)
                 ->whereHas('gestionesCobro', fn ($q) => $q->whereIn('estado', ['pendiente', 'parcialmente_cobrado']))
-                ->select('id', 'nombre', 'apellido', 'telefono_normal')
+                ->select('id', 'nombre', 'apellido', 'telefono_normal', 'codigo_anterior')
                 ->orderBy('nombre')
                 ->get();
 
@@ -143,7 +144,7 @@ class ResumenCobrosDiaService
     {
         $fechaCarbon = Carbon::parse($fecha);
 
-        $totalCobradores = Cobrador::where('activo', true)->count();
+        $totalCobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->count();
 
         $userIdsConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->distinct()->pluck('user_id');
         $userIdsConVisita = VisitaCobro::whereDate('created_at', $fechaCarbon)->distinct()->pluck('user_id');

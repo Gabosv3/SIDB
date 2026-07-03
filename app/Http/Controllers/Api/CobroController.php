@@ -679,6 +679,7 @@ class CobroController extends Controller
         // Todos los cobradores activos (o uno específico)
         $cobradores = Cobrador::with('user')
             ->where('activo', true)
+            ->where('excluir_reportes', false)
             ->when($cobradorId, fn ($q) => $q->where('id', $cobradorId))
             ->get();
 

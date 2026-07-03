@@ -100,6 +100,18 @@ class Cliente extends Model
         return $this->hasMany(GestionCobro::class, 'cliente_id');
     }
 
+    /**
+     * Recalcula y persiste el saldo del cliente como la suma del saldo
+     * pendiente de todas sus ventas. Debe llamarse cada vez que una venta
+     * o un pago que le pertenece cambia.
+     */
+    public static function recalcularSaldo(int $clienteId): void
+    {
+        static::whereKey($clienteId)->update([
+            'saldo' => Venta::where('cliente_id', $clienteId)->sum('saldo_pendiente'),
+        ]);
+    }
+
     public function whatsappConversacion(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(WhatsappConversation::class, 'cliente_id')->latestOfMany();

@@ -74,6 +74,15 @@ class Venta extends Model
                 $venta->user_id = auth()->id();
             }
         });
+
+        // Al eliminar la venta, sus pagos se borran por cascada a nivel de BD
+        // (no disparan los hooks de PagoVenta), así que el saldo del cliente
+        // se recalcula aquí explícitamente.
+        static::deleted(function (Venta $venta): void {
+            if ($venta->cliente_id) {
+                Cliente::recalcularSaldo($venta->cliente_id);
+            }
+        });
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────

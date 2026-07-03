@@ -23,10 +23,12 @@ class Cobrador extends Model
         'email',
         'activo',
         'user_id',
+        'excluir_reportes',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'excluir_reportes' => 'boolean',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────

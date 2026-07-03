@@ -219,6 +219,16 @@
             @endforeach
         </select>
     </div>
+    <div>
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Buscar cliente</label>
+        <input
+            type="text"
+            wire:model.live.debounce.400ms="buscarCliente"
+            placeholder="Nombre o código del cliente..."
+            class="rc-input"
+            style="min-width:220px"
+        />
+    </div>
 </div>
 
 {{-- Tarjetas totales --}}
@@ -289,7 +299,8 @@
                             <th>Venta</th>
                             <th>Método</th>
                             <th>Referencia</th>
-                            <th>Monto</th>
+                            <th style="text-align:right">Monto</th>
+                            <th style="padding-right:1.25rem"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -298,13 +309,16 @@
                             $filas = $r['detalle']
                                 ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id)
                                 ->map(fn($grupo) => [
+                                    'ids'        => $grupo->pluck('id')->all(),
                                     'cliente'    => $grupo->first()->cliente?->nombre_completo ?? '—',
                                     'venta'      => $grupo->first()->venta?->numero_venta ?? '—',
                                     'metodo'     => $grupo->pluck('metodo_pago')->unique()->count() === 1
                                                         ? $grupo->first()->metodo_pago
                                                         : 'varios',
                                     'referencia' => $grupo->first()->referencia,
-                                    'hora'       => $grupo->first()->created_at->format('H:i'),
+                                    'hora'       => $grupo->first()->fecha_pago->isSameDay($grupo->first()->created_at)
+                                                        ? $grupo->first()->created_at->format('H:i')
+                                                        : 'Registrado después',
                                     'total'      => $grupo->sum('monto'),
                                     'count'      => $grupo->count(),
                                 ]);
@@ -329,7 +343,19 @@
                                 <td class="rc-td" style="color:#9ca3af;font-size:0.75rem">
                                     {{ $fila['referencia'] ?? '—' }}
                                 </td>
-                                <td class="rc-td">${{ number_format($fila['total'], 2) }}</td>
+                                <td class="rc-td rc-text-primary" style="text-align:right;font-weight:700">${{ number_format($fila['total'], 2) }}</td>
+                                <td class="rc-td" style="text-align:right;padding-right:1.25rem">
+                                    <button
+                                        type="button"
+                                        title="Eliminar pago"
+                                        wire:click="mountAction('eliminarPago', {{ Illuminate\Support\Js::from(['ids' => $fila['ids'], 'cliente' => $fila['cliente'], 'monto' => $fila['total']]) }})"
+                                        style="display:inline-flex;align-items:center;justify-content:center;width:1.75rem;height:1.75rem;border-radius:0.375rem;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/>
+                                        </svg>
+                                    </button>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -438,8 +464,13 @@
     </div>
 @empty
     <div class="rc-empty">
-        <p style="font-size:1rem;font-weight:500;color:#6b7280">Sin cobros registrados para esta fecha</p>
-        <p style="font-size:0.875rem;color:#9ca3af;margin-top:0.25rem">Selecciona otra fecha o verifica que los cobradores hayan registrado pagos</p>
+        @if(trim($this->buscarCliente) !== '')
+            <p style="font-size:1rem;font-weight:500;color:#6b7280">Ningún cliente coincide con "{{ $this->buscarCliente }}"</p>
+            <p style="font-size:0.875rem;color:#9ca3af;margin-top:0.25rem">Prueba con otro nombre o borra la búsqueda</p>
+        @else
+            <p style="font-size:1rem;font-weight:500;color:#6b7280">Sin cobros registrados para esta fecha</p>
+            <p style="font-size:0.875rem;color:#9ca3af;margin-top:0.25rem">Selecciona otra fecha o verifica que los cobradores hayan registrado pagos</p>
+        @endif
     </div>
 @endforelse
 

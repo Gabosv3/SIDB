@@ -57,7 +57,10 @@ class LiquidacionSemanal extends Page
 
     public function getCobradores(): \Illuminate\Support\Collection
     {
-        return Cobrador::where('activo', true)->orderBy('nombre')->get();
+        return Cobrador::where('activo', true)
+            ->where('excluir_reportes', false)
+            ->orderBy('nombre')
+            ->get();
     }
 
     public function getLiquidacion(): array
@@ -67,6 +70,7 @@ class LiquidacionSemanal extends Page
 
         $cobradores = Cobrador::with('user')
             ->where('activo', true)
+            ->where('excluir_reportes', false)
             ->when($this->cobrador_id, fn ($q) => $q->where('id', $this->cobrador_id))
             ->get();
 

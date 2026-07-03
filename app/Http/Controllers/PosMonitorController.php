@@ -43,7 +43,7 @@ class PosMonitorController extends Controller
 
         $resumen = ResumenCobrosDiaService::resumen($fecha, $cobradorId);
         $totalesResumen = ResumenCobrosDiaService::totales($resumen);
-        $cobradores = Cobrador::where('activo', true)->orderBy('nombre')->get();
+        $cobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get();
 
         return view('pos.monitor', compact(
             'devices', 'ventasHoy', 'ventasAyer',
@@ -129,7 +129,7 @@ class PosMonitorController extends Controller
         $hoySimple = ResumenCobrosDiaService::totalesSimples($fecha);
         $ayerSimple = ResumenCobrosDiaService::totalesSimples($ayer);
         $general = ResumenCobrosDiaService::resumenGeneral($fecha);
-        $cobradores = Cobrador::where('activo', true)->orderBy('nombre')->get();
+        $cobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get();
         $actividad = $this->actividadReciente($fecha);
 
         return view('pos.resumen', compact(
