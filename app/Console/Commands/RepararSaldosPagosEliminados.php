@@ -10,21 +10,38 @@ use Spatie\Activitylog\Models\Activity;
 
 class RepararSaldosPagosEliminados extends Command
 {
+    /**
+     * Diferencias menores a esto se consideran ruido de punto flotante, no
+     * una inconsistencia real (los decimal:2 de Eloquent ya deberían evitarlo,
+     * pero se compara con tolerancia para no reportar falsos positivos).
+     */
+    private const EPSILON = 0.005;
+
+    /**
+     * Si el cambio en monto_pagado supera este monto absoluto, la venta se
+     * trata como "riesgosa" y se excluye de --apply salvo que se pida
+     * explícitamente con --incluir-riesgosas.
+     */
+    private const UMBRAL_RIESGO = 20.0;
+
     protected $signature = 'pagos:reparar-saldos
                             {--venta= : ID interno de una venta específica a reparar}
                             {--numero-venta= : Número de venta tal como se ve en pantalla (ej: VNT-766FD781)}
                             {--cliente= : Revisa todas las ventas de un cliente (ID o código anterior)}
                             {--activity : En vez de escanear todo, solo revisa ventas que aparecen en el historial de "Pagos Eliminados"}
                             {--desde= : Junto con --activity, filtra el historial desde esta fecha (Y-m-d)}
+                            {--incluir-riesgosas : Incluye en --apply las ventas riesgosas (reaperturas de ventas ya completadas, o cambios grandes). Por defecto se excluyen y solo se listan para revisión manual.}
                             {--apply : Aplica los cambios. Sin este flag solo se muestra un reporte, sin tocar nada (dry-run)}';
 
     protected $description = 'Detecta y corrige ventas cuyo monto_pagado/saldo_pendiente guardado no coincide '
         .'con la suma real de sus pagos (prima + pago_ventas). Sin opciones, escanea TODAS las ventas del '
-        .'sistema. Corre en modo de prueba por defecto; agrega --apply para modificar datos.';
+        .'sistema. Corre en modo de prueba por defecto; agrega --apply para modificar datos. Las ventas '
+        .'riesgosas (p.ej. reabrir una venta que hoy se ve pagada al 100%) se excluyen de --apply por defecto.';
 
     public function handle(): int
     {
         $apply = (bool) $this->option('apply');
+        $incluirRiesgosas = (bool) $this->option('incluir-riesgosas');
 
         $ventaIds = $this->resolverVentaIds();
 
@@ -41,7 +58,8 @@ class RepararSaldosPagosEliminados extends Command
         $this->info(($apply ? 'APLICANDO CAMBIOS' : 'MODO DE PRUEBA (dry-run, no se modifica nada)').' — revisando '.$ventaIds->count().' venta(s).');
         $this->newLine();
 
-        $corregidas = 0;
+        $seguras = [];
+        $riesgosas = [];
         $revisadas = 0;
 
         foreach ($ventaIds as $ventaId) {
@@ -60,37 +78,74 @@ class RepararSaldosPagosEliminados extends Command
             $montoActual = round((float) $venta->monto_pagado, 2);
             $saldoActual = round((float) $venta->saldo_pendiente, 2);
 
-            if ($montoActual === $totalReal && $saldoActual === $saldoReal) {
+            if (abs($montoActual - $totalReal) < self::EPSILON && abs($saldoActual - $saldoReal) < self::EPSILON) {
                 continue;
             }
 
-            $corregidas++;
+            $motivoRiesgo = match (true) {
+                $saldoActual < self::EPSILON && $saldoReal > self::EPSILON => 'reabre una venta que hoy se ve pagada al 100%',
+                abs($montoActual - $totalReal) > self::UMBRAL_RIESGO => sprintf('cambio grande ($%s)', number_format(abs($montoActual - $totalReal), 2)),
+                default => null,
+            };
 
-            $this->line(sprintf(
-                '%s (#%d) — cliente #%s — %s',
-                $venta->numero_venta,
-                $venta->id,
-                $venta->cliente_id,
-                $venta->cliente?->nombre_completo ?? 'sin cliente'
-            ));
-            $this->line(sprintf('  monto_pagado:    %s  ->  %s', number_format($montoActual, 2), number_format($totalReal, 2)));
-            $this->line(sprintf('  saldo_pendiente: %s  ->  %s', number_format($saldoActual, 2), number_format($saldoReal, 2)));
-
-            if ($apply) {
-                EliminarPagoVentaService::recalcularVentaCompleta($venta->id);
-                $this->info('  ✔ corregida y cuotas re-sincronizadas.');
-            }
-
-            $this->newLine();
+            $item = compact('venta', 'totalReal', 'saldoReal', 'montoActual', 'saldoActual', 'motivoRiesgo');
+            $motivoRiesgo ? $riesgosas[] = $item : $seguras[] = $item;
         }
 
-        $this->comment("Revisadas: {$revisadas}. Con inconsistencia: {$corregidas}.");
+        if (! empty($seguras)) {
+            $this->line('── Ajustes menores '.($apply ? '(aplicando)' : '(dry-run)').' ──');
+            foreach ($seguras as $item) {
+                $this->reportarVenta($item);
+                if ($apply) {
+                    EliminarPagoVentaService::recalcularVentaCompleta($item['venta']->id);
+                    $this->info('  ✔ corregida y cuotas re-sincronizadas.');
+                }
+                $this->newLine();
+            }
+        }
 
-        if (! $apply && $corregidas > 0) {
-            $this->comment('Nada se modificó. Vuelve a correr el comando agregando --apply para aplicar los cambios.');
+        if (! empty($riesgosas)) {
+            $this->warn('── Ventas riesgosas — requieren revisión manual antes de aplicar ──');
+            foreach ($riesgosas as $item) {
+                $this->reportarVenta($item);
+                $this->warn('  ⚠ '.$item['motivoRiesgo']);
+                if ($apply && $incluirRiesgosas) {
+                    EliminarPagoVentaService::recalcularVentaCompleta($item['venta']->id);
+                    $this->info('  ✔ corregida (forzado con --incluir-riesgosas).');
+                } elseif ($apply) {
+                    $this->comment('  → omitida. Verifica los pagos reales de esta venta antes de correr con --incluir-riesgosas.');
+                }
+                $this->newLine();
+            }
+        }
+
+        $this->comment(sprintf(
+            'Revisadas: %d. Ajustes menores: %d. Riesgosas: %d.',
+            $revisadas,
+            count($seguras),
+            count($riesgosas)
+        ));
+
+        if (! $apply && (count($seguras) || count($riesgosas))) {
+            $this->comment('Nada se modificó. Vuelve a correr el comando agregando --apply para aplicar los ajustes menores.');
         }
 
         return self::SUCCESS;
+    }
+
+    private function reportarVenta(array $item): void
+    {
+        $venta = $item['venta'];
+
+        $this->line(sprintf(
+            '%s (#%d) — cliente #%s — %s',
+            $venta->numero_venta,
+            $venta->id,
+            $venta->cliente_id,
+            $venta->cliente?->nombre_completo ?? 'sin cliente'
+        ));
+        $this->line(sprintf('  monto_pagado:    %s  ->  %s', number_format($item['montoActual'], 2), number_format($item['totalReal'], 2)));
+        $this->line(sprintf('  saldo_pendiente: %s  ->  %s', number_format($item['saldoActual'], 2), number_format($item['saldoReal'], 2)));
     }
 
     private function resolverVentaIds(): ?\Illuminate\Support\Collection
@@ -149,8 +204,8 @@ class RepararSaldosPagosEliminados extends Command
                     $totalReal = round((float) $venta->prima + (float) ($venta->pagos_sum_monto ?? 0), 2);
                     $saldoReal = max(0, round((float) $venta->total - $totalReal, 2));
 
-                    if (round((float) $venta->monto_pagado, 2) !== $totalReal
-                        || round((float) $venta->saldo_pendiente, 2) !== $saldoReal) {
+                    if (abs(round((float) $venta->monto_pagado, 2) - $totalReal) >= self::EPSILON
+                        || abs(round((float) $venta->saldo_pendiente, 2) - $saldoReal) >= self::EPSILON) {
                         $afectadas->push($venta->id);
                     }
                 }
