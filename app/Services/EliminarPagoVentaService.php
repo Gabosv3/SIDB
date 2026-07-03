@@ -21,7 +21,9 @@ class EliminarPagoVentaService
     public static function eliminar(array $pagoVentaIds, ?int $eliminadoPorUserId, ?string $motivo = null): array
     {
         return DB::transaction(function () use ($pagoVentaIds, $eliminadoPorUserId, $motivo) {
-            $pagos = PagoVenta::whereIn('id', $pagoVentaIds)->get();
+            $pagos = PagoVenta::with('cliente:id,nombre,apellido', 'venta:id,numero_venta')
+                ->whereIn('id', $pagoVentaIds)
+                ->get();
 
             if ($pagos->isEmpty()) {
                 throw new \RuntimeException('El pago ya no existe o fue eliminado por otro usuario.');
@@ -34,7 +36,9 @@ class EliminarPagoVentaService
             $detalle = $pagos->map(fn (PagoVenta $p) => [
                 'id' => $p->id,
                 'venta_id' => $p->venta_id,
+                'numero_venta' => $p->venta?->numero_venta,
                 'cliente_id' => $p->cliente_id,
+                'cliente_nombre' => $p->cliente?->nombre_completo,
                 'monto' => (float) $p->monto,
                 'metodo_pago' => $p->metodo_pago,
                 'fecha_pago' => optional($p->fecha_pago)->toDateString(),
@@ -52,7 +56,7 @@ class EliminarPagoVentaService
                 Cliente::recalcularSaldo($clienteId);
             }
 
-            activity()
+            activity('pagos_eliminados')
                 ->causedBy($eliminadoPorUserId ? \App\Models\User::find($eliminadoPorUserId) : null)
                 ->withProperties([
                     'pagos_eliminados' => $detalle,
