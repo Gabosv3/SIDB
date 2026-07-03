@@ -21,7 +21,12 @@ class EliminarPagoVentaService
     public static function eliminar(array $pagoVentaIds, ?int $eliminadoPorUserId, ?string $motivo = null): array
     {
         return DB::transaction(function () use ($pagoVentaIds, $eliminadoPorUserId, $motivo) {
-            $pagos = PagoVenta::with('cliente:id,nombre,apellido', 'venta:id,numero_venta')
+            // OJO: 'venta' debe cargarse completa (sin restringir columnas). El evento
+            // PagoVenta::deleting usa $pago->venta (la relación ya cacheada aquí) para
+            // recalcular monto_pagado/saldo_pendiente a partir de venta->total y
+            // venta->prima; si esas columnas no vienen en el select, se leen como null
+            // y el saldo termina guardándose en 0 en lugar del valor correcto.
+            $pagos = PagoVenta::with('cliente:id,nombre,apellido', 'venta')
                 ->whereIn('id', $pagoVentaIds)
                 ->get();
 
@@ -73,6 +78,56 @@ class EliminarPagoVentaService
             return [
                 'cantidad' => $pagos->count(),
                 'monto_total' => $montoTotal,
+            ];
+        });
+    }
+
+    /**
+     * Recalcula monto_pagado/saldo_pendiente de una venta desde cero (prima +
+     * suma real de sus pagos vigentes), re-sincroniza sus cuotas y el saldo
+     * del cliente. Pensado para reparar ventas que quedaron con datos
+     * inconsistentes (p.ej. por el bug donde eliminar un pago dejaba el
+     * saldo en $0 al recalcularse con una venta parcialmente cargada).
+     *
+     * @return array{venta_id:int, numero_venta:?string, cliente_id:?int, antes:array, despues:array}
+     */
+    public static function recalcularVentaCompleta(int $ventaId): array
+    {
+        return DB::transaction(function () use ($ventaId) {
+            $venta = Venta::where('id', $ventaId)->lockForUpdate()->first();
+
+            if (! $venta) {
+                throw new \RuntimeException("La venta #{$ventaId} no existe.");
+            }
+
+            $antes = [
+                'monto_pagado' => (float) $venta->monto_pagado,
+                'saldo_pendiente' => (float) $venta->saldo_pendiente,
+                'estado' => $venta->estado,
+            ];
+
+            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+            $venta->monto_pagado = $totalPagado;
+            $venta->saldo_pendiente = max(0, round((float) $venta->total - $totalPagado, 2));
+            $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
+            $venta->save();
+
+            self::resincronizarCuotas($venta->id);
+
+            if ($venta->cliente_id) {
+                Cliente::recalcularSaldo($venta->cliente_id);
+            }
+
+            return [
+                'venta_id' => $venta->id,
+                'numero_venta' => $venta->numero_venta,
+                'cliente_id' => $venta->cliente_id,
+                'antes' => $antes,
+                'despues' => [
+                    'monto_pagado' => (float) $venta->monto_pagado,
+                    'saldo_pendiente' => (float) $venta->saldo_pendiente,
+                    'estado' => $venta->estado,
+                ],
             ];
         });
     }
