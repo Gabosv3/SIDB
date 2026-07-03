@@ -59,6 +59,9 @@
 
     .cr-abono-wrap { display:inline-flex; align-items:center; gap:.4rem; }
     .cr-abono-edit { background:none; border:1px solid transparent; cursor:pointer; color:var(--muted-2); padding:.3rem; border-radius:.4rem; display:inline-flex; }
+    .cr-venta-group { display:flex; flex-direction:column; gap:1px; }
+    .cr-venta-group .cr-abono-wrap { padding:1px 0; }
+    .cr-venta-group .cr-abono-wrap + .cr-abono-wrap { border-top:1px dashed var(--border); padding-top:2px; }
     .cr-abono-edit:hover { background:var(--subtle); border-color:var(--border); color:#10b981; }
 
     .cr-ver-detalle { background:none; border:1px solid transparent; cursor:pointer; color:#6366f1; padding:.3rem; border-radius:.4rem; display:inline-flex; flex-shrink:0; }
@@ -73,6 +76,9 @@
     .cr-detalle-resumen-num { font-size:1.05rem; font-weight:800; color:var(--text); }
     .cr-detalle-resumen-label { font-size:.64rem; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-top:.15rem; }
     .cr-venta-card { border:1px solid var(--border); border-radius:.75rem; padding:1rem; margin-bottom:1rem; }
+    .cr-venta-fecha-group { border:1px solid var(--border); border-radius:.85rem; padding:.75rem .75rem 0; margin-bottom:1rem; background:var(--subtle, transparent); }
+    .cr-venta-fecha-group .cr-venta-card { margin-bottom:.75rem; background:var(--card, #fff); }
+    .cr-venta-fecha-group-label { font-size:.68rem; font-weight:700; color:var(--muted-2); text-transform:uppercase; letter-spacing:.03em; padding:0 .1rem .5rem; display:flex; align-items:center; gap:.3rem; }
     .cr-venta-card-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.75rem; flex-wrap:wrap; }
     .cr-venta-badge { display:inline-flex; align-items:center; padding:.2rem .6rem; border-radius:9999px; font-size:.68rem; font-weight:700; }
     .cr-venta-cuotas-bar { height:6px; border-radius:3px; background:var(--border); overflow:hidden; display:flex; margin-top:.5rem; }
@@ -570,9 +576,11 @@
             var precioHtml;
             var nombreAttr = c.nombre.replace(/"/g, '&quot;');
             if (c.ventas_credito && c.ventas_credito.length > 0) {
+                var multiple = c.ventas_credito.length > 1;
+
                 precioHtml = c.ventas_credito.map(function (v, i) {
-                    var etiqueta = c.ventas_credito.length > 1 ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ': </span>' : '';
-                    return '<div class="cr-abono-wrap" style="margin-bottom:2px;">' +
+                    var etiqueta = multiple ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ': </span>' : '';
+                    return '<div class="cr-abono-wrap">' +
                         etiqueta +
                         '<span>' + money(v.total) + '</span>' +
                         '<button type="button" class="cr-abono-edit cr-precio-edit" data-cliente="' + c.id + '" data-venta="' + v.venta_id + '" data-total="' + v.total + '" data-pagado="' + (v.abono_inicial || 0) + '" data-nombre="' + nombreAttr + '" title="Editar precio de la venta">' +
@@ -580,10 +588,11 @@
                         '</button>' +
                     '</div>';
                 }).join('');
+                if (multiple) precioHtml = '<div class="cr-venta-group">' + precioHtml + '</div>';
 
                 abonoHtml = c.ventas_credito.map(function (v, i) {
-                    var etiqueta = c.ventas_credito.length > 1 ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ': </span>' : '';
-                    return '<div class="cr-abono-wrap" style="margin-bottom:2px;">' +
+                    var etiqueta = multiple ? '<span style="color:var(--muted-2); font-size:.68rem;">V' + (i + 1) + ': </span>' : '';
+                    return '<div class="cr-abono-wrap">' +
                         etiqueta +
                         '<span>' + (v.abono_inicial !== null ? money(v.abono_inicial) : '—') + '</span>' +
                         '<button type="button" class="cr-abono-edit cr-venta-edit" data-cliente="' + c.id + '" data-venta="' + v.venta_id + '" data-monto="' + (v.abono_inicial || 0) + '" data-total="' + v.total + '" data-nombre="' + nombreAttr + '" title="Editar abono inicial">' +
@@ -591,6 +600,7 @@
                         '</button>' +
                     '</div>';
                 }).join('');
+                if (multiple) abonoHtml = '<div class="cr-venta-group">' + abonoHtml + '</div>';
             } else {
                 precioHtml = '<span style="color:var(--muted-2);">—</span>';
                 abonoHtml = '<span style="color:var(--muted-2);">— sin crédito —</span>';
@@ -969,11 +979,23 @@
             html += '<p style="text-align:center; color:var(--muted); font-size:.85rem;">Este cliente no tiene ventas registradas.</p>';
         }
 
+        // Ventas de la misma fecha se agrupan visualmente (no se fusionan ni se ocultan,
+        // cada una conserva su propia tarjeta y sigue siendo independiente).
+        var gruposPorFecha = {};
+        var ordenFechas = [];
         data.ventas.forEach(function (v) {
+            if (!gruposPorFecha[v.fecha_venta]) {
+                gruposPorFecha[v.fecha_venta] = [];
+                ordenFechas.push(v.fecha_venta);
+            }
+            gruposPorFecha[v.fecha_venta].push(v);
+        });
+
+        function ventaCardHtml(v) {
             var colores = estadoColores[v.estado] || ['#f1f5f9', '#475569'];
             var pct = v.total > 0 ? Math.min(100, Math.round((v.monto_pagado / v.total) * 100)) : 0;
 
-            html += '<div class="cr-venta-card">' +
+            var card = '<div class="cr-venta-card">' +
                 '<div class="cr-venta-card-header">' +
                     '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')</span></div>' +
                     '<span class="cr-venta-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (estadoLabels[v.estado] || v.estado) + '</span>' +
@@ -986,25 +1008,38 @@
                 '<div class="cr-venta-cuotas-bar"><div style="width:' + pct + '%; background:#16a34a;"></div></div>';
 
             if (v.cuotas_resumen) {
-                html += '<div style="font-size:.74rem; color:var(--muted); margin-top:.4rem;">' +
+                card += '<div style="font-size:.74rem; color:var(--muted); margin-top:.4rem;">' +
                     v.cuotas_resumen.cobradas + ' de ' + v.cuotas_resumen.total + ' cuotas cobradas' +
                     (v.cuotas_resumen.vencidas > 0 ? ' · <span style="color:#dc2626; font-weight:600;">' + v.cuotas_resumen.vencidas + ' vencidas</span>' : '') +
                 '</div>';
             }
 
             if (v.proxima_cuota) {
-                html += '<div style="font-size:.74rem; color:var(--muted-2); margin-top:.2rem;">Próxima cuota: #' + v.proxima_cuota.numero_cuota + '/' + v.proxima_cuota.total_cuotas + ' — vence ' + v.proxima_cuota.fecha_vencimiento.substring(8,10) + '/' + v.proxima_cuota.fecha_vencimiento.substring(5,7) + '/' + v.proxima_cuota.fecha_vencimiento.substring(0,4) + '</div>';
+                card += '<div style="font-size:.74rem; color:var(--muted-2); margin-top:.2rem;">Próxima cuota: #' + v.proxima_cuota.numero_cuota + '/' + v.proxima_cuota.total_cuotas + ' — vence ' + v.proxima_cuota.fecha_vencimiento.substring(8,10) + '/' + v.proxima_cuota.fecha_vencimiento.substring(5,7) + '/' + v.proxima_cuota.fecha_vencimiento.substring(0,4) + '</div>';
             }
 
             if (v.pagos.length > 0) {
-                html += '<div class="cr-venta-pagos-list">';
+                card += '<div class="cr-venta-pagos-list">';
                 v.pagos.forEach(function (p) {
-                    html += '<div class="cr-venta-pago-row"><span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + '</span><strong style="color:#16a34a;">' + money(p.monto) + '</strong></div>';
+                    card += '<div class="cr-venta-pago-row"><span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + '</span><strong style="color:#16a34a;">' + money(p.monto) + '</strong></div>';
                 });
-                html += '</div>';
+                card += '</div>';
             }
 
-            html += '</div>';
+            return card + '</div>';
+        }
+
+        ordenFechas.forEach(function (fecha) {
+            var ventasDelDia = gruposPorFecha[fecha];
+
+            if (ventasDelDia.length > 1) {
+                html += '<div class="cr-venta-fecha-group">' +
+                    '<div class="cr-venta-fecha-group-label">🔗 ' + ventasDelDia.length + ' ventas del ' + fecha + '</div>' +
+                    ventasDelDia.map(ventaCardHtml).join('') +
+                '</div>';
+            } else {
+                html += ventaCardHtml(ventasDelDia[0]);
+            }
         });
 
         detalleBody.innerHTML = html;
