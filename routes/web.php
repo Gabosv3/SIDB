@@ -105,6 +105,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/clientes/{cliente}/campo', 'App\Http\Controllers\ClientesRutaController@actualizarCampo')
         ->name('campo')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::delete('{tenant}/clientes/{cliente}', 'App\Http\Controllers\ClientesRutaController@eliminarCliente')
+        ->name('eliminar-cliente')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
     Route::post('{tenant}/clientes', 'App\Http\Controllers\ClientesRutaController@crearCliente')
         ->name('crear-cliente')
         ->where('tenant', '[0-9]+');

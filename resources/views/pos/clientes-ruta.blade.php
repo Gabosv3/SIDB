@@ -69,6 +69,10 @@
 
     /* ── Modal de detalle ── */
     .cr-detalle-header { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
+    .cr-eliminar-cliente-btn { display:inline-flex; align-items:center; gap:.4rem; flex-shrink:0; padding:.5rem .8rem; border-radius:.55rem; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:.76rem; font-weight:700; cursor:pointer; }
+    .cr-eliminar-cliente-btn:hover { background:#fee2e2; }
+    html.dark .cr-eliminar-cliente-btn { background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.3); color:#fca5a5; }
+    html.dark .cr-eliminar-cliente-btn:hover { background:rgba(220,38,38,.2); }
     .cr-detalle-nombre { font-size:1.1rem; font-weight:700; color:var(--text); }
     .cr-detalle-sub { font-size:.78rem; color:var(--muted); margin-top:.2rem; line-height:1.5; }
     .cr-detalle-resumen { display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; margin-bottom:1.25rem; }
@@ -488,6 +492,7 @@
 (function () {
     var tenant = {{ (int) $tenant }};
     var baseUrl = '/clientes-ruta/' + tenant;
+    var esSuperAdmin = @json($esSuperAdmin);
     var rutaSelect = document.getElementById('cr-ruta-filter');
     var buscarInput = document.getElementById('cr-buscar');
     var tbody = document.getElementById('cr-tbody');
@@ -973,6 +978,52 @@
         });
     });
 
+    detalleBody.addEventListener('click', function (e) {
+        var btn = e.target.closest('.cr-eliminar-cliente-btn');
+        if (!btn) return;
+
+        var clienteId = btn.dataset.cliente;
+        var nombre = btn.dataset.nombre;
+        var ventas = btn.dataset.ventas;
+        var pendiente = btn.dataset.total;
+
+        var advertencia = '¿ELIMINAR a ' + nombre + ' con TODA su gestión?\n\n' +
+            'Se borrarán ' + ventas + ' venta(s), sus pagos y cuotas' +
+            (Number(pendiente) > 0 ? ' (saldo pendiente: ' + money(pendiente) + ')' : '') + '.\n\n' +
+            'Esta acción NO se puede deshacer.';
+        if (!window.confirm(advertencia)) return;
+
+        var motivo = window.prompt('Motivo de la eliminación (opcional):', '') || '';
+
+        var password = window.prompt('Confirma tu contraseña para eliminar a ' + nombre + ':');
+        if (password === null) return;
+        if (password.trim() === '') {
+            showToast('Debes ingresar tu contraseña para confirmar.');
+            return;
+        }
+
+        fetch(baseUrl + '/clientes/' + clienteId, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ password: password, motivo: motivo }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            if (res.ok) {
+                showToast(res.body.mensaje || 'Cliente eliminado.');
+                cerrarDetalle();
+                cargar();
+            } else {
+                var msg = res.body.mensaje
+                    || (res.body.errors && res.body.errors.password && res.body.errors.password[0])
+                    || 'No se pudo eliminar el cliente.';
+                showToast(msg);
+            }
+        });
+    });
+
     var estadoLabels = { pendiente: 'Pendiente', completada: 'Completada', cancelada: 'Cancelada', devuelta: 'Devuelta' };
     var estadoColores = {
         pendiente: ['#fef9c3', '#854d0e'], completada: ['#dcfce7', '#16a34a'],
@@ -996,13 +1047,20 @@
         var c = data.cliente;
         var r = data.resumen;
 
+        var eliminarBtn = esSuperAdmin
+            ? '<button type="button" class="cr-eliminar-cliente-btn" data-cliente="' + c.id + '" data-nombre="' + c.nombre.replace(/"/g, '&quot;') + '" data-ventas="' + r.total_ventas + '" data-total="' + r.total_pendiente + '" title="Eliminar cliente con toda su gestión">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>' +
+                ' Eliminar cliente' +
+            '</button>'
+            : '';
+
         var html = '<div class="cr-detalle-header"><div>' +
             '<div class="cr-detalle-nombre">' + c.nombre + (c.codigo_anterior ? ' <span style="color:var(--muted-2); font-weight:400;">(' + c.codigo_anterior + ')</span>' : '') + '</div>' +
             '<div class="cr-detalle-sub">' +
                 (c.telefono ? '📞 ' + c.telefono + '<br>' : '') +
                 (c.direccion ? '📍 ' + c.direccion + '<br>' : '') +
                 (c.ruta_nombre ? '🚚 ' + c.ruta_nombre + (c.ruta_dia ? ' (' + c.ruta_dia + ')' : '') : '<span style="color:#dc2626;">⚠ Sin ruta asignada</span>') +
-            '</div></div></div>';
+            '</div></div>' + eliminarBtn + '</div>';
 
         html += '<div class="cr-detalle-resumen">' +
             '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num">' + r.total_ventas + '</div><div class="cr-detalle-resumen-label">Ventas</div></div>' +

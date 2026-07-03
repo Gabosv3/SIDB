@@ -8,9 +8,11 @@ use App\Models\DetalleVenta;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\Producto;
+use App\Models\Reintegro;
 use App\Models\RutaCobro;
 use App\Models\Vendedor;
 use App\Models\Venta;
+use App\Models\VisitaCobro;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,8 +48,9 @@ class ClientesRutaController extends Controller
         $sinRuta = Cliente::whereNull('ruta_cobro_id')->where('activo', true)->count();
         $cobradores = Cobrador::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
         $camposImportacion = self::CAMPOS_IMPORTACION;
+        $esSuperAdmin = auth()->user()?->hasRole('super_admin') ?? false;
 
-        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'camposImportacion'));
+        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'camposImportacion', 'esSuperAdmin'));
     }
 
     public function data(Request $request, $tenant): JsonResponse
@@ -190,6 +193,67 @@ class ClientesRutaController extends Controller
                 'total_pendiente' => round($ventas->sum('saldo_pendiente'), 2),
             ],
         ]);
+    }
+
+    /**
+     * Elimina un cliente junto con toda su gestión: ventas, detalle de venta,
+     * pagos, cuotas, visitas de cobro y reintegros. Varias de esas tablas
+     * tienen la FK a `clientes`/`ventas` en modo restrict (no cascade), así
+     * que hay que borrar en el orden correcto para no chocar con la BD.
+     * Solo super_admin, con confirmación de su propia contraseña.
+     */
+    public function eliminarCliente(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        if (! auth()->user()?->hasRole('super_admin')) {
+            return response()->json(['mensaje' => 'Solo un super administrador puede eliminar un cliente.'], 403);
+        }
+
+        $data = $request->validate([
+            'password' => ['required', 'current_password'],
+            'motivo' => ['nullable', 'string', 'max:255'],
+        ], [
+            'password.required' => 'Debes ingresar tu contraseña para confirmar.',
+            'password.current_password' => 'La contraseña ingresada no es correcta.',
+        ]);
+
+        $resumen = [
+            'cliente_id' => $cliente->id,
+            'nombre' => $cliente->nombre_completo,
+            'codigo_anterior' => $cliente->codigo_anterior,
+            'telefono' => $cliente->telefono_normal,
+            'direccion' => $cliente->direccion,
+            'ruta' => $cliente->rutaCobro?->nombre,
+            'saldo' => (float) $cliente->saldo,
+            'ventas_count' => $cliente->ventas()->count(),
+            'ventas_total' => round((float) $cliente->ventas()->sum('total'), 2),
+            'pagos_count' => $cliente->pagosVenta()->count(),
+            'pagos_total' => round((float) $cliente->pagosVenta()->sum('monto'), 2),
+            'motivo' => $data['motivo'] ?? null,
+        ];
+
+        DB::transaction(function () use ($cliente) {
+            // Orden obligatorio: reintegros y visitas referencian ventas/cuotas
+            // en modo restrict, así que deben borrarse antes que esas filas.
+            Reintegro::where('cliente_id', $cliente->id)->delete();
+            VisitaCobro::where('cliente_id', $cliente->id)->delete();
+            // detalle_ventas, pago_ventas y gestion_cobros cascadean por venta_id.
+            Venta::where('cliente_id', $cliente->id)->delete();
+            $cliente->delete();
+        });
+
+        activity('cliente_eliminado')
+            ->causedBy(auth()->user())
+            ->withProperties($resumen)
+            ->log(sprintf(
+                'Eliminó al cliente %s (%s) con toda su gestión — %d venta(s) por $%s%s',
+                $resumen['nombre'],
+                $resumen['codigo_anterior'] ?? 'sin código anterior',
+                $resumen['ventas_count'],
+                number_format($resumen['ventas_total'], 2),
+                $resumen['motivo'] ? " — Motivo: {$resumen['motivo']}" : ''
+            ));
+
+        return response()->json(['mensaje' => 'Cliente eliminado junto con toda su gestión.']);
     }
 
     public function reordenar(Request $request, $tenant): JsonResponse
