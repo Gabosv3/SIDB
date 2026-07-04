@@ -28,6 +28,9 @@ class ConfiguracionSistema extends Model
         'youtube_url',
         'footer_texto',
         'copyright_texto',
+        'apk_version',
+        'apk_url',
+        'apk_notas',
     ];
 
     /** Devuelve la única instancia (cacheada 1 hora). */

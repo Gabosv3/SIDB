@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\AsignacionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/version', [AppVersionController::class, 'actual']);
 
 /*
 |--------------------------------------------------------------------------
@@ -45,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/clientes', [ClienteController::class, 'store']);
         Route::patch('/clientes/{id}/ubicacion', [ClienteController::class, 'actualizarUbicacion']);
         Route::patch('/clientes/{id}/telefonos', [ClienteController::class, 'actualizarTelefonos']);
+        Route::patch('/clientes/{id}/nombre', [ClienteController::class, 'actualizarNombre']);
         Route::get('/clientes/{id}', [ClienteController::class, 'show']);
 
         // ── Consulta de ventas (solo del propio usuario) ──────────────────────
@@ -81,6 +84,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // Clientes por ruta
             Route::get('/rutas/{ruta_id}/clientes', [CobroController::class, 'clientesPorRuta']);
+
+            // Orden de visita guardado en el servidor (sobrevive reinstalaciones)
+            Route::get('/rutas/{ruta_id}/orden', [CobroController::class, 'ordenClientes']);
+            Route::post('/rutas/{ruta_id}/orden', [CobroController::class, 'actualizarOrden']);
 
             // Detalle e historial del cliente
             Route::get('/clientes/{id}', [CobroController::class, 'detalleCliente']);

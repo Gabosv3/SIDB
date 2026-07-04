@@ -246,6 +246,57 @@ class ClienteController extends Controller
         ]);
     }
 
+    #[OA\Patch(
+        path: '/clientes/{id}/nombre',
+        summary: 'Actualizar nombre y/o apellido de un cliente',
+        security: [['sanctum' => []]],
+        tags: ['Clientes'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'nombre', type: 'string', example: 'Maria', description: 'Nuevo nombre (opcional)'),
+                    new OA\Property(property: 'apellido', type: 'string', example: 'Hernandez', description: 'Nuevo apellido (opcional)'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Nombre actualizado'),
+            new OA\Response(response: 404, description: 'Cliente no encontrado'),
+            new OA\Response(response: 422, description: 'Validación fallida'),
+        ],
+    )]
+    public function actualizarNombre(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'nombre'   => 'nullable|string|max:100',
+            'apellido' => 'nullable|string|max:100',
+        ]);
+
+        // Validar que al menos uno de los campos esté presente
+        if (empty(array_filter($data))) {
+            return response()->json([
+                'message' => 'Debe proporcionar al menos nombre o apellido.',
+            ], 422);
+        }
+
+        $cliente = \App\Models\Cliente::findOrFail($id);
+        $cliente->update($data);
+
+        return response()->json([
+            'mensaje' => 'Nombre actualizado.',
+            'cliente' => [
+                'id'       => $cliente->id,
+                'nombre'   => $cliente->nombre,
+                'apellido' => $cliente->apellido,
+                'nombre_completo' => $cliente->nombre_completo,
+            ],
+        ]);
+    }
+
     #[OA\Get(
         path: '/clientes/{id}',
         summary: 'Obtener un cliente por ID',

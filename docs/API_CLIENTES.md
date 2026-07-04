@@ -253,6 +253,54 @@ Content-Type: application/json
 
 ---
 
+## 6. PATCH `/api/clientes/{id}/nombre` — Actualizar nombre y/o apellido
+
+Actualiza el nombre y/o apellido de un cliente.
+
+### Request
+```
+PATCH /api/clientes/78/nombre
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "nombre": "Maria",
+  "apellido": "Hernandez Pérez"
+}
+```
+
+### Parámetros
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `nombre` | string | ❌ | Nuevo nombre (máx 100 caracteres) |
+| `apellido` | string | ❌ | Nuevo apellido (máx 100 caracteres) |
+
+> Al menos uno de los dos debe enviarse. Podés actualizar solo uno si el otro no cambia.
+
+### Response (200)
+```json
+{
+  "mensaje": "Nombre actualizado.",
+  "cliente": {
+    "id": 78,
+    "nombre": "Maria",
+    "apellido": "Hernandez Pérez",
+    "nombre_completo": "Maria Hernandez Pérez"
+  }
+}
+```
+
+### Errores comunes
+
+**400 — Sin parámetros:**
+```json
+{
+  "message": "Debe proporcionar al menos nombre o apellido."
+}
+```
+
+---
+
 ## Flujo recomendado para el cobrador
 
 ```

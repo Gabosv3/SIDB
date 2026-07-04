@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
 use App\Models\Cobrador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
@@ -81,7 +82,8 @@ class CobroController extends Controller
             ->withCount('clientes')
             ->with([
                 'clientes' => fn ($q) => $q
-                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'latitud', 'longitud', 'ruta_cobro_id')
+                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'latitud', 'longitud', 'ruta_cobro_id', 'orden')
+                    ->orderBy('orden')
                     ->with(['ventas' => fn ($v) => $v
                         ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
                         ->where('saldo_pendiente', '>', 0)
@@ -181,7 +183,8 @@ class CobroController extends Controller
 
         $clientes = $ruta->clientes()
             ->where('activo', true)
-            ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento', 'latitud', 'longitud', 'ruta_cobro_id')
+            ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento', 'latitud', 'longitud', 'ruta_cobro_id', 'orden')
+            ->orderBy('orden')
             ->with(['ventas' => fn ($v) => $v
                 ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
                 ->where('saldo_pendiente', '>', 0)
@@ -238,6 +241,93 @@ class CobroController extends Controller
             'total' => $clientes->count(),
             'clientes' => $clientes,
         ]);
+    }
+
+    // ── GET /cobros/rutas/{ruta_id}/orden ─────────────────────────────────────
+
+    #[OA\Get(
+        path: '/cobros/rutas/{ruta_id}/orden',
+        summary: 'Orden guardado de los clientes de una ruta',
+        description: 'Devuelve los IDs de cliente en el orden en que el cobrador los dejó la última vez '
+            .'(persistido en el servidor, sobrevive reinstalaciones de la app).',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'ruta_id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'IDs de cliente en orden'),
+            new OA\Response(response: 403, description: 'Ruta no encontrada o no te pertenece'),
+        ],
+    )]
+    public function ordenClientes(Request $request, int $rutaId): JsonResponse
+    {
+        $cobrador = $this->cobrador($request);
+
+        $ruta = $cobrador->rutasCobro()->where('id', $rutaId)->first();
+        if (! $ruta) {
+            return response()->json(['mensaje' => 'Ruta no encontrada o no te pertenece.'], 403);
+        }
+
+        $ids = $ruta->clientes()->where('activo', true)->orderBy('orden')->pluck('id');
+
+        return response()->json(['ids' => $ids]);
+    }
+
+    // ── POST /cobros/rutas/{ruta_id}/orden ────────────────────────────────────
+
+    #[OA\Post(
+        path: '/cobros/rutas/{ruta_id}/orden',
+        summary: 'Guardar el orden de visita de los clientes de una ruta',
+        description: 'El cobrador reordena su ruta en la app y ese orden queda guardado en el servidor '
+            .'(columna clientes.orden, la misma que usa el panel administrativo).',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'ruta_id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['ids'],
+                properties: [
+                    new OA\Property(property: 'ids', type: 'array', items: new OA\Items(type: 'integer'), example: [3, 1, 7, 2]),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Orden guardado'),
+            new OA\Response(response: 403, description: 'Ruta no encontrada o no te pertenece'),
+            new OA\Response(response: 422, description: 'Alguno de los IDs no pertenece a esta ruta'),
+        ],
+    )]
+    public function actualizarOrden(Request $request, int $rutaId): JsonResponse
+    {
+        $data = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer',
+        ]);
+
+        $cobrador = $this->cobrador($request);
+
+        $ruta = $cobrador->rutasCobro()->where('id', $rutaId)->first();
+        if (! $ruta) {
+            return response()->json(['mensaje' => 'Ruta no encontrada o no te pertenece.'], 403);
+        }
+
+        $idsValidos = $ruta->clientes()->pluck('id');
+        $idsInvalidos = array_diff($data['ids'], $idsValidos->all());
+        if (! empty($idsInvalidos)) {
+            return response()->json(['mensaje' => 'Alguno de los clientes no pertenece a esta ruta.'], 422);
+        }
+
+        DB::transaction(function () use ($data) {
+            foreach ($data['ids'] as $posicion => $clienteId) {
+                Cliente::where('id', $clienteId)->update(['orden' => $posicion + 1]);
+            }
+        });
+
+        return response()->json(['mensaje' => 'Orden guardado.']);
     }
 
     // ── GET /cobros/clientes/{id} ─────────────────────────────────────────────

@@ -356,6 +356,38 @@ class PersonalizacionSistema extends Page
                             ->columnSpanFull(),
                     ]),
 
+                // ── App móvil (POS) ────────────────────────────────────────────
+                Section::make('Aplicación móvil (POS)')
+                    ->description('Datos de la última versión publicada del APK. La app los consulta al abrir para avisar si hay una actualización disponible.')
+                    ->icon('heroicon-m-device-phone-mobile')
+                    ->components([
+                        Forms\Components\TextInput::make('apk_version')
+                            ->label('Versión')
+                            ->placeholder('1.0.1')
+                            ->maxLength(20)
+                            ->validationMessages([
+                                'max' => 'No puede superar los 20 caracteres.',
+                            ]),
+
+                        Forms\Components\TextInput::make('apk_url')
+                            ->label('URL de descarga')
+                            ->placeholder('https://panel.midominio.com/update/sidb.apk')
+                            ->url()
+                            ->maxLength(500)
+                            ->validationMessages([
+                                'url' => 'Debe ser una URL válida.',
+                                'max' => 'No puede superar los 500 caracteres.',
+                            ])
+                            ->prefixIcon('heroicon-m-link'),
+
+                        Forms\Components\Textarea::make('apk_notas')
+                            ->label('Notas de la versión')
+                            ->placeholder('Correcciones de errores y nuevo sistema de orden de clientes')
+                            ->rows(2)
+                            ->maxLength(1000)
+                            ->columnSpanFull(),
+                    ]),
+
             ]);
     }
 }
