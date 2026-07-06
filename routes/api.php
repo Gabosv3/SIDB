@@ -89,6 +89,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/rutas/{ruta_id}/orden', [CobroController::class, 'ordenClientes']);
             Route::post('/rutas/{ruta_id}/orden', [CobroController::class, 'actualizarOrden']);
 
+            // Buscar cliente por código (entre TODOS los clientes del cobrador, sin importar el día/ruta)
+            Route::get('/clientes/buscar', [CobroController::class, 'buscarCliente']);
+
             // Detalle e historial del cliente
             Route::get('/clientes/{id}', [CobroController::class, 'detalleCliente']);
             Route::get('/clientes/{id}/gestiones-pendientes', [CobroController::class, 'gestionesPendientes']);
@@ -102,5 +105,27 @@ Route::middleware('auth:sanctum')->group(function () {
             // Registrar visita sin pago (con foto opcional)
             Route::post('/clientes/{id}/visita', [CobroController::class, 'registrarVisita']);
         });
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Baileys WhatsApp — Webhook y API
+|--------------------------------------------------------------------------
+*/
+Route::prefix('whatsapp/baileys')->name('baileys.')->group(function () {
+    // Webhook de Baileys (sin autenticación - validar con middleware personalizado si es necesario)
+    Route::post('/webhook', 'App\Http\Controllers\BaileysWebhookController@receive')
+        ->name('webhook')
+        ->withoutMiddleware('api'); // Sin protección CSRF si viene de Baileys
+
+    // Endpoints de monitoreo (protegidos)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/status', 'App\Http\Controllers\BaileysWebhookController@status')
+            ->name('status');
+        Route::get('/qrcode', 'App\Http\Controllers\BaileysWebhookController@qrcode')
+            ->name('qrcode');
+        Route::get('/info', 'App\Http\Controllers\BaileysWebhookController@info')
+            ->name('info');
     });
 });

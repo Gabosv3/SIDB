@@ -83,7 +83,7 @@ class CobroController extends Controller
             ->with([
                 'clientes' => fn ($q) => $q
                     ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'latitud', 'longitud', 'ruta_cobro_id', 'orden')
-                    ->orderBy('orden')
+                    ->orderByRaw('orden IS NULL, orden')
                     ->with(['ventas' => fn ($v) => $v
                         ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
                         ->where('saldo_pendiente', '>', 0)
@@ -184,7 +184,7 @@ class CobroController extends Controller
         $clientes = $ruta->clientes()
             ->where('activo', true)
             ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'municipio', 'departamento', 'latitud', 'longitud', 'ruta_cobro_id', 'orden')
-            ->orderBy('orden')
+            ->orderByRaw('orden IS NULL, orden')
             ->with(['ventas' => fn ($v) => $v
                 ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
                 ->where('saldo_pendiente', '>', 0)
@@ -269,7 +269,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'Ruta no encontrada o no te pertenece.'], 403);
         }
 
-        $ids = $ruta->clientes()->where('activo', true)->orderBy('orden')->pluck('id');
+        $ids = $ruta->clientes()->where('activo', true)->orderByRaw('orden IS NULL, orden')->pluck('id');
 
         return response()->json(['ids' => $ids]);
     }
@@ -328,6 +328,64 @@ class CobroController extends Controller
         });
 
         return response()->json(['mensaje' => 'Orden guardado.']);
+    }
+
+    // ── GET /cobros/clientes/buscar ───────────────────────────────────────────
+
+    #[OA\Get(
+        path: '/cobros/clientes/buscar',
+        summary: 'Buscar un cliente por código, entre todos los clientes del cobrador',
+        description: 'Busca por código (código anterior) entre TODOS los clientes de las rutas del cobrador, '
+            .'sin importar si la ruta es la de hoy o de otro día. Útil cuando un cliente paga fuera de su '
+            .'día habitual de visita.',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'codigo', in: 'query', required: true, schema: new OA\Schema(type: 'string'), example: '7304'),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Clientes encontrados'),
+            new OA\Response(response: 403, description: 'No se encontró perfil de cobrador'),
+            new OA\Response(response: 422, description: 'Falta el parámetro codigo'),
+        ],
+    )]
+    public function buscarCliente(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'codigo' => 'required|string|max:50',
+        ]);
+
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+
+        $clientes = Cliente::whereIn('ruta_cobro_id', $rutasIds)
+            ->where('activo', true)
+            ->where('codigo_anterior', 'like', '%'.$data['codigo'].'%')
+            ->with('rutaCobro:id,nombre,dia_semana')
+            ->orderBy('codigo_anterior')
+            ->get()
+            ->map(fn (Cliente $c) => [
+                'id' => $c->id,
+                'nombre' => $c->nombre_completo,
+                'codigo_anterior' => $c->codigo_anterior,
+                'telefono' => $c->telefono_normal,
+                'direccion' => $c->direccion,
+                'saldo_total' => (float) $c->saldo,
+                'ruta' => [
+                    'id' => $c->ruta_cobro_id,
+                    'nombre' => $c->rutaCobro?->nombre,
+                    'dia_semana' => $c->rutaCobro?->dia_semana,
+                ],
+            ]);
+
+        return response()->json([
+            'total' => $clientes->count(),
+            'clientes' => $clientes,
+        ]);
     }
 
     // ── GET /cobros/clientes/{id} ─────────────────────────────────────────────
@@ -857,7 +915,8 @@ class CobroController extends Controller
     #[OA\Post(
         path: '/cobros/clientes/{id}/visita',
         summary: 'Registrar visita sin cobro a un cliente',
-        description: 'Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante.',
+        description: 'Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante. '
+            .'Si resultado=abono_previo (el cliente ya pagó su mensualidad por otro medio), no se requiere foto ni coordenadas GPS y no se genera ningún cobro nuevo, solo queda constancia de la visita.',
         security: [['sanctum' => []]],
         tags: ['Cobros'],
         parameters: [
@@ -870,7 +929,7 @@ class CobroController extends Controller
                 schema: new OA\Schema(
                     required: ['resultado'],
                     properties: [
-                        new OA\Property(property: 'resultado', type: 'string', enum: ['sin_pago', 'promesa_pago', 'no_encontrado', 'rechazo'], example: 'sin_pago'),
+                        new OA\Property(property: 'resultado', type: 'string', enum: ['sin_pago', 'promesa_pago', 'no_encontrado', 'rechazo', 'abono_previo'], example: 'sin_pago'),
                         new OA\Property(property: 'gestion_cobro_id', type: 'integer', nullable: true, description: 'Cuota específica relacionada (opcional)'),
                         new OA\Property(property: 'observaciones', type: 'string', nullable: true, example: 'El cliente dijo que paga el viernes'),
                         new OA\Property(property: 'promesa_fecha', type: 'string', format: 'date', nullable: true, description: 'Requerido si resultado=promesa_pago'),
@@ -890,7 +949,7 @@ class CobroController extends Controller
     public function registrarVisita(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'resultado'       => 'required|in:sin_pago,promesa_pago,no_encontrado,rechazo',
+            'resultado'       => 'required|in:sin_pago,promesa_pago,no_encontrado,rechazo,abono_previo',
             'gestion_cobro_id'=> 'nullable|integer|exists:gestion_cobros,id',
             'observaciones'   => 'nullable|string|max:500',
             'promesa_fecha'   => 'required_if:resultado,promesa_pago|nullable|date|after:today',
@@ -909,10 +968,20 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
         }
 
+        // abono_previo: el cliente ya pagó su mensualidad por otro medio. No genera
+        // cobro nuevo, solo deja constancia de la visita — no requiere foto ni GPS.
         $fotoPath = null;
-        if ($request->hasFile('foto_hogar')) {
-            $fotoPath = $request->file('foto_hogar')
-                ->store("visitas/{$id}", 'public');
+        $latitud = null;
+        $longitud = null;
+
+        if ($request->resultado !== 'abono_previo') {
+            if ($request->hasFile('foto_hogar')) {
+                $fotoPath = $request->file('foto_hogar')
+                    ->store("visitas/{$id}", 'public');
+            }
+
+            $latitud = $data['latitud'] ?? null;
+            $longitud = $data['longitud'] ?? null;
         }
 
         $visita = VisitaCobro::create([
@@ -924,8 +993,8 @@ class CobroController extends Controller
             'promesa_fecha'   => $data['promesa_fecha'] ?? null,
             'foto_hogar'      => $fotoPath,
             'observaciones'   => $data['observaciones'] ?? null,
-            'latitud'         => $data['latitud'] ?? null,
-            'longitud'        => $data['longitud'] ?? null,
+            'latitud'         => $latitud,
+            'longitud'        => $longitud,
         ]);
 
         return response()->json([

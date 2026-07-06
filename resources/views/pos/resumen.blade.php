@@ -5,12 +5,13 @@
 @php
     $metodoLabels = ['efectivo' => 'Efectivo', 'transferencia' => 'Transferencia', 'cheque' => 'Cheque', 'deposito' => 'Depósito'];
     $metodoColor  = ['efectivo' => '#16a34a', 'transferencia' => '#2563eb', 'cheque' => '#9333ea', 'deposito' => '#d97706'];
-    $resultadoLabels = ['sin_pago' => 'Sin pago', 'promesa_pago' => 'Promesa de pago', 'no_encontrado' => 'No encontrado', 'rechazo' => 'Rechazo'];
+    $resultadoLabels = ['sin_pago' => 'Sin pago', 'promesa_pago' => 'Promesa de pago', 'no_encontrado' => 'No encontrado', 'rechazo' => 'Rechazo', 'abono_previo' => 'Abono previo'];
     $resultadoBg = [
         'sin_pago'      => ['bg' => '#fef9c3', 'color' => '#854d0e', 'dot' => '#ca8a04'],
         'promesa_pago'  => ['bg' => '#e0f2fe', 'color' => '#0369a1', 'dot' => '#0284c7'],
         'no_encontrado' => ['bg' => '#f1f5f9', 'color' => '#475569', 'dot' => '#94a3b8'],
         'rechazo'       => ['bg' => '#ffe4e6', 'color' => '#9f1239', 'dot' => '#e11d48'],
+        'abono_previo'  => ['bg' => '#dcfce7', 'color' => '#166534', 'dot' => '#16a34a'],
     ];
     $avatarColors = ['#dbeafe:#1d4ed8', '#fce7f3:#be185d', '#dcfce7:#15803d', '#fef3c7:#a16207', '#ede9fe:#6d28d9'];
 

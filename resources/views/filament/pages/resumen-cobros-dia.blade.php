@@ -102,10 +102,12 @@
     .rc-badge-promesa       { background:#e0f2fe; color:#0369a1; }
     .rc-badge-no-encontrado { background:#f1f5f9; color:#475569; }
     .rc-badge-rechazo       { background:#ffe4e6; color:#9f1239; }
+    .rc-badge-abono-previo  { background:#dcfce7; color:#166534; }
     .dark .rc-badge-sin-pago      { background:rgba(202,138,4,.18);  color:#fde047; }
     .dark .rc-badge-promesa       { background:rgba(2,132,199,.18);  color:#38bdf8; }
     .dark .rc-badge-no-encontrado { background:rgba(100,116,139,.18);color:#94a3b8; }
     .dark .rc-badge-rechazo       { background:rgba(225,29,72,.18);  color:#fb7185; }
+    .dark .rc-badge-abono-previo  { background:rgba(34,197,94,.18);  color:#86efac; }
 
     /* Promesa y observaciones */
     .rc-promesa { color:#0369a1; font-size:0.75rem; font-weight:500; display:inline-flex; align-items:center; gap:0.3rem; }
@@ -177,12 +179,14 @@
         'promesa_pago'  => 'Promesa de pago',
         'no_encontrado' => 'No encontrado',
         'rechazo'       => 'Rechazo',
+        'abono_previo'  => 'Abono previo',
     ];
     $resultadoBg = [
         'sin_pago'      => ['bg' => '#fef9c3', 'color' => '#854d0e', 'dot' => '#ca8a04'],
         'promesa_pago'  => ['bg' => '#e0f2fe', 'color' => '#0369a1', 'dot' => '#0284c7'],
         'no_encontrado' => ['bg' => '#f1f5f9', 'color' => '#475569', 'dot' => '#94a3b8'],
         'rechazo'       => ['bg' => '#ffe4e6', 'color' => '#9f1239', 'dot' => '#e11d48'],
+        'abono_previo'  => ['bg' => '#dcfce7', 'color' => '#166534', 'dot' => '#16a34a'],
     ];
     $metodoLabels = [
         'efectivo'      => 'Efectivo',
@@ -378,6 +382,7 @@
                         'promesa_pago'  => 'rc-badge-promesa',
                         'no_encontrado' => 'rc-badge-no-encontrado',
                         'rechazo'       => 'rc-badge-rechazo',
+                        'abono_previo'  => 'rc-badge-abono-previo',
                     ][$v->resultado] ?? 'rc-badge-no-encontrado';
                     $rb      = $resultadoBg[$v->resultado] ?? ['dot'=>'#94a3b8'];
                     $fotoUrl = $v->foto_hogar ? \Illuminate\Support\Facades\Storage::url($v->foto_hogar) : null;

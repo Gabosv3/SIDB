@@ -239,6 +239,7 @@ return [
         'Export:Clientes' => 'Exportar Clientes (CSV)',
         'View:PerfilEmpleado' => 'Ver Perfil de Empleado',
         'View:ClientesRuta' => 'Ver Clientes por Ruta',
+        'Publicar:AppUpdate' => 'Publicar actualizaciones de la app móvil (APK)',
     ],
 
     /*

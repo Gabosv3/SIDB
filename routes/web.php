@@ -158,23 +158,32 @@ Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados
 // ─────────────────────────────────────────────────────────────────────────────
 Route::middleware(['web', 'auth'])->prefix('whatsapp')->name('whatsapp.')->group(function () {
 
-    // ── Centro principal ──────────────────────────────────────────────────────
+    // ── Centro principal (SOLO LECTURA - Sin envío de mensajes para evitar costos) ──
     Route::middleware('can:View:WhatsappCenter')->group(function () {
         Route::get('{tenant}', 'App\Http\Controllers\WhatsappController@index')
             ->name('index')->where('tenant', '[0-9]+');
         Route::get('{tenant}/conversation/{conversation}', 'App\Http\Controllers\WhatsappController@show')
             ->name('show')->where(['tenant' => '[0-9]+', 'conversation' => '[0-9]+']);
-        Route::post('{tenant}/send', 'App\Http\Controllers\WhatsappController@send')
-            ->name('send')->where('tenant', '[0-9]+');
-        Route::post('{tenant}/reminder/{cliente}', 'App\Http\Controllers\WhatsappController@sendReminder')
-            ->name('sendReminder')->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
-        Route::get('{tenant}/open/{cliente}', 'App\Http\Controllers\WhatsappController@openClient')
-            ->name('openClient')->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
-        Route::post('{tenant}/quick-message', 'App\Http\Controllers\WhatsappController@quickMessage')
-            ->name('quickMessage')->where('tenant', '[0-9]+');
+        // DESHABILITADO: Envío de mensajes (costo en Meta Cloud API)
+        // Route::post('{tenant}/send', 'App\Http\Controllers\WhatsappController@send')
+        //     ->name('send')->where('tenant', '[0-9]+');
+        // DESHABILITADO: Recordatorios automáticos (costo en Meta Cloud API)
+        // Route::post('{tenant}/reminder/{cliente}', 'App\Http\Controllers\WhatsappController@sendReminder')
+        //     ->name('sendReminder')->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+        // DESHABILITADO: Apertura de cliente (no necesario sin envío)
+        // Route::get('{tenant}/open/{cliente}', 'App\Http\Controllers\WhatsappController@openClient')
+        //     ->name('openClient')->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+        // DESHABILITADO: Mensajes rápidos (costo en Meta Cloud API)
+        // Route::post('{tenant}/quick-message', 'App\Http\Controllers\WhatsappController@quickMessage')
+        //     ->name('quickMessage')->where('tenant', '[0-9]+');
     });
 
-    // ── Cuentas, plantillas y automatizaciones (configuración sensible) ───────
+    // ── DESHABILITADO: Plantillas y automatizaciones (generaban costos en Meta Cloud API) ──
+    // Las siguientes rutas se comentaron para evitar envío de mensajes:
+    // - Gestión de plantillas
+    // - Configuración de automatizaciones
+    // - Test de envío de mensajes
+    /*
     Route::middleware('can:Manage:WhatsappSettings')->group(function () {
         // ── Cuentas (números conectados) ──────────────────────────────────────
         Route::prefix('{tenant}/accounts')->name('accounts.')->where(['tenant' => '[0-9]+'])->group(function () {
@@ -209,6 +218,19 @@ Route::middleware(['web', 'auth'])->prefix('whatsapp')->name('whatsapp.')->group
             Route::post('/{automation}/toggle', 'App\Http\Controllers\WhatsappAutomationController@toggle')->name('toggle');
         });
     });
+    */
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Baileys WhatsApp - Controlador de Cobro (Sin costos Meta)
+// ─────────────────────────────────────────────────────────────────────────────
+Route::middleware(['web', 'auth'])->prefix('baileys-cobro')->name('baileys.cobro.')->group(function () {
+    Route::get('status', 'App\Http\Controllers\BaileysCobroController@status')
+        ->name('status');
+    Route::post('recordatorio/{cliente}', 'App\Http\Controllers\BaileysCobroController@enviarRecordatorio')
+        ->name('recordatorio');
+    Route::post('mensaje/{cliente}', 'App\Http\Controllers\BaileysCobroController@enviarMensajePersonalizado')
+        ->name('mensaje');
 });
 
 // WhatsApp Webhook (Meta Cloud API - sin CSRF)
@@ -231,3 +253,25 @@ Route::get('/administrativo/backups/download/{path}', function (string $path) {
     abort_unless(Storage::disk('local')->exists($filePath), 404);
     return Storage::disk('local')->download($filePath);
 })->middleware(['web', 'auth'])->name('filament.administrativo.pages.backups.download');
+
+// ── WhatsApp Center (Baileys Integration) ──
+Route::middleware(['web', 'auth'])->prefix('whatsapp-center')->name('whatsapp-center.')->group(function () {
+    Route::get('/', 'App\Http\Controllers\WhatsAppCenterController@index')->name('dashboard');
+    
+    // API Endpoints (sin CSRF para facilitar llamadas desde JavaScript)
+    Route::withoutMiddleware('web')->middleware('auth:web')->group(function () {
+        Route::post('/api/send', 'App\Http\Controllers\WhatsAppCenterController@sendMessage')->name('send')->withoutMiddleware('csrf');
+        Route::get('/api/status', 'App\Http\Controllers\WhatsAppCenterController@status')->name('status');
+        Route::get('/api/info', 'App\Http\Controllers\WhatsAppCenterController@info')->name('info');
+        Route::post('/api/disconnect', 'App\Http\Controllers\WhatsAppCenterController@disconnect')->name('disconnect')->withoutMiddleware('csrf');
+        Route::post('/api/reconnect', 'App\Http\Controllers\WhatsAppCenterController@reconnect')->name('reconnect')->withoutMiddleware('csrf');
+        Route::get('/api/qrcode', 'App\Http\Controllers\WhatsAppCenterController@qrcode')->name('qrcode');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Publicar actualizaciones de la app móvil (APK)
+Route::middleware(['web', 'auth', 'can:Publicar:AppUpdate'])->prefix('admin/update')->name('admin.update.')->group(function () {
+    Route::get('/', 'App\Http\Controllers\AppUpdateController@index')->name('index');
+    Route::post('/upload', 'App\Http\Controllers\AppUpdateController@upload')->name('upload');
+});
