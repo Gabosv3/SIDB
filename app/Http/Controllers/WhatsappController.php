@@ -103,154 +103,59 @@ class WhatsappController extends Controller
     }
 
     /**
-     * Enviar un mensaje al cliente
+     * DESHABILITADO: Enviar un mensaje al cliente (costo en Meta Cloud API)
+     * 
+     * El envío de mensajes fue deshabilitado el 2026-07-06 para cambiar a modo solo-lectura
+     * Los costos de Meta Cloud API hacen que no sea viables enviar mensajes automáticos
      */
     public function send(Request $request, $tenant): JsonResponse
     {
-        $request->validate([
-            'conversation_id' => 'required|exists:whatsapp_conversations,id',
-            'message'         => 'required|string|max:4096',
-        ]);
-
-        $conversation = WhatsappConversation::with('cliente')->findOrFail($request->conversation_id);
-        $numero = $conversation->wa_id ?? $conversation->cliente?->telefono_whatsapp;
-
-        if (! $numero) {
-            return response()->json(['error' => 'El cliente no tiene número de WhatsApp registrado.'], 422);
-        }
-
-        // Resolver cuenta de WhatsApp para este cliente
-        $cuenta = $conversation->cliente
-            ? WhatsappAccount::resolverParaCliente($conversation->cliente)
-            : WhatsappAccount::where('is_default', true)->where('estado', 'activo')->first();
-
-        // Guardar mensaje como pendiente
-        $mensaje = WhatsappMessage::create([
-            'conversation_id' => $conversation->id,
-            'direction'       => 'out',
-            'type'            => 'text',
-            'body'            => $request->message,
-            'status'          => 'pending',
-            'sent_at'         => now(),
-        ]);
-
-        // Enviar a Meta Cloud API
-        $resultado = $this->whatsapp->sendTextMessage($cuenta, $numero, $request->message);
-
-        // Actualizar estado según resultado
-        $mensaje->update([
-            'status'       => $resultado['success'] ? 'sent' : 'failed',
-            'wa_message_id'=> $resultado['message_id'] ?? null,
-        ]);
-
-        // Actualizar resumen de conversación
-        $conversation->update([
-            'ultimo_mensaje'    => $request->message,
-            'ultimo_mensaje_at' => now(),
-            'estado'            => 'abierta',
-        ]);
-
         return response()->json([
-            'success'   => $resultado['success'],
-            'simulated' => $resultado['simulated'] ?? false,
-            'mensaje'   => $mensaje,
-        ]);
+            'error'   => 'Envío de mensajes deshabilitado',
+            'motivo'  => 'Costos de Meta Cloud API',
+            'estado'  => 'Solo lectura de mensajes disponible (webhook)',
+        ], 403);
     }
 
     /**
-     * Enviar recordatorio de cuota rápido
+     * DESHABILITADO: Enviar recordatorio de cuota rápido (costo en Meta Cloud API)
+     * 
+     * El envío de recordatorios fue deshabilitado el 2026-07-06 para cambiar a modo solo-lectura
      */
     public function sendReminder(Request $request, $tenant, Cliente $cliente): JsonResponse
     {
-        $numero = $cliente->telefono_whatsapp;
-
-        if (! $numero) {
-            return response()->json(['error' => 'El cliente no tiene número de WhatsApp registrado.'], 422);
-        }
-
-        // Obtener próxima cuota pendiente
-        $cuota = GestionCobro::where('cliente_id', $cliente->id)
-            ->whereIn('estado', ['pendiente', 'vencida'])
-            ->orderBy('fecha_vencimiento')
-            ->first();
-
-        $texto = $cuota
-            ? "Hola {$cliente->nombre}, le recordamos que tiene una cuota pendiente de \${$cuota->monto_cuota} con vencimiento el {$cuota->fecha_vencimiento->format('d/m/Y')}. Por favor comuníquese con nosotros. Distribuidora Briancesco Menjivar."
-            : "Hola {$cliente->nombre}, le contactamos de parte de Distribuidora Briancesco Menjivar. Por favor comuníquese con nosotros.";
-
-        $conversation = $this->crearOAbrirConversacion($cliente);
-
-        // Resolver cuenta de WhatsApp para el cliente
-        $cuenta = WhatsappAccount::resolverParaCliente($cliente);
-
-        $mensaje = WhatsappMessage::create([
-            'conversation_id' => $conversation->id,
-            'direction'       => 'out',
-            'type'            => 'text',
-            'body'            => $texto,
-            'status'          => 'pending',
-            'sent_at'         => now(),
-        ]);
-
-        $resultado = $this->whatsapp->sendTextMessage($cuenta, $numero, $texto);
-
-        $mensaje->update([
-            'status'        => $resultado['success'] ? 'sent' : 'failed',
-            'wa_message_id' => $resultado['message_id'] ?? null,
-        ]);
-
-        $conversation->update([
-            'ultimo_mensaje'    => $texto,
-            'ultimo_mensaje_at' => now(),
-        ]);
-
         return response()->json([
-            'success'          => $resultado['success'],
-            'simulated'        => $resultado['simulated'] ?? false,
-            'conversation_id'  => $conversation->id,
-        ]);
+            'error'   => 'Envío de recordatorios deshabilitado',
+            'motivo'  => 'Costos de Meta Cloud API',
+            'estado'  => 'Solo lectura de mensajes disponible (webhook)',
+        ], 403);
     }
 
     /**
-     * Crear o abrir conversación existente de un cliente
+     * DESHABILITADO: Crear o abrir conversación existente de un cliente (función auxiliar)
+     * 
+     * Sin envío de mensajes, esta funcionalidad no es necesaria
      */
     public function openClient(Request $request, $tenant, Cliente $cliente)
     {
-        $conversation = $this->crearOAbrirConversacion($cliente);
-
-        // Si es AJAX, devolver JSON
-        if ($request->expectsJson()) {
-            return response()->json(['conversation_id' => $conversation->id]);
-        }
-
-        // Si es web, redirigir a la bandeja con la conversación activa
-        return redirect()->route('whatsapp.index', ['tenant' => $tenant, 'c' => $conversation->id]);
+        return response()->json([
+            'error'   => 'Función deshabilitada',
+            'motivo'  => 'Sin funcionalidad de envío de mensajes',
+        ], 403);
     }
 
     /**
-     * Generar texto rápido con variables del cliente
+     * DESHABILITADO: Generar texto rápido con variables del cliente (costo en Meta Cloud API)
+     * 
+     * La funcionalidad de mensajes rápidos fue deshabilitada el 2026-07-06
      */
     public function quickMessage(Request $request, $tenant): JsonResponse
     {
-        $request->validate([
-            'tipo'            => 'required|in:recordar_cuota,saldo_pendiente,confirmar_pago,promesa_pago',
-            'conversation_id' => 'required|exists:whatsapp_conversations,id',
-        ]);
-
-        $conv    = WhatsappConversation::with(['cliente.gestionesCobro' => fn($q) => $q->whereIn('estado', ['pendiente','vencida'])->orderBy('fecha_vencimiento')])->findOrFail($request->conversation_id);
-        $cliente = $conv->cliente;
-        $cuota   = $cliente?->gestionesCobro->first();
-
-        $textos = [
-            'recordar_cuota'  => "Hola {$cliente?->nombre}, le recordamos que tiene una cuota pendiente por $" . number_format($cuota?->monto_cuota ?? 0, 2) . " con vencimiento el " . ($cuota?->fecha_vencimiento?->format('d/m/Y') ?? 'N/A') . ". ¿Podría confirmarnos cuándo realizará el pago? Gracias.",
-            'saldo_pendiente' => "Hola {$cliente?->nombre}, su saldo pendiente actual es de $" . number_format($cliente?->saldo ?? 0, 2) . ". Si ya realizó el pago, por favor envíenos el comprobante. Distribuidora Briancesco Menjivar.",
-            'confirmar_pago'  => "Hola {$cliente?->nombre}, confirmamos que hemos recibido su pago. ¡Gracias por estar al día con nosotros! Distribuidora Briancesco Menjivar.",
-            'promesa_pago'    => "Hola {$cliente?->nombre}, hemos registrado su promesa de pago. Le estaremos contactando en la fecha acordada. Distribuidora Briancesco Menjivar.",
-        ];
-
         return response()->json([
-            'texto' => $textos[$request->tipo] ?? '',
-        ]);
+            'error'   => 'Mensajes rápidos deshabilitados',
+            'motivo'  => 'Costos de Meta Cloud API',
+            'estado'  => 'Solo lectura de mensajes disponible (webhook)',
+        ], 403);
     }
 
     // ── Helper interno ─────────────────────────────────────────────────────────

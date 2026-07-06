@@ -25,6 +25,20 @@ class SendWhatsappPaymentReminders extends Command
 
     public function handle(): int
     {
+        // ⚠️  DESHABILITADO: Envío de mensajes WhatsApp desactivado (costos en Meta Cloud API)
+        // Este comando fue comentado el 2026-07-06 para cambiar a modo solo-lectura
+        // 
+        // El envío de mensajes incurre en costos significativos en la Meta Cloud API
+        // Se mantiene solo la recepción de mensajes (webhook) que es gratuita
+        
+        $this->warn('⚠️  Comando deshabilitado: El envío automático de recordatorios por WhatsApp está desactivado');
+        $this->line('Motivo: Evitar costos en Meta Cloud API');
+        $this->line('Estado: Solo lectura de mensajes (webhook) disponible');
+        
+        return Command::SUCCESS;
+        
+        /*
+        // CÓDIGO ANTERIOR (DESHABILITADO - Mantener para referencia histórica)
         $isDryRun = $this->option('dry-run');
         $this->info($isDryRun ? '🔍 Modo dry-run (sin envíos reales)' : '📤 Enviando recordatorios...');
 
@@ -54,6 +68,7 @@ class SendWhatsappPaymentReminders extends Command
 
         $this->info('✅ Proceso completado.');
         return Command::SUCCESS;
+        */
     }
 
     protected function procesarTipo(string $tipo, \Closure $getCuotas, string $mensajePlantilla, bool $isDryRun): void

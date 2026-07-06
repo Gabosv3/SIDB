@@ -1,0 +1,24 @@
+{
+  "apps": [
+    {
+      "name": "baileys",
+      "script": "./server-real.js",
+      "cwd": "./baileys-service",
+      "instances": 1,
+      "exec_mode": "fork",
+      "env": {
+        "NODE_ENV": "production",
+        "BAILEYS_PORT": "3333",
+        "LARAVEL_API_URL": "http://localhost:8000"
+      },
+      "error_file": "./logs/baileys-error.log",
+      "out_file": "./logs/baileys-out.log",
+      "log_file": "./logs/baileys.log",
+      "time": true,
+      "max_memory_restart": "500M",
+      "autorestart": true,
+      "watch": false,
+      "ignore_watch": ["auth_info", "node_modules"]
+    }
+  ]
+}

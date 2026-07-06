@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\EditProfile;
+use App\Filament\Pages\BaileysWhatsApp;
 use App\Models\ConfiguracionSistema;
 use App\Models\Sucursal;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
@@ -104,6 +105,7 @@ class AdministrativoPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
+                BaileysWhatsApp::class,
             ])
             ->navigationGroups([
                 NavigationGroup::make('POS'),

@@ -46,4 +46,10 @@ return [
         'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'mi_token_secreto'),
     ],
 
+    // ── Baileys WhatsApp (Personal - Sin costos Meta) ──────────────────────────
+    'baileys' => [
+        'url'   => env('BAILEYS_URL', 'http://localhost:3333'),
+        'token' => env('BAILEYS_TOKEN'),
+    ],
+
 ];
