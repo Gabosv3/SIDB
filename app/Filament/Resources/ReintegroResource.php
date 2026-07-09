@@ -198,6 +198,17 @@ class ReintegroResource extends Resource
                         )
                     ),
 
+                Tables\Columns\TextColumn::make('cliente.rutaCobro.nombre')
+                    ->label('Ruta')
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable(query: fn (Builder $query, string $search) =>
+                        $query->whereHas('cliente.rutaCobro', fn ($q) =>
+                            $q->where('nombre', 'like', "%{$search}%")
+                        )
+                    ),
+
                 Tables\Columns\TextColumn::make('vendedor.nombre')
                     ->label('Vendedor asignado')
                     ->formatStateUsing(fn ($record) => $record->vendedor

@@ -170,9 +170,10 @@
 </style>
 
 @php
-    $resumen    = $this->getResumen();
-    $totales    = $this->getTotalesGenerales($resumen);
-    $cobradores = $this->getCobradores();
+    $resumen          = $this->getResumen();
+    $totales          = $this->getTotalesGenerales($resumen);
+    $cobradores       = $this->getCobradores();
+    $rutasDisponibles = $this->getRutasDisponibles();
 
     $resultadoLabels = [
         'sin_pago'      => 'Sin pago',
@@ -233,6 +234,45 @@
             style="min-width:220px"
         />
     </div>
+    @if($rutasDisponibles->count() > 1)
+        <div x-data="{ open: false }" style="position:relative">
+            <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Rutas</label>
+            <button
+                type="button"
+                @click="open = !open"
+                class="rc-input"
+                style="min-width:200px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.5rem"
+            >
+                <span>
+                    @if(empty($rutasSeleccionadas))
+                        Todas las rutas
+                    @elseif(count($rutasSeleccionadas) === 1)
+                        {{ $rutasDisponibles->firstWhere('id', $rutasSeleccionadas[0])?->nombre }}
+                    @else
+                        {{ count($rutasSeleccionadas) }} rutas seleccionadas
+                    @endif
+                </span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div
+                x-show="open"
+                @click.outside="open = false"
+                x-cloak
+                style="position:absolute;top:calc(100% + 4px);left:0;z-index:50;min-width:220px;max-height:280px;overflow-y:auto;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;box-shadow:0 6px 18px rgba(0,0,0,.1);padding:.4rem"
+            >
+                <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;border-bottom:1px solid #f3f4f6;font-weight:600;color:#111827">
+                    <input type="checkbox" {{ empty($rutasSeleccionadas) ? 'checked' : '' }} wire:click="$set('rutasSeleccionadas', [])">
+                    Todas las rutas
+                </label>
+                @foreach($rutasDisponibles as $rutaOpt)
+                    <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;color:#111827">
+                        <input type="checkbox" value="{{ $rutaOpt->id }}" wire:model.live="rutasSeleccionadas">
+                        {{ $rutaOpt->nombre }}
+                    </label>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </div>
 
 {{-- Tarjetas totales --}}
@@ -261,13 +301,13 @@
 
 {{-- Cards por cobrador --}}
 @forelse($resumen as $r)
-    @php $c = $r['cobrador']; @endphp
+    @php $c = $r['cobrador']; $ruta = $r['ruta'] ?? null; @endphp
     <div class="rc-card" style="margin-bottom:1.25rem;overflow:hidden">
 
         {{-- Header --}}
         <div class="rc-cobrador-header">
             <div>
-                <p class="rc-cobrador-name">{{ $c->nombre }} {{ $c->apellido }}</p>
+                <p class="rc-cobrador-name">{{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}</p>
                 <p class="rc-cobrador-sub">
                     {{ $r['total_pagos'] }} pago(s) &middot; {{ $r['clientes_visitados'] }} cliente(s) visitado(s)
                 </p>
@@ -299,11 +339,13 @@
                     <thead class="rc-thead">
                         <tr>
                             <th>Hora</th>
+                            <th>Código</th>
                             <th>Cliente</th>
                             <th>Venta</th>
                             <th>Método</th>
                             <th>Referencia</th>
                             <th style="text-align:right">Monto</th>
+                            <th style="text-align:right">Saldo restante</th>
                             <th style="padding-right:1.25rem"></th>
                         </tr>
                     </thead>
@@ -314,6 +356,7 @@
                                 ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id)
                                 ->map(fn($grupo) => [
                                     'ids'        => $grupo->pluck('id')->all(),
+                                    'codigo'     => $grupo->first()->cliente?->codigo_anterior ?? '—',
                                     'cliente'    => $grupo->first()->cliente?->nombre_completo ?? '—',
                                     'venta'      => $grupo->first()->venta?->numero_venta ?? '—',
                                     'metodo'     => $grupo->pluck('metodo_pago')->unique()->count() === 1
@@ -325,12 +368,16 @@
                                                         : 'Registrado después',
                                     'total'      => $grupo->sum('monto'),
                                     'count'      => $grupo->count(),
+                                    'saldo'      => $grupo->first()->venta?->saldo_pendiente,
                                 ]);
                         @endphp
                         @foreach($filas as $fila)
                             <tr class="rc-tr">
                                 <td class="rc-td" style="white-space:nowrap;font-variant-numeric:tabular-nums">
                                     {{ $fila['hora'] }}
+                                </td>
+                                <td class="rc-td" style="color:#6b7280;font-variant-numeric:tabular-nums">
+                                    {{ $fila['codigo'] }}
                                 </td>
                                 <td class="rc-td rc-text-primary" style="font-weight:500">
                                     {{ $fila['cliente'] }}
@@ -348,6 +395,9 @@
                                     {{ $fila['referencia'] ?? '—' }}
                                 </td>
                                 <td class="rc-td rc-text-primary" style="text-align:right;font-weight:700">${{ number_format($fila['total'], 2) }}</td>
+                                <td class="rc-td" style="text-align:right;color:{{ (float) $fila['saldo'] > 0 ? '#dc2626' : '#16a34a' }};font-weight:600">
+                                    {{ $fila['saldo'] === null ? '—' : '$'.number_format((float) $fila['saldo'], 2) }}
+                                </td>
                                 <td class="rc-td" style="text-align:right;padding-right:1.25rem">
                                     <button
                                         type="button"

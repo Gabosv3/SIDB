@@ -15,6 +15,14 @@
     ];
     $avatarColors = ['#dbeafe:#1d4ed8', '#fce7f3:#be185d', '#dcfce7:#15803d', '#fef3c7:#a16207', '#ede9fe:#6d28d9'];
 
+    // Rutas presentes en el resumen de hoy, para el filtro "todos / algunos / varios"
+    $rutasDisponibles = collect($resumen)
+        ->pluck('ruta')
+        ->filter()
+        ->unique('id')
+        ->sortBy('nombre')
+        ->values();
+
     $pmDelta = fn ($hoy, $ayer) => $ayer > 0 ? round((($hoy - $ayer) / $ayer) * 100, 1) : ($hoy > 0 ? 100.0 : 0.0);
 
     $kpis = [
@@ -45,6 +53,12 @@
     .rd-filter-btn:hover { background:#059669; }
     .rd-filter-reset { font-size:.78rem; color:#6b7280; text-decoration:none; padding:.5rem .25rem; }
     .rd-filter-reset:hover { color:#374151; text-decoration:underline; }
+
+    .rd-rutas-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:50; min-width:240px; max-height:280px; overflow-y:auto; background:var(--card,#fff); border:1px solid var(--border,#e5e7eb); border-radius:.6rem; box-shadow:0 6px 18px rgba(0,0,0,.08); padding:.4rem; }
+    .rd-rutas-item { display:flex; align-items:center; gap:.5rem; padding:.45rem .5rem; font-size:.82rem; color:var(--text-2,#374151); cursor:pointer; border-radius:.4rem; }
+    .rd-rutas-item:hover { background:var(--subtle,#f9fafb); }
+    .rd-rutas-item input { accent-color:#10b981; cursor:pointer; }
+    .rd-cob-card.rd-oculta-por-filtro { display:none; }
 
     .rd-cob-card    { margin-bottom:1.1rem; overflow:hidden; }
     .rd-cob-header  { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.1rem; cursor:pointer; user-select:none; }
@@ -161,6 +175,26 @@
     @endif
 </form>
 
+@if($rutasDisponibles->count() > 1)
+<div class="rd-filter-group" style="margin-bottom:1.5rem;position:relative;">
+    <label class="rd-filter-label">Rutas</label>
+    <button type="button" class="rd-filter-input" style="text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.5rem;" id="rd-rutas-btn">
+        <span id="rd-rutas-label">Todas las rutas</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="rd-rutas-panel" id="rd-rutas-panel" style="display:none;">
+        <label class="rd-rutas-item" style="font-weight:700;border-bottom:1px solid var(--border-2);">
+            <input type="checkbox" id="rd-ruta-todas" checked> Todas las rutas
+        </label>
+        @foreach($rutasDisponibles as $ruta)
+            <label class="rd-rutas-item">
+                <input type="checkbox" class="rd-ruta-check" value="{{ $ruta->id }}" checked> {{ $ruta->nombre }}
+            </label>
+        @endforeach
+    </div>
+</div>
+@endif
+
 {{-- ── KPIs con comparativo vs ayer ── --}}
 <div class="rd-kpi-grid">
     @foreach($kpis as $k)
@@ -182,18 +216,20 @@
 @forelse($resumen as $r)
     @php
         $c = $r['cobrador'];
+        $ruta = $r['ruta'] ?? null;
+        $rowKey = $c->id . '-' . ($ruta->id ?? 0);
         $tieneActividad = $r['total_pagos'] > 0 || $r['visitas_sin_cobro']->isNotEmpty() || $r['no_visitados']->isNotEmpty();
         $pendientesVisibles = $r['no_visitados']->take(5);
         $pendientesResto    = $r['no_visitados']->slice(5);
     @endphp
-    <div class="pm-card rd-cob-card {{ $tieneActividad ? '' : 'collapsed' }}" id="cob-{{ $c->id }}">
-        <div class="rd-cob-header" onclick="toggleCob({{ $c->id }})">
+    <div class="pm-card rd-cob-card {{ $tieneActividad ? '' : 'collapsed' }}" id="cob-{{ $rowKey }}" data-ruta-id="{{ $ruta->id ?? '' }}">
+        <div class="rd-cob-header" onclick="toggleCob('{{ $rowKey }}')">
             <div style="display:flex;align-items:center;gap:.75rem;min-width:0;">
                 <div class="rd-cob-avatar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
                 </div>
                 <div style="min-width:0;">
-                    <div class="rd-cob-name">{{ $c->nombre }} {{ $c->apellido }}</div>
+                    <div class="rd-cob-name">{{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}</div>
                     <div class="rd-cob-sub">{{ $r['total_pagos'] }} pago(s) &middot; {{ $r['clientes_visitados'] }} cliente(s) visitado(s)</div>
                 </div>
             </div>
@@ -225,24 +261,27 @@
                     $filas = $r['detalle']
                         ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id)
                         ->map(fn($grupo) => [
+                            'codigo'     => $grupo->first()->cliente?->codigo_anterior ?? '—',
                             'cliente'    => $grupo->first()->cliente?->nombre_completo ?? '—',
                             'venta'      => $grupo->first()->venta?->numero_venta ?? '—',
                             'metodo'     => $grupo->pluck('metodo_pago')->unique()->count() === 1 ? $grupo->first()->metodo_pago : 'varios',
                             'referencia' => $grupo->first()->referencia,
                             'hora'       => $grupo->first()->created_at->format('H:i'),
                             'total'      => $grupo->sum('monto'),
+                            'saldo'      => $grupo->first()->venta?->saldo_pendiente,
                         ]);
                 @endphp
                 <div class="rd-subhead">Pagos registrados ({{ $filas->count() }})</div>
                 <div style="overflow-x:auto;">
                     <table class="rd-pago-table">
                         <thead class="rd-pago-thead">
-                            <tr><th>Hora</th><th>Cliente</th><th>Venta</th><th>Método</th><th>Referencia</th><th>Monto</th></tr>
+                            <tr><th>Hora</th><th>Código</th><th>Cliente</th><th>Venta</th><th>Método</th><th>Referencia</th><th>Monto</th><th>Saldo restante</th></tr>
                         </thead>
                         <tbody>
                         @foreach($filas as $fila)
                             <tr class="rd-pago-tr">
                                 <td style="font-variant-numeric:tabular-nums;color:#9ca3af;">{{ $fila['hora'] }}</td>
+                                <td style="font-variant-numeric:tabular-nums;color:var(--muted);">{{ $fila['codigo'] }}</td>
                                 <td style="font-weight:500;">{{ $fila['cliente'] }}</td>
                                 <td style="color:var(--muted);">{{ $fila['venta'] }}</td>
                                 <td>
@@ -253,6 +292,9 @@
                                 </td>
                                 <td style="color:#9ca3af;font-size:.74rem;">{{ $fila['referencia'] ?? '—' }}</td>
                                 <td>${{ number_format($fila['total'], 2) }}</td>
+                                <td style="font-weight:600;color:{{ (float) $fila['saldo'] > 0 ? '#dc2626' : '#16a34a' }};">
+                                    {{ $fila['saldo'] === null ? '—' : '$'.number_format((float) $fila['saldo'], 2) }}
+                                </td>
                             </tr>
                         @endforeach
                         </tbody>
@@ -305,7 +347,7 @@
                         <div class="pm-empty" style="padding:1.5rem;">Sin pendientes</div>
                     @endforelse
                     @if($pendientesResto->isNotEmpty())
-                        <div id="pend-more-{{ $c->id }}" style="display:none;">
+                        <div id="pend-more-{{ $rowKey }}" style="display:none;">
                             @foreach($pendientesResto as $nv)
                                 <div class="rd-pendiente-row">
                                     <span class="rd-pendiente-name">{{ $nv->nombre_completo }}</span>
@@ -313,7 +355,7 @@
                                 </div>
                             @endforeach
                         </div>
-                        <button type="button" class="rd-ver-todos" id="pend-btn-{{ $c->id }}" onclick="toggleMorePendientes({{ $c->id }})">
+                        <button type="button" class="rd-ver-todos" id="pend-btn-{{ $rowKey }}" onclick="toggleMorePendientes('{{ $rowKey }}')">
                             Ver todos los pendientes ({{ $r['no_visitados']->count() }}) →
                         </button>
                     @endif
@@ -399,6 +441,58 @@
 function toggleCob(id) {
     document.getElementById('cob-' + id).classList.toggle('collapsed');
 }
+
+// ── Filtro de rutas (todas / algunas / varias) ──────────────────────────────
+(function () {
+    var btn   = document.getElementById('rd-rutas-btn');
+    var panel = document.getElementById('rd-rutas-panel');
+    var label = document.getElementById('rd-rutas-label');
+    var todasCheck = document.getElementById('rd-ruta-todas');
+    if (!btn || !panel) return;
+
+    var rutaChecks = Array.prototype.slice.call(document.querySelectorAll('.rd-ruta-check'));
+
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', function (e) {
+        if (!panel.contains(e.target) && e.target !== btn) panel.style.display = 'none';
+    });
+
+    function aplicarFiltro() {
+        var seleccionadas = rutaChecks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+        var todasMarcadas = seleccionadas.length === rutaChecks.length;
+
+        document.querySelectorAll('.rd-cob-card').forEach(function (card) {
+            var rutaId = card.dataset.rutaId || '';
+            var visible = todasMarcadas || seleccionadas.indexOf(rutaId) !== -1;
+            card.classList.toggle('rd-oculta-por-filtro', !visible);
+        });
+
+        if (todasMarcadas) {
+            label.textContent = 'Todas las rutas';
+        } else if (seleccionadas.length === 0) {
+            label.textContent = 'Ninguna ruta';
+        } else if (seleccionadas.length === 1) {
+            label.textContent = document.querySelector('.rd-ruta-check[value="' + seleccionadas[0] + '"]').parentElement.textContent.trim();
+        } else {
+            label.textContent = seleccionadas.length + ' rutas seleccionadas';
+        }
+    }
+
+    todasCheck.addEventListener('change', function () {
+        rutaChecks.forEach(function (c) { c.checked = todasCheck.checked; });
+        aplicarFiltro();
+    });
+
+    rutaChecks.forEach(function (check) {
+        check.addEventListener('change', function () {
+            todasCheck.checked = rutaChecks.every(function (c) { return c.checked; });
+            aplicarFiltro();
+        });
+    });
+})();
 function toggleMorePendientes(id) {
     var el  = document.getElementById('pend-more-' + id);
     var btn = document.getElementById('pend-btn-' + id);

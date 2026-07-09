@@ -25,6 +25,8 @@ class ResumenCobrosDia extends Page
     public string $fecha = '';
     public ?int $cobrador_id = null;
     public string $buscarCliente = '';
+    /** @var array<int> */
+    public array $rutasSeleccionadas = [];
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -49,7 +51,13 @@ class ResumenCobrosDia extends Page
             ->get();
     }
 
-    public function getResumen(): array
+    /**
+     * Resumen con los filtros de fecha/cobrador/búsqueda aplicados, pero SIN el
+     * filtro de rutas — se usa tanto para el resultado final (getResumen) como
+     * para poblar la lista de rutas disponibles (getRutasDisponibles), que no
+     * debe encogerse a medida que el usuario selecciona rutas.
+     */
+    private function resumenBase(): array
     {
         $resumen = ResumenCobrosDiaService::resumen($this->fecha, $this->cobrador_id);
 
@@ -93,6 +101,33 @@ class ResumenCobrosDia extends Page
                 || $r['no_visitados']->isNotEmpty())
             ->values()
             ->all();
+    }
+
+    public function getResumen(): array
+    {
+        $resumen = $this->resumenBase();
+
+        if (empty($this->rutasSeleccionadas)) {
+            return $resumen;
+        }
+
+        $seleccionadas = array_map('strval', $this->rutasSeleccionadas);
+
+        return collect($resumen)
+            ->filter(fn (array $r) => $r['ruta'] && in_array((string) $r['ruta']->id, $seleccionadas, true))
+            ->values()
+            ->all();
+    }
+
+    /** Rutas presentes en el resumen del día (sin aplicar el filtro de rutas), para poblar el selector. */
+    public function getRutasDisponibles(): \Illuminate\Support\Collection
+    {
+        return collect($this->resumenBase())
+            ->pluck('ruta')
+            ->filter()
+            ->unique('id')
+            ->sortBy('nombre')
+            ->values();
     }
 
     public function getTotalesGenerales(array $resumen): array

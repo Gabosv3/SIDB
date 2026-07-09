@@ -13,9 +13,18 @@ use Illuminate\Support\Collection;
 
 class ResumenCobrosDiaService
 {
+    /**
+     * Un cobrador puede cubrir más de una ruta el mismo día (día compartido entre
+     * 2 rutas, o cobro extra fuera de su ruta habitual). Para que cada ruta se vea
+     * como una entrada aparte en vez de sumarse en un solo total del cobrador, se
+     * genera una entrada por cada combinación (cobrador, ruta) que tuvo actividad
+     * o tenía ruta programada ese día.
+     */
     public static function resumen(string $fecha, ?int $cobradorId = null): array
     {
         $fechaCarbon = Carbon::parse($fecha);
+        $diasEs = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+        $diaFecha = $diasEs[$fechaCarbon->dayOfWeekIso - 1];
 
         $cobradores = Cobrador::with('user')
             ->where('activo', true)
@@ -23,67 +32,79 @@ class ResumenCobrosDiaService
             ->when($cobradorId, fn ($q) => $q->where('id', $cobradorId))
             ->get();
 
-        $resumen = $cobradores->map(function ($cobrador) use ($fechaCarbon) {
-            $pagos = PagoVenta::where('user_id', $cobrador->user_id)
-                ->whereDate('fecha_pago', $fechaCarbon)
-                ->selectRaw('COUNT(DISTINCT cliente_id) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_visitados, SUM(monto) AS total_cobrado')
-                ->first();
+        $resumen = collect();
 
-            $porMetodo = PagoVenta::where('user_id', $cobrador->user_id)
+        foreach ($cobradores as $cobrador) {
+            $pagosTodos = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fechaCarbon)
-                ->selectRaw('metodo_pago, COUNT(*) AS cantidad, SUM(monto) AS monto')
-                ->groupBy('metodo_pago')
-                ->get()
-                ->keyBy('metodo_pago');
-
-            $detalle = PagoVenta::where('user_id', $cobrador->user_id)
-                ->whereDate('fecha_pago', $fechaCarbon)
-                ->with('cliente:id,nombre,apellido,codigo_anterior', 'venta:id,numero_venta')
+                ->with('cliente:id,nombre,apellido,codigo_anterior,ruta_cobro_id', 'venta:id,numero_venta,saldo_pendiente')
                 ->orderBy('created_at')
                 ->get();
 
-            // Visitas sin cobro del día
-            $visitas = VisitaCobro::where('user_id', $cobrador->user_id)
+            $visitasTodas = VisitaCobro::where('user_id', $cobrador->user_id)
                 ->whereDate('created_at', $fechaCarbon)
-                ->with('cliente:id,nombre,apellido,codigo_anterior')
+                ->with('cliente:id,nombre,apellido,codigo_anterior,ruta_cobro_id')
                 ->orderBy('created_at')
                 ->get();
 
-            // Clientes NO visitados: en rutas del cobrador con cuotas pendientes,
-            // sin pago ni visita registrada en la fecha seleccionada
-            $diasEs = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
-            $diaFecha = $diasEs[$fechaCarbon->dayOfWeekIso - 1];
-
-            $rutasIds = $cobrador->rutasCobro()
+            $rutasHoyIds = $cobrador->rutasCobro()
                 ->where('dia_semana', $diaFecha)
                 ->pluck('id');
 
-            $clientesConPago = PagoVenta::where('user_id', $cobrador->user_id)
-                ->whereDate('fecha_pago', $fechaCarbon)->pluck('cliente_id');
-            $clientesConVisita = VisitaCobro::where('user_id', $cobrador->user_id)
-                ->whereDate('created_at', $fechaCarbon)->pluck('cliente_id');
-            $clientesAtendidos = $clientesConPago->merge($clientesConVisita)->unique();
+            $rutaIdsConActividad = $pagosTodos->pluck('cliente.ruta_cobro_id')
+                ->merge($visitasTodas->pluck('cliente.ruta_cobro_id'))
+                ->merge($rutasHoyIds)
+                ->filter()
+                ->unique()
+                ->values();
 
-            $noVisitados = Cliente::whereIn('ruta_cobro_id', $rutasIds)
-                ->whereNotIn('id', $clientesAtendidos)
-                ->whereHas('gestionesCobro', fn ($q) => $q->whereIn('estado', ['pendiente', 'parcialmente_cobrado']))
-                ->select('id', 'nombre', 'apellido', 'telefono_normal', 'codigo_anterior')
-                ->orderBy('nombre')
-                ->get();
+            if ($rutaIdsConActividad->isEmpty()) {
+                continue;
+            }
 
-            return [
-                'cobrador' => $cobrador,
-                'total_cobrado' => (float) ($pagos->total_cobrado ?? 0),
-                'total_pagos' => (int) ($pagos->total_pagos ?? 0),
-                'clientes_visitados' => (int) ($pagos->clientes_visitados ?? 0),
-                'por_metodo' => $porMetodo,
-                'detalle' => $detalle,
-                'visitas_sin_cobro' => $visitas,
-                'no_visitados' => $noVisitados,
-            ];
-        })->filter(fn ($r) => $r['total_pagos'] > 0 || $r['visitas_sin_cobro']->isNotEmpty() || $r['no_visitados']->isNotEmpty() || $cobradorId);
+            $rutas = RutaCobro::whereIn('id', $rutaIdsConActividad)->get()->keyBy('id');
 
-        return $resumen->values()->all();
+            $clientesAtendidosTodos = $pagosTodos->pluck('cliente_id')
+                ->merge($visitasTodas->pluck('cliente_id'))
+                ->unique();
+
+            foreach ($rutaIdsConActividad as $rutaId) {
+                $pagos = $pagosTodos->filter(fn ($p) => $p->cliente?->ruta_cobro_id === $rutaId)->values();
+                $visitas = $visitasTodas->filter(fn ($v) => $v->cliente?->ruta_cobro_id === $rutaId)->values();
+
+                $porMetodo = $pagos->groupBy('metodo_pago')->map(fn ($grupo, $metodo) => (object) [
+                    'metodo_pago' => $metodo,
+                    'cantidad' => $grupo->count(),
+                    'monto' => (float) $grupo->sum('monto'),
+                ]);
+
+                // Clientes NO visitados: en ESTA ruta, con cuotas pendientes, sin
+                // pago ni visita registrada por este cobrador en la fecha seleccionada.
+                $noVisitados = Cliente::where('ruta_cobro_id', $rutaId)
+                    ->whereNotIn('id', $clientesAtendidosTodos)
+                    ->whereHas('gestionesCobro', fn ($q) => $q->whereIn('estado', ['pendiente', 'parcialmente_cobrado']))
+                    ->select('id', 'nombre', 'apellido', 'telefono_normal', 'codigo_anterior')
+                    ->orderBy('nombre')
+                    ->get();
+
+                $resumen->push([
+                    'cobrador' => $cobrador,
+                    'ruta' => $rutas->get($rutaId),
+                    'total_cobrado' => (float) $pagos->sum('monto'),
+                    'total_pagos' => $pagos->pluck('cliente_id')->unique()->count(),
+                    'clientes_visitados' => $pagos->pluck('cliente_id')->unique()->count(),
+                    'por_metodo' => $porMetodo,
+                    'detalle' => $pagos,
+                    'visitas_sin_cobro' => $visitas,
+                    'no_visitados' => $noVisitados,
+                ]);
+            }
+        }
+
+        return $resumen
+            ->filter(fn ($r) => $r['total_pagos'] > 0 || $r['visitas_sin_cobro']->isNotEmpty() || $r['no_visitados']->isNotEmpty() || $cobradorId)
+            ->values()
+            ->all();
     }
 
     public static function totales(array $resumen): array
