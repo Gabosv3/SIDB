@@ -9,39 +9,130 @@
 
     {{-- Estado de Baileys --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {{-- Status de conexión --}}
+        {{-- Status de conexión (sesión propia de quien está viendo esta página) --}}
         <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">Estado de Conexión</h3>
-            
+            <h3 class="text-lg font-semibold mb-4">Mi sesión de WhatsApp</h3>
+
             <div id="status-container" class="space-y-3">
                 <div class="flex items-center gap-2">
                     <div id="status-indicator" class="w-4 h-4 rounded-full bg-gray-400"></div>
                     <span id="status-text">Verificando...</span>
                 </div>
-                
+
                 <div id="account-info" class="text-sm text-gray-600" style="display: none;">
                     <p><strong>Número:</strong> <span id="account-number">-</span></p>
                     <p><strong>Nombre:</strong> <span id="account-name">-</span></p>
                 </div>
 
-                <button onclick="reconectar()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded mt-4">
-                    🔄 Reconectar
-                </button>
+                <a href="{{ route('whatsapp-center.dashboard') }}" class="inline-block bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded mt-4">
+                    🔄 Conectar / gestionar mi WhatsApp
+                </a>
             </div>
         </div>
 
         {{-- Información útil --}}
         <div class="bg-blue-50 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold mb-4">ℹ️ Información</h3>
-            
+
             <ul class="space-y-2 text-sm">
                 <li>✅ <strong>Gratis:</strong> Sin costos de Meta</li>
-                <li>✅ <strong>Personal:</strong> Tu número de WhatsApp</li>
+                <li>✅ <strong>Personal:</strong> cada vendedor/cobrador usa su propio WhatsApp</li>
                 <li>✅ <strong>Rápido:</strong> Mensajes instantáneos</li>
                 <li>⚠️ <strong>Rate limit:</strong> Evita enviar muchos mensajes muy rápido</li>
-                <li>📱 <strong>Puerto:</strong> localhost:3333</li>
             </ul>
         </div>
+    </div>
+
+    {{-- Sesiones de empleados --}}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 class="text-lg font-semibold mb-4">👥 Sesiones de WhatsApp por empleado</h3>
+
+        @php $sesiones = $this->getSesiones(); @endphp
+
+        @if($sesiones->isEmpty())
+            <p class="text-sm text-gray-500">Todavía ningún vendedor/cobrador ha conectado su WhatsApp.</p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 border-b">
+                            <th class="py-2 pr-4">Empleado</th>
+                            <th class="py-2 pr-4">Estado</th>
+                            <th class="py-2 pr-4">Número</th>
+                            <th class="py-2 pr-4">Última actividad</th>
+                            <th class="py-2 pr-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($sesiones as $sesion)
+                            <tr class="border-b last:border-0">
+                                <td class="py-2 pr-4 font-medium">{{ $sesion->user?->name ?? '—' }}</td>
+                                <td class="py-2 pr-4">
+                                    @php
+                                        $badge = match($sesion->estado) {
+                                            'conectado' => 'bg-green-100 text-green-800',
+                                            'esperando_qr' => 'bg-yellow-100 text-yellow-800',
+                                            default => 'bg-gray-100 text-gray-600',
+                                        };
+                                    @endphp
+                                    <span class="px-2 py-1 rounded text-xs {{ $badge }}">{{ ucfirst(str_replace('_', ' ', $sesion->estado)) }}</span>
+                                </td>
+                                <td class="py-2 pr-4 text-gray-600">{{ $sesion->numero_whatsapp ?? '—' }}</td>
+                                <td class="py-2 pr-4 text-gray-600">{{ $sesion->ultima_actividad_at?->diffForHumans() ?? '—' }}</td>
+                                <td class="py-2 pr-4">
+                                    <button
+                                        type="button"
+                                        wire:click="$set('verMensajesDeUserId', {{ $sesion->user_id }})"
+                                        class="text-blue-600 hover:underline"
+                                    >
+                                        Ver mensajes
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+
+        @if($verMensajesDeUserId)
+            <div class="mt-6 border-t pt-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold">
+                        Mensajes de {{ $sesiones->firstWhere('user_id', $verMensajesDeUserId)?->user?->name ?? 'empleado' }}
+                    </h4>
+                    <button type="button" wire:click="$set('verMensajesDeUserId', null)" class="text-sm text-gray-500 hover:underline">Cerrar</button>
+                </div>
+
+                @php $conversaciones = $this->getConversacionesDeUsuario(); @endphp
+
+                @if($conversaciones->isEmpty())
+                    <p class="text-sm text-gray-500">Este empleado aún no tiene conversaciones registradas.</p>
+                @else
+                    <div class="space-y-4 max-h-96 overflow-y-auto">
+                        @foreach($conversaciones as $conversacion)
+                            <div class="border rounded-lg p-3">
+                                <p class="font-medium text-sm mb-2">
+                                    {{ $conversacion->cliente?->nombre_completo ?? $conversacion->wa_id }}
+                                </p>
+                                <div class="space-y-1">
+                                    @forelse($conversacion->mensajes as $mensaje)
+                                        <div class="text-xs flex gap-2 {{ $mensaje->direction === 'out' ? 'justify-end' : '' }}">
+                                            <span class="px-2 py-1 rounded {{ $mensaje->direction === 'out' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700' }}">
+                                                {{ $mensaje->body }}
+                                            </span>
+                                            <span class="text-gray-400">{{ $mensaje->created_at->format('d/m H:i') }}</span>
+                                        </div>
+                                    @empty
+                                        <p class="text-xs text-gray-400">Sin mensajes</p>
+                                    @endforelse
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endif
     </div>
 
     {{-- Enviar Recordatorio --}}
@@ -261,18 +352,6 @@
                 }
                 respuesta.style.display = 'block';
             });
-        }
-
-        // Reconectar
-        function reconectar() {
-            mostrarLoader();
-            fetch('http://localhost:3333/reconnect', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    ocultarLoader();
-                    alert('Reconectando... Escanea el QR en http://localhost:3333/qrcode');
-                    verificarEstado();
-                });
         }
 
         // Contador de caracteres

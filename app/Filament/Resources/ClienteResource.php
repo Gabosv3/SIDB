@@ -550,18 +550,13 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->falseLabel('Solo inactivos'),
             ])
             ->actions([
-                // Botón WhatsApp
+                // Botón WhatsApp — abre Mi WhatsApp con el número del cliente precargado
                 Action::make('whatsapp')
                     ->label('💬 WhatsApp')
                     ->icon('heroicon-m-chat-bubble-left')
                     ->color('success')
-                    ->url(function (Cliente $record) {
-                        $tenant = auth()->user()?->sucursal_id ?? 1;
-                        return route('whatsapp.openClient', [
-                            'tenant'  => $tenant,
-                            'cliente' => $record->id,
-                        ]);
-                    })
+                    ->visible(fn (Cliente $record) => filled($record->telefono_whatsapp))
+                    ->url(fn (Cliente $record) => route('whatsapp-center.dashboard', ['to' => $record->telefono_whatsapp]))
                     ->openUrlInNewTab(),
                 // Acciones estándar
                 Actions\ViewAction::make(),

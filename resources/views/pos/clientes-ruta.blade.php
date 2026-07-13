@@ -196,10 +196,19 @@
 
 <div class="cr-filter-bar">
     <div class="cr-filter-group">
+        <label class="cr-filter-label">Cobrador</label>
+        <select id="cr-cobrador-filter" class="cr-filter-input">
+            <option value="">Todos los cobradores</option>
+            @foreach($cobradores as $c)
+                <option value="{{ $c->id }}">{{ $c->nombre }} {{ $c->apellido }}</option>
+            @endforeach
+        </select>
+    </div>
+    <div class="cr-filter-group">
         <label class="cr-filter-label">Ruta de cobro</label>
         <select id="cr-ruta-filter" class="cr-filter-input">
             @foreach($rutas as $r)
-                <option value="{{ $r->id }}" {{ (string) $rutaId === (string) $r->id ? 'selected' : '' }}>
+                <option value="{{ $r->id }}" data-cobrador-id="{{ $r->cobrador_id }}" {{ (string) $rutaId === (string) $r->id ? 'selected' : '' }}>
                     {{ $r->nombre }} — {{ ucfirst($r->dia_semana) }} ({{ $r->clientes_count }})
                 </option>
             @endforeach
@@ -494,6 +503,7 @@
     var baseUrl = '/clientes-ruta/' + tenant;
     var esSuperAdmin = @json($esSuperAdmin);
     var rutaSelect = document.getElementById('cr-ruta-filter');
+    var cobradorSelect = document.getElementById('cr-cobrador-filter');
     var buscarInput = document.getElementById('cr-buscar');
     var tbody = document.getElementById('cr-tbody');
     var toast = document.getElementById('cr-toast');
@@ -807,6 +817,31 @@
         url.searchParams.set('ruta_cobro_id', rutaSelect.value);
         window.history.replaceState({}, '', url);
         cargar();
+    });
+
+    // ── Filtro por cobrador: reduce las opciones de "Ruta de cobro" a las suyas ──
+    cobradorSelect.addEventListener('change', function () {
+        var cobradorId = cobradorSelect.value;
+        var opciones = Array.prototype.slice.call(rutaSelect.options);
+        var huboCambioDeSeleccion = false;
+
+        opciones.forEach(function (opt) {
+            if (!opt.dataset.cobradorId) return; // "sin_ruta" / "todos": siempre visibles
+            var visible = !cobradorId || opt.dataset.cobradorId === cobradorId;
+            opt.style.display = visible ? '' : 'none';
+            if (!visible && opt.selected) {
+                opt.selected = false;
+                huboCambioDeSeleccion = true;
+            }
+        });
+
+        if (huboCambioDeSeleccion) {
+            var primeraVisible = opciones.find(function (opt) {
+                return opt.style.display !== 'none';
+            });
+            if (primeraVisible) primeraVisible.selected = true;
+            rutaSelect.dispatchEvent(new Event('change'));
+        }
     });
 
     buscarInput.addEventListener('input', function () {

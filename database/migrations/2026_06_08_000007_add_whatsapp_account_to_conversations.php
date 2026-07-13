@@ -20,7 +20,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('whatsapp_conversations', function (Blueprint $table) {
-            $table->dropForeignIdFor(\App\Models\WhatsappAccount::class);
+            $table->dropForeign(['whatsapp_account_id']);
             $table->dropColumn('whatsapp_account_id');
         });
     }

@@ -231,8 +231,6 @@ return [
     'custom_permissions' => [
         'View:MonitorPos' => 'Ver Monitor POS',
         'View:ResumenDia' => 'Ver Resumen del Día',
-        'View:WhatsappCenter' => 'Ver WhatsApp Center',
-        'Manage:WhatsappSettings' => 'Gestionar configuración de WhatsApp (cuentas, plantillas, automatizaciones)',
         'View:PagosUbicacion' => 'Ver Pagos y Ubicación (masivo)',
         'View:AsignacionesDiarias' => 'Ver Asignaciones Diarias',
         'View:Reportes' => 'Ver Reportes',
@@ -240,6 +238,7 @@ return [
         'View:PerfilEmpleado' => 'Ver Perfil de Empleado',
         'View:ClientesRuta' => 'Ver Clientes por Ruta',
         'Publicar:AppUpdate' => 'Publicar actualizaciones de la app móvil (APK)',
+        'View:MiWhatsApp' => 'Conectar y usar el WhatsApp propio (Baileys)',
     ],
 
     /*

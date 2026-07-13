@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BaileysSession;
 use App\Models\Cliente;
 use App\Models\GestionCobro;
+use App\Models\WhatsappConversation;
+use App\Models\WhatsappMessage;
 use App\Services\BaileysWhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,8 +44,9 @@ class BaileysCobroController extends Controller
             // Construir mensaje
             $mensaje = "Hola {$cliente->nombre}, le recordamos que tiene una cuota pendiente por \${$cuota->monto_cuota} con vencimiento el {$cuota->fecha_vencimiento->format('d/m/Y')}. Por favor comuníquese con nosotros. Distribuidora Briancesco Menjivar.";
 
-            // Enviar por Baileys
+            // Enviar por Baileys, desde la sesión propia del empleado autenticado
             $resultado = $this->baileys->sendMessage(
+                BaileysSession::sessionKeyPara(auth()->id()),
                 $cliente->telefono_whatsapp,
                 $mensaje
             );
@@ -53,6 +57,8 @@ class BaileysCobroController extends Controller
                     'error' => $resultado['error'] ?? 'Error desconocido',
                 ], 500);
             }
+
+            $this->registrarMensajeSaliente($cliente, $mensaje, $resultado['messageId'] ?? null);
 
             return response()->json([
                 'success' => true,
@@ -88,8 +94,9 @@ class BaileysCobroController extends Controller
                 ], 422);
             }
 
-            // Enviar mensaje
+            // Enviar mensaje, desde la sesión propia del empleado autenticado
             $resultado = $this->baileys->sendMessage(
+                BaileysSession::sessionKeyPara(auth()->id()),
                 $cliente->telefono_whatsapp,
                 $request->mensaje
             );
@@ -100,6 +107,8 @@ class BaileysCobroController extends Controller
                     'error' => $resultado['error'] ?? 'Error desconocido',
                 ], 500);
             }
+
+            $this->registrarMensajeSaliente($cliente, $request->mensaje, $resultado['messageId'] ?? null);
 
             return response()->json([
                 'success' => true,
@@ -116,17 +125,46 @@ class BaileysCobroController extends Controller
     }
 
     /**
-     * Estado de Baileys
+     * Estado de la sesión de Baileys del empleado autenticado
      */
     public function status(): JsonResponse
     {
-        $status = $this->baileys->getStatus();
-        $info = $this->baileys->getInfo();
+        $sessionKey = BaileysSession::sessionKeyPara(auth()->id());
+        $status = $this->baileys->getStatus($sessionKey);
+        $info = $this->baileys->getInfo($sessionKey);
 
         return response()->json([
             'connected' => $status['connected'] ?? false,
             'pending_qr' => $status['qrCodePending'] ?? false,
             'account' => $info,
+        ]);
+    }
+
+    /**
+     * Deja registro en whatsapp_conversations/whatsapp_messages del mensaje saliente,
+     * para que el historial "quién le escribió qué a quién" quede completo.
+     */
+    private function registrarMensajeSaliente(Cliente $cliente, string $mensaje, ?string $waMessageId): void
+    {
+        $conversacion = WhatsappConversation::firstOrCreate(
+            ['cliente_id' => $cliente->id, 'user_id' => auth()->id()],
+            ['wa_id' => $cliente->telefono_whatsapp, 'estado' => 'abierta']
+        );
+
+        $conversacion->update([
+            'ultimo_mensaje' => $mensaje,
+            'ultimo_mensaje_at' => now(),
+            'estado' => 'abierta',
+        ]);
+
+        WhatsappMessage::create([
+            'conversation_id' => $conversacion->id,
+            'wa_message_id' => $waMessageId,
+            'direction' => 'out',
+            'type' => 'text',
+            'body' => $mensaje,
+            'status' => 'sent',
+            'sent_at' => now(),
         ]);
     }
 }

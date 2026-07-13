@@ -9,6 +9,7 @@
       "env": {
         "NODE_ENV": "production",
         "BAILEYS_PORT": "3333",
+        "BAILEYS_DEFAULT_COUNTRY_CODE": "503",
         "LARAVEL_API_URL": "http://localhost:8000"
       },
       "error_file": "./logs/baileys-error.log",

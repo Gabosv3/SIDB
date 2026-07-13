@@ -57,9 +57,9 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <h1 class="text-4xl font-bold text-white mb-2">
-                                <span class="whatsapp-gradient bg-clip-text text-transparent">📱 WhatsApp Center</span>
+                                <span class="whatsapp-gradient bg-clip-text text-transparent">📱 Mi WhatsApp</span>
                             </h1>
-                            <p class="text-gray-300">Centro de control unificado para mensajes WhatsApp</p>
+                            <p class="text-gray-300">Tu sesión personal de WhatsApp, {{ auth()->user()->name }}</p>
                         </div>
                         <div class="text-right">
                             <div class="inline-block bg-green-500/20 border border-green-400 rounded-lg px-6 py-3">
@@ -105,8 +105,8 @@
                     </div>
 
                     <div class="flex gap-2 mt-4">
-                        <button onclick="reconectar()" class="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
-                            🔄 Reconectar
+                        <button onclick="conectar()" class="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                            🔄 Conectar / Reconectar
                         </button>
                         <button onclick="desconectar()" class="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg font-medium transition border border-red-500/50">
                             🚫 Desconectar
@@ -253,8 +253,16 @@
     </div>
 
     <script>
-        const BAILEYS_URL = 'http://localhost:3333';
-        const LARAVEL_URL = 'http://localhost:8000';
+        const API = {
+            connect: '{{ route('whatsapp-center.connect') }}',
+            send: '{{ route('whatsapp-center.send') }}',
+            status: '{{ route('whatsapp-center.status') }}',
+            stats: '{{ route('whatsapp-center.stats') }}',
+            info: '{{ route('whatsapp-center.info') }}',
+            disconnect: '{{ route('whatsapp-center.disconnect') }}',
+            reconnect: '{{ route('whatsapp-center.reconnect') }}',
+            qrcode: '{{ route('whatsapp-center.qrcode') }}',
+        };
         let messageHistory = [];
 
         // Cargar estado inicial
@@ -263,6 +271,12 @@
             actualizarEstadisticas();
             setInterval(verificarEstado, 5000);
             setInterval(actualizarEstadisticas, 5000);
+
+            const numeroPrecargado = new URLSearchParams(window.location.search).get('to');
+            if (numeroPrecargado) {
+                document.getElementById('numero-destino').value = numeroPrecargado;
+                document.getElementById('mensaje-texto').focus();
+            }
         });
 
         // Contador de caracteres
@@ -273,7 +287,7 @@
         // Verificar estado cada 5 segundos
         async function verificarEstado() {
             try {
-                const res = await fetch(`${BAILEYS_URL}/status`);
+                const res = await fetch(API.status);
                 const data = await res.json();
 
                 const dot = document.getElementById('status-dot');
@@ -288,7 +302,7 @@
                     qrContainer.classList.add('hidden');
 
                     try {
-                        const infoRes = await fetch(`${BAILEYS_URL}/info`);
+                        const infoRes = await fetch(API.info);
                         const infoData = await infoRes.json();
                         document.getElementById('account-number').textContent = infoData.jid || '-';
                         document.getElementById('account-name').textContent = infoData.name || '-';
@@ -299,7 +313,7 @@
                     accountInfo.classList.add('hidden');
 
                     try {
-                        const qrRes = await fetch(`${BAILEYS_URL}/qrcode`);
+                        const qrRes = await fetch(API.qrcode);
                         const qrData = await qrRes.json();
                         if (qrData.qr) {
                             document.getElementById('qr-image').src = qrData.qr;
@@ -332,7 +346,7 @@
             mostrarLoader();
 
             try {
-                const res = await fetch(`${LARAVEL_URL}/whatsapp-center/api/send`, {
+                const res = await fetch(API.send, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ to: numero, message: mensaje })
@@ -380,12 +394,16 @@
             `).join('');
         }
 
-        // Reconectar
-        async function reconectar() {
+        // Conectar (primera vez) o reconectar (nuevo QR)
+        async function conectar() {
             try {
-                const res = await fetch(`${BAILEYS_URL}/reconnect`, { method: 'POST' });
+                const res = await fetch(API.connect, { method: 'POST' });
                 const data = await res.json();
-                alert('🔄 Reconectando... Escanea el nuevo QR');
+                if (data.connected) {
+                    alert('✅ Ya estabas conectado');
+                } else {
+                    alert('📲 Generando QR... espera unos segundos y escanéalo');
+                }
                 verificarEstado();
             } catch (error) {
                 alert('❌ Error: ' + error.message);
@@ -396,7 +414,7 @@
         async function desconectar() {
             if (confirm('¿Estás seguro de que deseas desconectar?')) {
                 try {
-                    const res = await fetch(`${BAILEYS_URL}/disconnect`, { method: 'POST' });
+                    const res = await fetch(API.disconnect, { method: 'POST' });
                     const data = await res.json();
                     alert('✅ Desconectado');
                     verificarEstado();
@@ -417,7 +435,7 @@
         // Actualizar estadísticas
         async function actualizarEstadisticas() {
             try {
-                const res = await fetch(`${BAILEYS_URL}/stats`);
+                const res = await fetch(API.stats);
                 const data = await res.json();
                 document.getElementById('stat-sent').textContent = data.sent;
                 document.getElementById('stat-received').textContent = data.received;

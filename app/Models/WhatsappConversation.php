@@ -14,9 +14,7 @@ class WhatsappConversation extends Model
     protected $fillable = [
         'cliente_id',
         'user_id',
-        'whatsapp_account_id',
         'wa_id',
-        'phone_number_id',
         'estado',
         'ultimo_mensaje',
         'ultimo_mensaje_at',
@@ -36,11 +34,6 @@ class WhatsappConversation extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
-    }
-
-    public function cuenta(): BelongsTo
-    {
-        return $this->belongsTo(WhatsappAccount::class, 'whatsapp_account_id');
     }
 
     public function mensajes(): HasMany

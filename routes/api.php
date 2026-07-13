@@ -119,8 +119,10 @@ Route::prefix('whatsapp/baileys')->name('baileys.')->group(function () {
         ->name('webhook')
         ->withoutMiddleware('api'); // Sin protección CSRF si viene de Baileys
 
-    // Endpoints de monitoreo (protegidos)
+    // Sesión propia del vendedor/cobrador autenticado (protegidos)
     Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/connect', 'App\Http\Controllers\BaileysWebhookController@connect')
+            ->name('connect');
         Route::get('/status', 'App\Http\Controllers\BaileysWebhookController@status')
             ->name('status');
         Route::get('/qrcode', 'App\Http\Controllers\BaileysWebhookController@qrcode')

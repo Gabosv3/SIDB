@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BaileysSession;
 use App\Models\Cliente;
 use App\Models\WhatsappConversation;
 use App\Models\WhatsappMessage;
+use App\Services\BaileysWhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class BaileysWebhookController extends Controller
 {
+    public function __construct(protected BaileysWhatsAppService $baileys) {}
+
     /**
      * Recibir webhook de Baileys cuando llega un mensaje
      */
@@ -18,15 +22,16 @@ class BaileysWebhookController extends Controller
     {
         try {
             $request->validate([
+                'sessionId' => 'nullable|string',
                 'from' => 'required|string',
                 'message' => 'required|string',
                 'timestamp' => 'required|integer',
                 'messageId' => 'required|string',
             ]);
 
+            $sessionId = $request->input('sessionId');
             $from = $request->input('from');
             $messageText = $request->input('message');
-            $timestamp = $request->input('timestamp');
             $messageId = $request->input('messageId');
 
             // Extraer número sin @s.whatsapp.net
@@ -34,12 +39,13 @@ class BaileysWebhookController extends Controller
             $phoneNumber = str_replace('@g.us', '', $phoneNumber); // Grupos
 
             Log::info('[Baileys Webhook] Mensaje recibido', [
+                'sessionId' => $sessionId,
                 'from' => $from,
                 'message' => $messageText,
                 'phone' => $phoneNumber,
             ]);
 
-            // Buscar o crear cliente por teléfono WhatsApp
+            // Buscar cliente por teléfono WhatsApp
             $cliente = Cliente::where('telefono_whatsapp', $phoneNumber)->first();
 
             if (!$cliente) {
@@ -47,14 +53,15 @@ class BaileysWebhookController extends Controller
                 return response()->json(['error' => 'Cliente no encontrado'], 404);
             }
 
-            // Buscar o crear conversación
+            // Resolver a qué empleado pertenece esta sesión, para que la conversación
+            // quede en el hilo del empleado correcto (una por par cliente+empleado)
+            $userId = $sessionId
+                ? BaileysSession::where('session_key', $sessionId)->value('user_id')
+                : null;
+
             $conversacion = WhatsappConversation::firstOrCreate(
-                ['cliente_id' => $cliente->id],
-                [
-                    'wa_id' => $from,
-                    'estado' => 'abierta',
-                    'fuente' => 'baileys', // Marcar que es de Baileys, no de Meta
-                ]
+                ['cliente_id' => $cliente->id, 'user_id' => $userId],
+                ['wa_id' => $from, 'estado' => 'abierta']
             );
 
             // Guardar mensaje
@@ -72,7 +79,12 @@ class BaileysWebhookController extends Controller
             $conversacion->update([
                 'ultimo_mensaje' => $messageText,
                 'ultimo_mensaje_at' => now(),
+                'estado' => 'abierta',
             ]);
+
+            if ($userId) {
+                BaileysSession::where('user_id', $userId)->update(['ultima_actividad_at' => now()]);
+            }
 
             Log::info('[Baileys Webhook] Mensaje guardado', [
                 'cliente_id' => $cliente->id,
@@ -99,23 +111,39 @@ class BaileysWebhookController extends Controller
     }
 
     /**
-     * Status del servidor Baileys (para monitoreo)
+     * Iniciar la sesión de Baileys del usuario autenticado (app móvil)
      */
-    public function status(): JsonResponse
+    public function connect(Request $request): JsonResponse
     {
-        $baileys = app(BaileysWhatsAppService::class);
-        $status = $baileys->getStatus();
+        $sessionKey = BaileysSession::sessionKeyPara($request->user()->id);
+        $resultado = $this->baileys->connect($sessionKey);
+
+        BaileysSession::firstOrCreate(
+            ['user_id' => $request->user()->id],
+            ['session_key' => $sessionKey]
+        );
+
+        return response()->json($resultado);
+    }
+
+    /**
+     * Status de la sesión de Baileys del usuario autenticado (app móvil)
+     */
+    public function status(Request $request): JsonResponse
+    {
+        $sessionKey = BaileysSession::sessionKeyPara($request->user()->id);
+        $status = $this->baileys->getStatus($sessionKey);
 
         return response()->json($status);
     }
 
     /**
-     * Obtener código QR
+     * Obtener código QR de la sesión del usuario autenticado (app móvil)
      */
-    public function qrcode(): JsonResponse
+    public function qrcode(Request $request): JsonResponse
     {
-        $baileys = app(BaileysWhatsAppService::class);
-        $qr = $baileys->getQRCode();
+        $sessionKey = BaileysSession::sessionKeyPara($request->user()->id);
+        $qr = $this->baileys->getQRCode($sessionKey);
 
         if (!$qr) {
             return response()->json(['error' => 'QR no disponible'], 404);
@@ -125,12 +153,12 @@ class BaileysWebhookController extends Controller
     }
 
     /**
-     * Información de la cuenta conectada
+     * Información de la cuenta conectada en la sesión del usuario autenticado (app móvil)
      */
-    public function info(): JsonResponse
+    public function info(Request $request): JsonResponse
     {
-        $baileys = app(BaileysWhatsAppService::class);
-        $info = $baileys->getInfo();
+        $sessionKey = BaileysSession::sessionKeyPara($request->user()->id);
+        $info = $this->baileys->getInfo($sessionKey);
 
         return response()->json($info);
     }

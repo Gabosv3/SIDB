@@ -154,73 +154,6 @@ Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
 });
 
-// WhatsApp Center
-// ─────────────────────────────────────────────────────────────────────────────
-Route::middleware(['web', 'auth'])->prefix('whatsapp')->name('whatsapp.')->group(function () {
-
-    // ── Centro principal (SOLO LECTURA - Sin envío de mensajes para evitar costos) ──
-    Route::middleware('can:View:WhatsappCenter')->group(function () {
-        Route::get('{tenant}', 'App\Http\Controllers\WhatsappController@index')
-            ->name('index')->where('tenant', '[0-9]+');
-        Route::get('{tenant}/conversation/{conversation}', 'App\Http\Controllers\WhatsappController@show')
-            ->name('show')->where(['tenant' => '[0-9]+', 'conversation' => '[0-9]+']);
-        // DESHABILITADO: Envío de mensajes (costo en Meta Cloud API)
-        // Route::post('{tenant}/send', 'App\Http\Controllers\WhatsappController@send')
-        //     ->name('send')->where('tenant', '[0-9]+');
-        // DESHABILITADO: Recordatorios automáticos (costo en Meta Cloud API)
-        // Route::post('{tenant}/reminder/{cliente}', 'App\Http\Controllers\WhatsappController@sendReminder')
-        //     ->name('sendReminder')->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
-        // DESHABILITADO: Apertura de cliente (no necesario sin envío)
-        // Route::get('{tenant}/open/{cliente}', 'App\Http\Controllers\WhatsappController@openClient')
-        //     ->name('openClient')->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
-        // DESHABILITADO: Mensajes rápidos (costo en Meta Cloud API)
-        // Route::post('{tenant}/quick-message', 'App\Http\Controllers\WhatsappController@quickMessage')
-        //     ->name('quickMessage')->where('tenant', '[0-9]+');
-    });
-
-    // ── DESHABILITADO: Plantillas y automatizaciones (generaban costos en Meta Cloud API) ──
-    // Las siguientes rutas se comentaron para evitar envío de mensajes:
-    // - Gestión de plantillas
-    // - Configuración de automatizaciones
-    // - Test de envío de mensajes
-    /*
-    Route::middleware('can:Manage:WhatsappSettings')->group(function () {
-        // ── Cuentas (números conectados) ──────────────────────────────────────
-        Route::prefix('{tenant}/accounts')->name('accounts.')->where(['tenant' => '[0-9]+'])->group(function () {
-            Route::get('/', 'App\Http\Controllers\WhatsappAccountController@index')->name('index');
-            Route::get('/create', 'App\Http\Controllers\WhatsappAccountController@create')->name('create');
-            Route::post('/', 'App\Http\Controllers\WhatsappAccountController@store')->name('store');
-            Route::get('/{account}/edit', 'App\Http\Controllers\WhatsappAccountController@edit')->name('edit');
-            Route::put('/{account}', 'App\Http\Controllers\WhatsappAccountController@update')->name('update');
-            Route::delete('/{account}', 'App\Http\Controllers\WhatsappAccountController@destroy')->name('destroy');
-            Route::post('/{account}/default', 'App\Http\Controllers\WhatsappAccountController@setDefault')->name('setDefault');
-            Route::post('/{account}/test', 'App\Http\Controllers\WhatsappAccountController@testSend')->name('test');
-        });
-
-        // ── Plantillas ──────────────────────────────────────────────────────────
-        Route::prefix('{tenant}/templates')->name('templates.')->where(['tenant' => '[0-9]+'])->group(function () {
-            Route::get('/', 'App\Http\Controllers\WhatsappTemplateController@index')->name('index');
-            Route::get('/create', 'App\Http\Controllers\WhatsappTemplateController@create')->name('create');
-            Route::post('/', 'App\Http\Controllers\WhatsappTemplateController@store')->name('store');
-            Route::get('/{template}/edit', 'App\Http\Controllers\WhatsappTemplateController@edit')->name('edit');
-            Route::put('/{template}', 'App\Http\Controllers\WhatsappTemplateController@update')->name('update');
-            Route::delete('/{template}', 'App\Http\Controllers\WhatsappTemplateController@destroy')->name('destroy');
-        });
-
-        // ── Automatizaciones ────────────────────────────────────────────────────
-        Route::prefix('{tenant}/automations')->name('automations.')->where(['tenant' => '[0-9]+'])->group(function () {
-            Route::get('/', 'App\Http\Controllers\WhatsappAutomationController@index')->name('index');
-            Route::get('/create', 'App\Http\Controllers\WhatsappAutomationController@create')->name('create');
-            Route::post('/', 'App\Http\Controllers\WhatsappAutomationController@store')->name('store');
-            Route::get('/{automation}/edit', 'App\Http\Controllers\WhatsappAutomationController@edit')->name('edit');
-            Route::put('/{automation}', 'App\Http\Controllers\WhatsappAutomationController@update')->name('update');
-            Route::delete('/{automation}', 'App\Http\Controllers\WhatsappAutomationController@destroy')->name('destroy');
-            Route::post('/{automation}/toggle', 'App\Http\Controllers\WhatsappAutomationController@toggle')->name('toggle');
-        });
-    });
-    */
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Baileys WhatsApp - Controlador de Cobro (Sin costos Meta)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,14 +164,6 @@ Route::middleware(['web', 'auth'])->prefix('baileys-cobro')->name('baileys.cobro
         ->name('recordatorio');
     Route::post('mensaje/{cliente}', 'App\Http\Controllers\BaileysCobroController@enviarMensajePersonalizado')
         ->name('mensaje');
-});
-
-// WhatsApp Webhook (Meta Cloud API - sin CSRF)
-Route::prefix('whatsapp/webhook')->name('whatsapp.webhook.')->group(function () {
-    Route::get('/', 'App\Http\Controllers\WhatsAppWebhookController@verify')
-        ->name('verify');
-    Route::post('/', 'App\Http\Controllers\WhatsAppWebhookController@receive')
-        ->name('receive');
 });
 
 // Mapa de ruta de cobro (vista interna, requiere autenticación)
@@ -254,19 +179,21 @@ Route::get('/administrativo/backups/download/{path}', function (string $path) {
     return Storage::disk('local')->download($filePath);
 })->middleware(['web', 'auth'])->name('filament.administrativo.pages.backups.download');
 
-// ── WhatsApp Center (Baileys Integration) ──
-Route::middleware(['web', 'auth'])->prefix('whatsapp-center')->name('whatsapp-center.')->group(function () {
+// ── Mi WhatsApp (Baileys, sesión propia de cada vendedor/cobrador) ──
+Route::middleware(['web', 'auth', 'can:View:MiWhatsApp'])->prefix('whatsapp-center')->name('whatsapp-center.')->group(function () {
     Route::get('/', 'App\Http\Controllers\WhatsAppCenterController@index')->name('dashboard');
-    
-    // API Endpoints (sin CSRF para facilitar llamadas desde JavaScript)
-    Route::withoutMiddleware('web')->middleware('auth:web')->group(function () {
-        Route::post('/api/send', 'App\Http\Controllers\WhatsAppCenterController@sendMessage')->name('send')->withoutMiddleware('csrf');
-        Route::get('/api/status', 'App\Http\Controllers\WhatsAppCenterController@status')->name('status');
-        Route::get('/api/info', 'App\Http\Controllers\WhatsAppCenterController@info')->name('info');
-        Route::post('/api/disconnect', 'App\Http\Controllers\WhatsAppCenterController@disconnect')->name('disconnect')->withoutMiddleware('csrf');
-        Route::post('/api/reconnect', 'App\Http\Controllers\WhatsAppCenterController@reconnect')->name('reconnect')->withoutMiddleware('csrf');
-        Route::get('/api/qrcode', 'App\Http\Controllers\WhatsAppCenterController@qrcode')->name('qrcode');
-    });
+
+    // API Endpoints para las llamadas AJAX del dashboard (mantienen el middleware
+    // 'web' para que la sesión reconozca al usuario; el CSRF de estos POST se excluye
+    // en bootstrap/app.php vía validateCsrfTokens(except: ['whatsapp-center/api/*']))
+    Route::post('/api/connect', 'App\Http\Controllers\WhatsAppCenterController@connect')->name('connect');
+    Route::post('/api/send', 'App\Http\Controllers\WhatsAppCenterController@sendMessage')->name('send');
+    Route::get('/api/status', 'App\Http\Controllers\WhatsAppCenterController@status')->name('status');
+    Route::get('/api/stats', 'App\Http\Controllers\WhatsAppCenterController@stats')->name('stats');
+    Route::get('/api/info', 'App\Http\Controllers\WhatsAppCenterController@info')->name('info');
+    Route::post('/api/disconnect', 'App\Http\Controllers\WhatsAppCenterController@disconnect')->name('disconnect');
+    Route::post('/api/reconnect', 'App\Http\Controllers\WhatsAppCenterController@reconnect')->name('reconnect');
+    Route::get('/api/qrcode', 'App\Http\Controllers\WhatsAppCenterController@qrcode')->name('qrcode');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
