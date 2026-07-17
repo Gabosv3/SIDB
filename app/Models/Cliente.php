@@ -38,9 +38,6 @@ class Cliente extends Model
         'departamento',
         'municipio',
         'distrito',
-        'colonia',
-        'codigo_postal',
-        'pais',
         'latitud',
         'longitud',
         'limite_credito',
@@ -48,7 +45,6 @@ class Cliente extends Model
         'ruta_cobro_id',
         'orden',
         'activo',
-        'grupo_id',
         // Referencias familiares
         'ref_fam1_nombre',
         'ref_fam1_telefono',
@@ -102,14 +98,6 @@ class Cliente extends Model
     public function gestionesCobro(): HasMany
     {
         return $this->hasMany(GestionCobro::class, 'cliente_id');
-    }
-
-    /**
-     * Otros clientes vinculados al mismo grupo (hogar/familia), sin incluirse a sí mismo.
-     */
-    public function vinculados(): HasMany
-    {
-        return $this->hasMany(Cliente::class, 'grupo_id', 'grupo_id')->whereKeyNot($this->id);
     }
 
     /**

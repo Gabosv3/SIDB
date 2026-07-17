@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\Cobrador;
-use App\Models\CobradorRecibosContador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\VisitaCobro;
@@ -55,25 +54,6 @@ class CobroController extends Controller
         return \App\Models\Cliente::where('id', $clienteId)
             ->whereIn('ruta_cobro_id', $rutasIds)
             ->first();
-    }
-
-    /**
-     * Genera el siguiente número de recibo correlativo del cobrador de forma
-     * atómica (autoritativo en el servidor, no en el dispositivo). Debe
-     * llamarse dentro de una transacción de BD ya abierta.
-     */
-    private function siguienteNumeroRecibo(int $cobradorId): string
-    {
-        $contador = CobradorRecibosContador::where('cobrador_id', $cobradorId)->lockForUpdate()->first();
-        if (! $contador) {
-            CobradorRecibosContador::create(['cobrador_id' => $cobradorId, 'ultimo_numero' => 0]);
-            $contador = CobradorRecibosContador::where('cobrador_id', $cobradorId)->lockForUpdate()->first();
-        }
-
-        $siguiente = $contador->ultimo_numero + 1;
-        $contador->update(['ultimo_numero' => $siguiente]);
-
-        return sprintf('REC-%d-%06d', $cobradorId, $siguiente);
     }
 
     // ── GET /cobros/ruta-hoy ────────────────────────────────────────────────
@@ -623,8 +603,6 @@ class CobroController extends Controller
         }
 
         $result = DB::transaction(function () use ($id, $monto, $data, $ventaId) {
-            $numeroRecibo = $this->siguienteNumeroRecibo(auth()->id());
-
             $gestiones = GestionCobro::where('cliente_id', $id)
                 ->where('venta_id', $ventaId)
                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
@@ -679,12 +657,11 @@ class CobroController extends Controller
                 ->orderBy('numero_cuota')
                 ->first();
 
-            return compact('cuotasPagadas', 'proxima', 'numeroRecibo');
+            return compact('cuotasPagadas', 'proxima');
         });
 
         return response()->json([
             'mensaje'       => 'Pago registrado y distribuido en ' . count($result['cuotasPagadas']) . ' cuota(s).',
-            'numero_recibo' => $result['numeroRecibo'],
             'monto_total'   => $monto,
             'cuotas_pagadas' => $result['cuotasPagadas'],
             'proxima_cuota' => $result['proxima'] ? [
