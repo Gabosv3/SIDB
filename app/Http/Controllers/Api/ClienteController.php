@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Models\Venta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
@@ -323,5 +324,151 @@ class ClienteController extends Controller
             ->findOrFail($id);
 
         return response()->json($cliente);
+    }
+
+    #[OA\Post(
+        path: '/clientes/{id}/vincular',
+        summary: 'Vincular dos clientes al mismo grupo familiar',
+        description: 'Si ninguno tiene grupo, crea uno nuevo usando el ID de {id}. Si uno ya tiene grupo, el otro lo adopta. Si ambos tienen grupos distintos, se fusionan bajo el grupo de {id}.',
+        security: [['sanctum' => []]],
+        tags: ['Clientes'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['cliente_id_vincular'],
+                properties: [
+                    new OA\Property(property: 'cliente_id_vincular', type: 'integer', example: 88),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Clientes vinculados'),
+            new OA\Response(response: 404, description: 'No encontrado'),
+            new OA\Response(response: 422, description: 'Validación fallida'),
+        ],
+    )]
+    public function vincular(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'cliente_id_vincular' => 'required|integer|exists:clientes,id',
+        ]);
+
+        if ($id === (int) $data['cliente_id_vincular']) {
+            return response()->json(['error' => 'No se puede vincular un cliente consigo mismo.'], 422);
+        }
+
+        $cliente = Cliente::findOrFail($id);
+        $otro = Cliente::findOrFail($data['cliente_id_vincular']);
+
+        if ($cliente->grupo_id && $otro->grupo_id) {
+            if ($cliente->grupo_id !== $otro->grupo_id) {
+                // Fusiona todo el grupo del otro bajo el grupo de {id} (soporta cadenas de 3+ personas)
+                Cliente::where('grupo_id', $otro->grupo_id)->update(['grupo_id' => $cliente->grupo_id]);
+            }
+        } elseif ($cliente->grupo_id) {
+            $otro->update(['grupo_id' => $cliente->grupo_id]);
+        } elseif ($otro->grupo_id) {
+            $cliente->update(['grupo_id' => $otro->grupo_id]);
+        } else {
+            $cliente->update(['grupo_id' => $cliente->id]);
+            $otro->update(['grupo_id' => $cliente->id]);
+        }
+
+        return response()->json([
+            'mensaje' => 'Clientes vinculados correctamente.',
+            'grupo_id' => $cliente->fresh()->grupo_id,
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/clientes/{id}/grupo',
+        summary: 'Ver las cuentas de todo el grupo familiar del cliente',
+        description: 'Devuelve al cliente y a sus vinculados con el saldo de cada cuenta a crédito. Si el cliente no tiene grupo, devuelve solo a sí mismo.',
+        security: [['sanctum' => []]],
+        tags: ['Clientes'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Cuentas del grupo'),
+            new OA\Response(response: 404, description: 'No encontrado'),
+        ],
+    )]
+    public function grupo(int $id): JsonResponse
+    {
+        $cliente = Cliente::findOrFail($id);
+
+        $clientes = $cliente->grupo_id
+            ? collect([$cliente])->merge($cliente->vinculados)
+            : collect([$cliente]);
+
+        $clientesData = $clientes->map(function (Cliente $c) {
+            $ventas = Venta::where('cliente_id', $c->id)
+                ->where('tipo_pago', 'credito')
+                ->where('saldo_pendiente', '>', 0)
+                ->with([
+                    'detalles.producto:id,nombre',
+                    'gestionesCobro' => fn ($q) => $q->where('estado', 'pendiente')->orderBy('numero_cuota'),
+                ])
+                ->get();
+
+            $cuentas = $ventas->map(fn (Venta $v) => [
+                'venta_id' => $v->id,
+                'producto' => $v->detalles->pluck('producto.nombre')->filter()->implode(', ') ?: null,
+                'saldo' => (float) $v->saldo_pendiente,
+                'cuota_mensual' => (float) ($v->gestionesCobro->first()->monto_cuota ?? 0),
+            ])->values();
+
+            return [
+                'id' => $c->id,
+                'nombre' => $c->nombre,
+                'apellido' => $c->apellido,
+                'dui' => $c->dui,
+                'cuentas' => $cuentas,
+                'saldo_total' => (float) $cuentas->sum('saldo'),
+            ];
+        })->values();
+
+        return response()->json([
+            'grupo_id' => $cliente->grupo_id,
+            'clientes' => $clientesData,
+            'saldo_total_grupo' => (float) $clientesData->sum('saldo_total'),
+        ]);
+    }
+
+    #[OA\Post(
+        path: '/clientes/{id}/desvincular',
+        summary: 'Quitar a un cliente de su grupo familiar',
+        description: 'Si el grupo queda con un solo integrante, también se le quita el grupo a ese último.',
+        security: [['sanctum' => []]],
+        tags: ['Clientes'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Cliente desvinculado'),
+            new OA\Response(response: 404, description: 'No encontrado'),
+        ],
+    )]
+    public function desvincular(int $id): JsonResponse
+    {
+        $cliente = Cliente::findOrFail($id);
+
+        if (! $cliente->grupo_id) {
+            return response()->json(['mensaje' => 'El cliente no pertenece a ningún grupo.']);
+        }
+
+        $grupoId = $cliente->grupo_id;
+        $cliente->update(['grupo_id' => null]);
+
+        $restantes = Cliente::where('grupo_id', $grupoId)->get();
+        if ($restantes->count() === 1) {
+            $restantes->first()->update(['grupo_id' => null]);
+        }
+
+        return response()->json(['mensaje' => 'Cliente desvinculado correctamente.']);
     }
 }

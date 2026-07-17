@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('cobrador_recibos_contador', function (Blueprint $table) {
+            $table->unsignedBigInteger('cobrador_id')->primary();
+            $table->unsignedInteger('ultimo_numero')->default(0);
+            $table->timestamp('updated_at')->nullable();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('cobrador_recibos_contador');
+    }
+};

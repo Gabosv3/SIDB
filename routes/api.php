@@ -48,6 +48,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/clientes/{id}/ubicacion', [ClienteController::class, 'actualizarUbicacion']);
         Route::patch('/clientes/{id}/telefonos', [ClienteController::class, 'actualizarTelefonos']);
         Route::patch('/clientes/{id}/nombre', [ClienteController::class, 'actualizarNombre']);
+        Route::post('/clientes/{id}/vincular', [ClienteController::class, 'vincular']);
+        Route::get('/clientes/{id}/grupo', [ClienteController::class, 'grupo']);
+        Route::post('/clientes/{id}/desvincular', [ClienteController::class, 'desvincular']);
         Route::get('/clientes/{id}', [ClienteController::class, 'show']);
 
         // ── Consulta de ventas (solo del propio usuario) ──────────────────────
