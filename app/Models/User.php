@@ -111,6 +111,18 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return $this->hasMany(EmployeeDocument::class, 'user_id');
     }
 
+    /** Vehículos asignados de forma fija a este usuario */
+    public function vehiculos(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Vehiculo::class, 'asignado_a');
+    }
+
+    /** Vales (consumo/vehículo) que este usuario ha enviado */
+    public function vales(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Vale::class, 'user_id');
+    }
+
     /** ¿Este usuario puede operar como vendedor en el POS? */
     public function esVendedor(): bool
     {

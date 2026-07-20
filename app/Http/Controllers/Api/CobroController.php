@@ -171,6 +171,9 @@ class CobroController extends Controller
     public function clientesPorRuta(Request $request, int $rutaId): JsonResponse
     {
         $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
 
         $ruta = $cobrador->rutasCobro()
             ->where('id', $rutaId)
@@ -263,6 +266,9 @@ class CobroController extends Controller
     public function ordenClientes(Request $request, int $rutaId): JsonResponse
     {
         $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
 
         $ruta = $cobrador->rutasCobro()->where('id', $rutaId)->first();
         if (! $ruta) {
@@ -309,20 +315,27 @@ class CobroController extends Controller
         ]);
 
         $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
 
         $ruta = $cobrador->rutasCobro()->where('id', $rutaId)->first();
         if (! $ruta) {
             return response()->json(['mensaje' => 'Ruta no encontrada o no te pertenece.'], 403);
         }
 
+        // Se depuran duplicados (se conserva la primera posición en que aparece
+        // cada cliente) para no dejar huecos ni clientes con el mismo orden.
+        $idsUnicos = array_values(array_unique($data['ids']));
+
         $idsValidos = $ruta->clientes()->pluck('id');
-        $idsInvalidos = array_diff($data['ids'], $idsValidos->all());
+        $idsInvalidos = array_diff($idsUnicos, $idsValidos->all());
         if (! empty($idsInvalidos)) {
             return response()->json(['mensaje' => 'Alguno de los clientes no pertenece a esta ruta.'], 422);
         }
 
-        DB::transaction(function () use ($data) {
-            foreach ($data['ids'] as $posicion => $clienteId) {
+        DB::transaction(function () use ($idsUnicos) {
+            foreach ($idsUnicos as $posicion => $clienteId) {
                 Cliente::where('id', $clienteId)->update(['orden' => $posicion + 1]);
             }
         });
@@ -587,27 +600,34 @@ class CobroController extends Controller
         $ventaId = (int) $data['venta_id'];
 
         // Validar que la venta pertenece al cliente
-        $venta = \App\Models\Venta::where('id', $ventaId)
-            ->where('cliente_id', $id)
-            ->first();
-        if (! $venta) {
+        $existeVenta = \App\Models\Venta::where('id', $ventaId)->where('cliente_id', $id)->exists();
+        if (! $existeVenta) {
             return response()->json(['mensaje' => 'Esta venta no pertenece al cliente.'], 403);
         }
 
-        // Validar que no exceda el saldo de la venta
-        $saldoVenta = (float) $venta->saldo_pendiente;
-        if ($monto > $saldoVenta) {
-            throw ValidationException::withMessages([
-                'monto' => "El monto \${$monto} supera el saldo pendiente de esta venta (\${$saldoVenta}).",
-            ]);
-        }
-
         $result = DB::transaction(function () use ($id, $monto, $data, $ventaId) {
+            // Se bloquea la fila de la venta y se revalida el saldo DENTRO de la
+            // transacción (no antes), para que dos pagos casi simultáneos sobre
+            // la misma venta no puedan ambos pasar la validación con el mismo
+            // saldo desactualizado y generar un sobre-cobro.
+            $venta = \App\Models\Venta::where('id', $ventaId)
+                ->where('cliente_id', $id)
+                ->lockForUpdate()
+                ->first();
+
+            $saldoVenta = (float) $venta->saldo_pendiente;
+            if ($monto > $saldoVenta) {
+                throw ValidationException::withMessages([
+                    'monto' => "El monto \${$monto} supera el saldo pendiente de esta venta (\${$saldoVenta}).",
+                ]);
+            }
+
             $gestiones = GestionCobro::where('cliente_id', $id)
                 ->where('venta_id', $ventaId)
                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
                 ->orderBy('fecha_vencimiento')
                 ->orderBy('numero_cuota')
+                ->lockForUpdate()
                 ->with('venta')
                 ->get();
 
@@ -726,29 +746,33 @@ class CobroController extends Controller
 
         $monto = (float) $data['monto'];
 
-        // Validar cuota anterior pendiente
-        if ($gestion->numero_cuota > 1) {
-            $cuotaAnterior = GestionCobro::where('venta_id', $gestion->venta_id)
-                ->where('numero_cuota', $gestion->numero_cuota - 1)
-                ->first();
+        $result = DB::transaction(function () use ($id, $monto, $data) {
+            // Se vuelve a leer la gestión con lock dentro de la transacción (no la
+            // ya cargada antes) para revalidar los saldos con datos frescos y
+            // evitar que dos pagos casi simultáneos sobre-cobren la misma cuota.
+            $gestion = GestionCobro::where('id', $id)->lockForUpdate()->with('venta')->first();
 
-            if ($cuotaAnterior && ($cuotaAnterior->monto_cuota - $cuotaAnterior->monto_pagado) > 0) {
-                $pendiente = round($cuotaAnterior->monto_cuota - $cuotaAnterior->monto_pagado, 2);
+            if ($gestion->numero_cuota > 1) {
+                $cuotaAnterior = GestionCobro::where('venta_id', $gestion->venta_id)
+                    ->where('numero_cuota', $gestion->numero_cuota - 1)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($cuotaAnterior && ($cuotaAnterior->monto_cuota - $cuotaAnterior->monto_pagado) > 0) {
+                    $pendiente = round($cuotaAnterior->monto_cuota - $cuotaAnterior->monto_pagado, 2);
+                    throw ValidationException::withMessages([
+                        'monto' => "La cuota anterior tiene \${$pendiente} pendiente. Págala primero.",
+                    ]);
+                }
+            }
+
+            $saldoGestion = round($gestion->monto_cuota - $gestion->monto_pagado, 2);
+            if ($monto > $saldoGestion) {
                 throw ValidationException::withMessages([
-                    'monto' => "La cuota anterior tiene \${$pendiente} pendiente. Págala primero.",
+                    'monto' => "El monto no puede exceder \${$saldoGestion} pendiente de esta cuota.",
                 ]);
             }
-        }
 
-        // Validar que no exceda el saldo pendiente
-        $saldoGestion = round($gestion->monto_cuota - $gestion->monto_pagado, 2);
-        if ($monto > $saldoGestion) {
-            throw ValidationException::withMessages([
-                'monto' => "El monto no puede exceder \${$saldoGestion} pendiente de esta cuota.",
-            ]);
-        }
-
-        $result = DB::transaction(function () use ($gestion, $monto, $data) {
             // Registrar pago
             PagoVenta::create([
                 'venta_id' => $gestion->venta_id,
@@ -821,14 +845,23 @@ class CobroController extends Controller
     )]
     public function resumenDia(Request $request): JsonResponse
     {
-        $fecha      = $request->filled('fecha') ? $request->date('fecha') : today();
-        $cobradorId = $request->integer('cobrador_id') ?: null;
+        $fecha = $request->filled('fecha') ? $request->date('fecha') : today();
 
-        // Todos los cobradores activos (o uno específico)
+        // Este endpoint es de autoservicio: cada quien ve únicamente su propio
+        // resumen. Se ignora cualquier cobrador_id que mande el cliente — antes
+        // se podía consultar el resumen de CUALQUIER cobrador de la empresa.
+        $cobrador = $request->user()->cobrador;
+
+        if (! $cobrador) {
+            return response()->json([
+                'mensaje' => 'No se encontró perfil de cobrador.',
+            ], 403);
+        }
+
         $cobradores = Cobrador::with('user')
+            ->where('id', $cobrador->id)
             ->where('activo', true)
             ->where('excluir_reportes', false)
-            ->when($cobradorId, fn ($q) => $q->where('id', $cobradorId))
             ->get();
 
         $resumen = $cobradores->map(function ($cobrador) use ($fecha) {
@@ -910,6 +943,68 @@ class CobroController extends Controller
         ]);
     }
 
+    // ── GET /cobros/historial ────────────────────────────────────────────────
+
+    #[OA\Get(
+        path: '/cobros/historial',
+        summary: 'Historial de cobros de un día del cobrador autenticado',
+        description: 'Lista, del más reciente al más antiguo, cada pago que el cobrador autenticado registró en la fecha indicada. '
+            .'Sin el parámetro "fecha" devuelve el día de hoy. Solo se permite consultar días del mes en curso (hasta hoy), para que el selector de fecha de la app muestre un mes a la vez.',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'fecha', in: 'query', required: false, description: 'Día a consultar (YYYY-MM-DD). Por defecto, hoy.', schema: new OA\Schema(type: 'string', format: 'date')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Historial del día'),
+            new OA\Response(response: 403, description: 'Sin perfil de cobrador'),
+            new OA\Response(response: 422, description: 'La fecha está fuera del mes en curso', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+        ],
+    )]
+    public function historial(Request $request): JsonResponse
+    {
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $data = $request->validate([
+            'fecha' => 'nullable|date',
+        ]);
+
+        $fecha = isset($data['fecha']) ? \Illuminate\Support\Carbon::parse($data['fecha']) : today();
+
+        if ($fecha->gt(today()) || $fecha->lt(today()->startOfMonth())) {
+            return response()->json(['mensaje' => 'Solo puedes consultar días del mes en curso, hasta hoy.'], 422);
+        }
+
+        $pagos = PagoVenta::where('user_id', $cobrador->user_id)
+            ->whereDate('fecha_pago', $fecha)
+            ->with(['cliente:id,nombre,apellido,codigo_anterior', 'venta:id,numero_venta'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($p) => [
+                'id'            => $p->id,
+                'cliente'       => $p->cliente ? [
+                    'id'              => $p->cliente->id,
+                    'nombre'          => $p->cliente->nombre_completo,
+                    'codigo_anterior' => $p->cliente->codigo_anterior,
+                ] : null,
+                'venta'         => $p->venta?->numero_venta,
+                'monto'         => (float) $p->monto,
+                'metodo_pago'   => $p->metodo_pago,
+                'referencia'    => $p->referencia,
+                'hora'          => $p->created_at->format('H:i'),
+            ]);
+
+        return response()->json([
+            'fecha'        => $fecha->toDateString(),
+            'total_cobrado'=> round((float) $pagos->sum('monto'), 2),
+            'total_pagos'  => $pagos->count(),
+            'pagos'        => $pagos->values(),
+        ]);
+    }
+
     // ── POST /cobros/clientes/{id}/visita ──────────────────────────────────────
 
     #[OA\Post(
@@ -982,6 +1077,18 @@ class CobroController extends Controller
 
             $latitud = $data['latitud'] ?? null;
             $longitud = $data['longitud'] ?? null;
+        }
+
+        // Protección contra doble-tap / reintento de red: si ya se registró una
+        // visita idéntica hace unos segundos, no se duplica.
+        $duplicada = VisitaCobro::where('cliente_id', $id)
+            ->where('user_id', $request->user()->id)
+            ->where('resultado', $data['resultado'])
+            ->where('created_at', '>=', now()->subSeconds(10))
+            ->exists();
+
+        if ($duplicada) {
+            return response()->json(['mensaje' => 'Ya se registró esta visita hace unos segundos.'], 409);
         }
 
         $visita = VisitaCobro::create([

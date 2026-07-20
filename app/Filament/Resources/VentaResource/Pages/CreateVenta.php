@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\VentaResource\Pages;
 
 use App\Filament\Resources\VentaResource;
+use App\Models\Preventa;
 use App\Models\Producto;
 use App\Models\Vendedor;
 use Carbon\Carbon;
@@ -21,6 +22,41 @@ class CreateVenta extends CreateRecord
     protected static string $resource = VentaResource::class;
 
     protected static ?string $title = 'Nueva Venta';
+
+    /** Preventa de origen cuando se llega vía "Convertir en venta". */
+    protected ?Preventa $sourcePreventa = null;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        $preventaId = request()->query('preventa');
+
+        if (! $preventaId) {
+            return;
+        }
+
+        $preventa = Preventa::with('detalles')->find($preventaId);
+
+        if (! $preventa || $preventa->estado !== 'pendiente') {
+            return;
+        }
+
+        $this->sourcePreventa = $preventa;
+
+        $this->form->fill([
+            'cliente_id'    => $preventa->cliente_id,
+            'vendedor_id'   => $preventa->vendedor_id,
+            'observaciones' => $preventa->observaciones,
+            'detalles'      => $preventa->detalles->map(fn ($d) => [
+                'producto_id'          => $d->producto_id,
+                'cantidad'             => $d->cantidad,
+                'precio_unitario'      => (float) $d->precio_unitario,
+                'descuento_porcentaje' => 0,
+                'subtotal'             => (float) $d->subtotal,
+            ])->toArray(),
+        ]);
+    }
 
     public function getSteps(): array
     {
@@ -304,6 +340,18 @@ class CreateVenta extends CreateRecord
         // dias_credito ya viene calculado desde el live update
         unset($data['plazo'], $data['unidad_plazo']);
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        if (! $this->sourcePreventa) {
+            return;
+        }
+
+        $this->sourcePreventa->update([
+            'estado'   => 'convertida',
+            'venta_id' => $this->getRecord()->id,
+        ]);
     }
 
     protected function getRedirectUrl(): string

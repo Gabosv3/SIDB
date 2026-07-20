@@ -161,49 +161,52 @@ class VentaController extends Controller
             'detalles.*.precio_cuota'        => 'nullable|numeric|min:0',
         ]);
 
-        $asignacionDetalles = collect();
         $vendedor = $request->user()->vendedor;
 
-        if ($vendedor) {
-            $asignacion = AsignacionDiaria::with('detalles')
-                ->where('vendedor_id', $vendedor->id)
-                ->where('fecha', today())
-                ->where('estado', 'activa')
-                ->first();
+        if (! $vendedor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de vendedor.'], 403);
+        }
 
-            if (! $asignacion) {
+        $asignacionDetalles = collect();
+
+        $asignacion = AsignacionDiaria::with('detalles')
+            ->where('vendedor_id', $vendedor->id)
+            ->where('fecha', today())
+            ->where('estado', 'activa')
+            ->first();
+
+        if (! $asignacion) {
+            throw ValidationException::withMessages([
+                'detalles' => 'No tienes una asignacion activa para vender hoy.',
+            ]);
+        }
+
+        $asignacionDetalles = $asignacion->detalles->keyBy('producto_id');
+        $cantidadesSolicitadas = collect($data['detalles'])
+            ->groupBy('producto_id')
+            ->map(fn ($items) => $items->sum('cantidad'));
+
+        foreach ($cantidadesSolicitadas as $productoId => $cantidadSolicitada) {
+            $detalleAsignado = $asignacionDetalles->get((int) $productoId);
+
+            if (! $detalleAsignado) {
                 throw ValidationException::withMessages([
-                    'detalles' => 'No tienes una asignacion activa para vender hoy.',
+                    'detalles' => 'Uno de los productos no esta incluido en tu asignacion de hoy.',
                 ]);
             }
 
-            $asignacionDetalles = $asignacion->detalles->keyBy('producto_id');
-            $cantidadesSolicitadas = collect($data['detalles'])
-                ->groupBy('producto_id')
-                ->map(fn ($items) => $items->sum('cantidad'));
+            $cantidadVendidaHoy = DetalleVenta::where('producto_id', $productoId)
+                ->whereHas('venta', function ($query) use ($vendedor) {
+                    $query->where('vendedor_id', $vendedor->id)
+                        ->whereDate('fecha_venta', today())
+                        ->whereIn('estado', ['pendiente', 'completada']);
+                })
+                ->sum('cantidad');
 
-            foreach ($cantidadesSolicitadas as $productoId => $cantidadSolicitada) {
-                $detalleAsignado = $asignacionDetalles->get((int) $productoId);
-
-                if (! $detalleAsignado) {
-                    throw ValidationException::withMessages([
-                        'detalles' => 'Uno de los productos no esta incluido en tu asignacion de hoy.',
-                    ]);
-                }
-
-                $cantidadVendidaHoy = DetalleVenta::where('producto_id', $productoId)
-                    ->whereHas('venta', function ($query) use ($vendedor) {
-                        $query->where('vendedor_id', $vendedor->id)
-                            ->whereDate('fecha_venta', today())
-                            ->whereIn('estado', ['pendiente', 'completada']);
-                    })
-                    ->sum('cantidad');
-
-                if (($cantidadVendidaHoy + $cantidadSolicitada) > $detalleAsignado->cantidad_asignada) {
-                    throw ValidationException::withMessages([
-                        'detalles' => "La cantidad solicitada supera lo asignado para el producto {$detalleAsignado->producto_id}.",
-                    ]);
-                }
+            if (($cantidadVendidaHoy + $cantidadSolicitada) > $detalleAsignado->cantidad_asignada) {
+                throw ValidationException::withMessages([
+                    'detalles' => "La cantidad solicitada supera lo asignado para el producto {$detalleAsignado->producto_id}.",
+                ]);
             }
         }
 
@@ -282,6 +285,28 @@ class VentaController extends Controller
             $montoPagado    = round($totalContado + $prima, 2);
             $saldoPendiente = round($totalCredito - $prima, 2);
 
+            // ── Límite de crédito del cliente ─────────────────────────────────────
+            // Si tiene un límite configurado (>0), esta venta no puede dejarlo con
+            // más deuda de la que ese límite permite.
+            if ($saldoPendiente > 0) {
+                $cliente = \App\Models\Cliente::find($data['cliente_id']);
+
+                if ($cliente && (float) $cliente->limite_credito > 0) {
+                    $saldoResultante = (float) $cliente->saldo + $saldoPendiente;
+
+                    if ($saldoResultante > (float) $cliente->limite_credito) {
+                        throw ValidationException::withMessages([
+                            'cliente_id' => sprintf(
+                                'El cliente supera su límite de crédito ($%s). Saldo actual: $%s, esta venta agregaría $%s.',
+                                number_format((float) $cliente->limite_credito, 2),
+                                number_format((float) $cliente->saldo, 2),
+                                number_format($saldoPendiente, 2)
+                            ),
+                        ]);
+                    }
+                }
+            }
+
             $estaCompletada = $saldoPendiente <= 0;
 
             // ── Crear venta ───────────────────────────────────────────────────────
@@ -359,5 +384,102 @@ class VentaController extends Controller
         });
 
         return response()->json($venta, 201);
+    }
+
+    #[OA\Post(
+        path: '/ventas/{id}/anular',
+        summary: 'Anular una venta propia',
+        description: 'Cancela una venta que todavía no tiene pagos registrados. Si la venta es de hoy y la asignación diaria del vendedor sigue activa, la cantidad se resta de "vendido" en la asignación para que pueda revenderse el mismo día. El cliente sale de su ruta de cobro si esta era su única cuenta activa (mismo efecto que cancelar desde el panel).',
+        security: [['sanctum' => []]],
+        tags: ['Ventas'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['motivo'],
+                properties: [
+                    new OA\Property(property: 'motivo', type: 'string', example: 'El cliente se arrepintió'),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Venta anulada'),
+            new OA\Response(response: 404, description: 'Venta no encontrada'),
+            new OA\Response(response: 422, description: 'Ya está anulada o ya tiene pagos registrados', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+        ],
+    )]
+    public function anular(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'motivo' => 'required|string|max:500',
+        ]);
+
+        $resultado = DB::transaction(function () use ($request, $id, $data) {
+            $venta = Venta::where('id', $id)
+                ->where('user_id', $request->user()->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $venta) {
+                return ['error' => 'not_found'];
+            }
+
+            if (in_array($venta->estado, ['cancelada', 'devuelta'], true)) {
+                return ['error' => 'Esta venta ya está anulada.'];
+            }
+
+            if ((float) $venta->monto_pagado > 0) {
+                return ['error' => 'Esta venta ya tiene pagos registrados; no se puede anular desde la app. Contacta al administrador.'];
+            }
+
+            // Si la venta es de hoy y la asignación diaria del vendedor sigue
+            // activa, se resta lo vendido para que pueda revenderse hoy mismo.
+            if ($venta->vendedor_id && $venta->fecha_venta->isToday()) {
+                $asignacion = AsignacionDiaria::with('detalles')
+                    ->where('vendedor_id', $venta->vendedor_id)
+                    ->where('fecha', today())
+                    ->where('estado', 'activa')
+                    ->first();
+
+                if ($asignacion) {
+                    $detallesAsignados = $asignacion->detalles->keyBy('producto_id');
+
+                    foreach ($venta->detalles as $detalleVenta) {
+                        $detalleAsignado = $detallesAsignados->get($detalleVenta->producto_id);
+                        if ($detalleAsignado) {
+                            $detalleAsignado->decrement('cantidad_vendida', $detalleVenta->cantidad);
+                            $detalleAsignado->refresh();
+                            $detalleAsignado->update([
+                                'cantidad_devuelta' => max(0, $detalleAsignado->cantidad_asignada - $detalleAsignado->cantidad_vendida),
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            $venta->update([
+                'estado'        => 'cancelada',
+                'observaciones' => trim(($venta->observaciones ? $venta->observaciones . ' | ' : '') . 'Anulada: ' . $data['motivo']),
+            ]);
+
+            return ['venta' => $venta];
+        });
+
+        if (isset($resultado['error'])) {
+            return $resultado['error'] === 'not_found'
+                ? response()->json(['mensaje' => 'Venta no encontrada.'], 404)
+                : response()->json(['mensaje' => $resultado['error']], 422);
+        }
+
+        return response()->json([
+            'mensaje' => 'Venta anulada.',
+            'venta'   => [
+                'id'            => $resultado['venta']->id,
+                'numero_venta'  => $resultado['venta']->numero_venta,
+                'estado'        => $resultado['venta']->estado,
+            ],
+        ]);
     }
 }

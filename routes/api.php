@@ -8,8 +8,11 @@ use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CobroController;
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\PosController;
+use App\Http\Controllers\Api\PreventaController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\ReintegroController;
+use App\Http\Controllers\Api\ValeController;
+use App\Http\Controllers\Api\VehiculoController;
 use App\Http\Controllers\Api\VentaController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 | API POS — Rutas públicas
 |--------------------------------------------------------------------------
 */
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::get('/version', [AppVersionController::class, 'actual']);
 
 /*
@@ -53,10 +56,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // ── Consulta de ventas (solo del propio usuario) ──────────────────────
         Route::get('/ventas', [VentaController::class, 'index']);
         Route::get('/ventas/{id}', [VentaController::class, 'show']);
+        Route::get('/ventas/{venta}/pagos', [PagoVentaController::class, 'index']);
+        Route::post('/ventas/{venta}/pagos', [PagoVentaController::class, 'store']);
 
         // ── Solo VENDEDORES: crear ventas ────────────────────────────────────
         Route::middleware('solo.vendedor')->group(function () {
             Route::post('/ventas', [VentaController::class, 'store']);
+            Route::post('/ventas/{id}/anular', [VentaController::class, 'anular']);
 
             // Consulta de asignación del día (solo lectura, el admin la crea en Filament)
             Route::get('/asignacion/hoy', [AsignacionController::class, 'hoy']);
@@ -77,10 +83,24 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/resumen-dia', [CobroController::class, 'resumenDia']);
         });
 
+        // ── Vales (consumo/vehículo) y vehículos: cualquier perfil POS ────────
+        Route::get('/vehiculos/disponibles', [VehiculoController::class, 'disponibles']);
+        Route::get('/vales', [ValeController::class, 'index']);
+        Route::post('/vales', [ValeController::class, 'store']);
+
+        // ── Preventas: cobrador registra, vendedor asignado consulta ─────────
+        Route::prefix('preventas')->group(function () {
+            Route::get('/', [PreventaController::class, 'index']);
+            Route::middleware('solo.cobrador')->post('/', [PreventaController::class, 'store']);
+        });
+
         // ── Solo COBRADORES: módulo de cobros ────────────────────────────────
         Route::middleware('solo.cobrador')->prefix('cobros')->group(function () {
             // Ruta del día
             Route::get('/ruta-hoy', [CobroController::class, 'rutaHoy']);
+
+            // Historial de cobros por día (propio) — ?fecha=YYYY-MM-DD, mes en curso
+            Route::get('/historial', [CobroController::class, 'historial']);
 
             // Clientes por ruta
             Route::get('/rutas/{ruta_id}/clientes', [CobroController::class, 'clientesPorRuta']);
