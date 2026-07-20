@@ -261,9 +261,10 @@
                     $filas = $r['detalle']
                         ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id)
                         ->map(fn($grupo) => [
-                            'codigo'     => $grupo->first()->cliente?->codigo_anterior ?? '—',
-                            'cliente'    => $grupo->first()->cliente?->nombre_completo ?? '—',
-                            'venta'      => $grupo->first()->venta?->numero_venta ?? '—',
+                            'codigo'        => $grupo->first()->cliente?->codigo_anterior ?? '—',
+                            'cliente'       => $grupo->first()->cliente?->nombre_completo ?? '—',
+                            'venta'         => $grupo->first()->venta?->numero_venta ?? '—',
+                            'numero_recibo' => $grupo->pluck('numero_recibo')->filter()->unique()->implode(', ') ?: '—',
                             'metodo'     => $grupo->pluck('metodo_pago')->unique()->count() === 1 ? $grupo->first()->metodo_pago : 'varios',
                             'referencia' => $grupo->first()->referencia,
                             'hora'       => $grupo->first()->created_at->format('H:i'),
@@ -275,7 +276,7 @@
                 <div style="overflow-x:auto;">
                     <table class="rd-pago-table">
                         <thead class="rd-pago-thead">
-                            <tr><th>Hora</th><th>Código</th><th>Cliente</th><th>Venta</th><th>Método</th><th>Referencia</th><th>Monto</th><th>Saldo restante</th></tr>
+                            <tr><th>Hora</th><th>Código</th><th>Cliente</th><th>Venta</th><th>N° Recibo</th><th>Método</th><th>Referencia</th><th>Monto</th><th>Saldo restante</th></tr>
                         </thead>
                         <tbody>
                         @foreach($filas as $fila)
@@ -284,6 +285,7 @@
                                 <td style="font-variant-numeric:tabular-nums;color:var(--muted);">{{ $fila['codigo'] }}</td>
                                 <td style="font-weight:500;">{{ $fila['cliente'] }}</td>
                                 <td style="color:var(--muted);">{{ $fila['venta'] }}</td>
+                                <td style="color:var(--muted);font-size:.74rem;font-variant-numeric:tabular-nums;">{{ $fila['numero_recibo'] }}</td>
                                 <td>
                                     <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;font-weight:500;color:{{ $metodoColor[$fila['metodo']] ?? '#6b7280' }};">
                                         <span style="width:6px;height:6px;border-radius:50%;background:{{ $metodoColor[$fila['metodo']] ?? '#9ca3af' }};display:inline-block;"></span>

@@ -385,6 +385,7 @@
                             <th>Código</th>
                             <th>Cliente</th>
                             <th>Venta</th>
+                            <th>N° Recibo</th>
                             <th>Método</th>
                             <th>Referencia</th>
                             <th style="text-align:right">Monto</th>
@@ -398,10 +399,11 @@
                             $filas = $r['detalle']
                                 ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id)
                                 ->map(fn($grupo) => [
-                                    'ids'        => $grupo->pluck('id')->all(),
-                                    'codigo'     => $grupo->first()->cliente?->codigo_anterior ?? '—',
-                                    'cliente'    => $grupo->first()->cliente?->nombre_completo ?? '—',
-                                    'venta'      => $grupo->first()->venta?->numero_venta ?? '—',
+                                    'ids'           => $grupo->pluck('id')->all(),
+                                    'codigo'        => $grupo->first()->cliente?->codigo_anterior ?? '—',
+                                    'cliente'       => $grupo->first()->cliente?->nombre_completo ?? '—',
+                                    'venta'         => $grupo->first()->venta?->numero_venta ?? '—',
+                                    'numero_recibo' => $grupo->pluck('numero_recibo')->filter()->unique()->implode(', ') ?: '—',
                                     'metodo'     => $grupo->pluck('metodo_pago')->unique()->count() === 1
                                                         ? $grupo->first()->metodo_pago
                                                         : 'varios',
@@ -427,6 +429,9 @@
                                 </td>
                                 <td class="rc-td" style="color:#6b7280">
                                     {{ $fila['venta'] }}
+                                </td>
+                                <td class="rc-td" style="color:#6b7280;font-size:0.75rem;font-variant-numeric:tabular-nums">
+                                    {{ $fila['numero_recibo'] }}
                                 </td>
                                 <td class="rc-td">
                                     <span style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.75rem;font-weight:500;color:{{ $metodoColor[$fila['metodo']] ?? '#6b7280' }}">
