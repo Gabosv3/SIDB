@@ -8,6 +8,7 @@ use App\Models\Vendedor;
 use App\Models\Venta;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -260,7 +261,6 @@ class ReintegroResource extends Resource
                 Tables\Filters\Filter::make('sin_asignar')
                     ->label('Sin asignar')
                     ->toggle()
-                    ->default()
                     ->query(fn ($query) => $query->whereNull('vendedor_id')),
 
                 Tables\Filters\SelectFilter::make('estado')
@@ -272,10 +272,22 @@ class ReintegroResource extends Resource
                         'no_recuperado' => 'No recuperado',
                     ]),
 
+                // Por defecto solo se ven los reintegros en curso (pendiente/en_proceso)
+                // y los ya resueltos que todavía no se han devuelto a una ruta (para no
+                // perder de vista la acción "Devolver a ruta" pendiente). Los resueltos
+                // y ya devueltos son el "historial" propiamente dicho, y quedan ocultos.
                 Tables\Filters\Filter::make('activos')
-                    ->label('Solo activos')
+                    ->label('Solo activos (ocultar historial)')
                     ->toggle()
-                    ->query(fn ($query) => $query->whereIn('estado', ['pendiente', 'en_proceso'])),
+                    ->default()
+                    ->query(fn (Builder $query) => $query->where(function (Builder $q) {
+                        $q->whereIn('estado', ['pendiente', 'en_proceso'])
+                            ->orWhere(function (Builder $q2) {
+                                $q2->whereIn('estado', ['recuperado', 'no_recuperado'])
+                                    ->whereNotNull('ruta_cobro_id_original')
+                                    ->whereHas('cliente', fn (Builder $c) => $c->whereNull('ruta_cobro_id'));
+                            });
+                    })),
 
                 Tables\Filters\Filter::make('mes_actual')
                     ->label('Asignados este mes')
@@ -292,6 +304,33 @@ class ReintegroResource extends Resource
                     ->preload(),
             ])
             ->actions([
+                Actions\Action::make('devolverARuta')
+                    ->label('Devolver a ruta')
+                    ->icon('heroicon-m-arrow-uturn-left')
+                    ->color('success')
+                    ->visible(fn (Reintegro $record) => $record->puedeDevolverseARuta())
+                    ->requiresConfirmation()
+                    ->modalHeading('Devolver cliente a su ruta de cobro')
+                    ->modalDescription(fn (Reintegro $record) => sprintf(
+                        'El cliente volverá a la ruta "%s", de la que se sacó al mandarlo a recoger.',
+                        $record->rutaCobroOriginal?->nombre ?? '—'
+                    ))
+                    ->action(function (Reintegro $record) {
+                        if ($record->devolverClienteARuta()) {
+                            Notification::make()
+                                ->title('Cliente devuelto a su ruta')
+                                ->success()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('No se pudo devolver a la ruta')
+                            ->body('El cliente ya tiene una ruta asignada, o todavía tiene otro reintegro sin resolver.')
+                            ->warning()
+                            ->send();
+                    }),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])

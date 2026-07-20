@@ -117,6 +117,22 @@ class Cliente extends Model
         return $this->hasOne(WhatsappConversation::class, 'cliente_id')->latestOfMany();
     }
 
+    /**
+     * Saca al cliente de su ruta de cobro activa (deja de aparecer en el
+     * recorrido diario del cobrador). Usado cuando una cuenta se manda a
+     * recoger o se cancela y no le queda ninguna otra cuenta activa.
+     */
+    public static function sacarDeRuta(int $clienteId): void
+    {
+        static::whereKey($clienteId)->first()?->sacarDeSuRuta();
+    }
+
+    /** Igual que sacarDeRuta(), pero sobre una instancia ya cargada (evita una consulta extra). */
+    public function sacarDeSuRuta(): void
+    {
+        $this->update(['ruta_cobro_id' => null, 'orden' => null]);
+    }
+
     // ── Accessors ─────────────────────────────────────────────────────────────
 
     public function getNombreCompletoAttribute(): string

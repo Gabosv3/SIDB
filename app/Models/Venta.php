@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -82,6 +83,37 @@ class Venta extends Model
             if ($venta->cliente_id) {
                 Cliente::recalcularSaldo($venta->cliente_id);
             }
+        });
+
+        // Al cancelar o devolver una venta, el cliente sale de su ruta de cobro
+        // activa — pero solo si esta era su única cuenta a crédito con saldo. Si
+        // le queda otra venta activa, se queda en la ruta para que lo sigan cobrando.
+        static::saved(function (Venta $venta): void {
+            if (! $venta->wasChanged('estado') || ! in_array($venta->estado, ['cancelada', 'devuelta'], true) || ! $venta->cliente_id) {
+                return;
+            }
+
+            DB::transaction(function () use ($venta) {
+                // Bloquea la fila del cliente para que dos cancelaciones casi
+                // simultáneas de sus últimas cuentas activas no se "pisen" (cada
+                // una viendo a la otra como todavía activa y ninguna limpiando la ruta).
+                $cliente = Cliente::whereKey($venta->cliente_id)->lockForUpdate()->first();
+
+                if (! $cliente) {
+                    return;
+                }
+
+                $tieneOtraCuentaActiva = static::where('cliente_id', $venta->cliente_id)
+                    ->where('id', '!=', $venta->id)
+                    ->whereIn('tipo_pago', ['credito', 'mixta'])
+                    ->where('saldo_pendiente', '>', 0)
+                    ->whereNotIn('estado', ['cancelada', 'devuelta'])
+                    ->exists();
+
+                if (! $tieneOtraCuentaActiva) {
+                    $cliente->sacarDeSuRuta();
+                }
+            });
         });
     }
 
