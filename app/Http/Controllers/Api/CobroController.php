@@ -970,8 +970,9 @@ class CobroController extends Controller
 
     #[OA\Get(
         path: '/cobros/historial',
-        summary: 'Historial de cobros, visitas y gastos de un día del cobrador autenticado',
-        description: 'Lista, del más reciente al más antiguo, cada pago, cada visita sin pago y cada vale (gasto) que el cobrador autenticado registró en la fecha indicada (campo "tipo": "pago", "visita" o "gasto"). '
+        summary: 'Historial de cobros, visitas y gastos aprobados de un día del cobrador autenticado',
+        description: 'Lista, del más reciente al más antiguo, cada pago, cada visita sin pago y cada vale (gasto) ya aprobado que el cobrador autenticado registró en la fecha indicada (campo "tipo": "pago", "visita" o "gasto"). '
+            .'Los vales pendientes o rechazados no aparecen aquí — para verlos todos, usar GET /vales. '
             .'Sin el parámetro "fecha" devuelve el día de hoy. Solo se permite consultar días del mes en curso (hasta hoy), para que el selector de fecha de la app muestre un mes a la vez.',
         security: [['sanctum' => []]],
         tags: ['Cobros'],
@@ -1048,11 +1049,12 @@ class CobroController extends Controller
                 '_ts'            => $v->created_at,
             ]);
 
-        // Gastos (vales) del propio cobrador ese día — consumo y vehículo, en
-        // cualquier estado (pendiente/aprobado/rechazado), para que quede
-        // constancia en su historial de lo que registró, no solo lo cobrado.
+        // Gastos (vales) del propio cobrador ese día — consumo y vehículo, solo
+        // los ya aprobados por administración (los pendientes/rechazados no
+        // aparecen en el historial hasta que se resuelvan).
         $gastos = Vale::where('user_id', $cobrador->user_id)
             ->whereDate('fecha_gasto', $fecha)
+            ->where('estado', 'aprobado')
             ->with('vehiculo:id,placa')
             ->get()
             ->map(fn (Vale $g) => [

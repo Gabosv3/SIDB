@@ -244,7 +244,7 @@ curl -H "Authorization: Bearer {TOKEN}" "http://localhost/api/vales?estado=pendi
 
 ## 6. Cómo aparecen los vales en el historial del día (`GET /cobros/historial`)
 
-Esto es **solo para cobradores** (el endpoint requiere perfil de cobrador). Además de sus pagos cobrados y visitas sin pago, el día también incluye los vales que envió ese día, mezclados en un solo array `items[]` ordenado por hora, cada uno con un campo `"tipo"` que dice qué es.
+Esto es **solo para cobradores** (el endpoint requiere perfil de cobrador). Además de sus pagos cobrados y visitas sin pago, el día también incluye los vales **ya aprobados** que envió ese día (los `pendiente` o `rechazado` no aparecen aquí), mezclados en un solo array `items[]` ordenado por hora, cada uno con un campo `"tipo"` que dice qué es. Para ver el estado de TODOS sus vales (incluyendo pendientes/rechazados), la app debe usar `GET /vales` (sección 5).
 
 ```bash
 curl -H "Authorization: Bearer {TOKEN_COBRADOR}" http://localhost/api/cobros/historial
@@ -270,7 +270,7 @@ curl -H "Authorization: Bearer {TOKEN_COBRADOR}" "http://localhost/api/cobros/hi
       "monto": 5.00,
       "comprobante_url": "/storage/vales/5/xyz123.jpg",
       "descripcion": null,
-      "estado": "pendiente",
+      "estado": "aprobado",
       "descuenta_cobro_diario": true,
       "hora": "11:00"
     },
