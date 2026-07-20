@@ -28,12 +28,14 @@ class Vale extends Model
         'aprobado_por',
         'fecha_aprobado',
         'observaciones_admin',
+        'descuenta_cobro_diario',
     ];
 
     protected $casts = [
-        'monto'          => 'decimal:2',
-        'fecha_gasto'    => 'date',
-        'fecha_aprobado' => 'datetime',
+        'monto'                  => 'decimal:2',
+        'fecha_gasto'            => 'date',
+        'fecha_aprobado'         => 'datetime',
+        'descuenta_cobro_diario' => 'boolean',
     ];
 
     public function user(): BelongsTo

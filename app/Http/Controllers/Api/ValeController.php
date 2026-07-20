@@ -41,17 +41,18 @@ class ValeController extends Controller
         }
 
         $vales = $query->get()->map(fn (Vale $v) => [
-            'id'                 => $v->id,
-            'tipo'               => $v->tipo,
-            'vehiculo'           => $v->vehiculo?->placa,
-            'categoria_vehiculo' => $v->categoria_vehiculo,
-            'monto'              => (float) $v->monto,
-            'comprobante_url'    => $v->comprobante_url,
-            'descripcion'        => $v->descripcion,
-            'fecha_gasto'        => $v->fecha_gasto->toDateString(),
-            'estado'             => $v->estado,
-            'observaciones_admin'=> $v->observaciones_admin,
-            'creado'             => $v->created_at->format('d/m/Y H:i'),
+            'id'                     => $v->id,
+            'tipo'                   => $v->tipo,
+            'vehiculo'               => $v->vehiculo?->placa,
+            'categoria_vehiculo'     => $v->categoria_vehiculo,
+            'monto'                  => (float) $v->monto,
+            'comprobante_url'        => $v->comprobante_url,
+            'descripcion'            => $v->descripcion,
+            'fecha_gasto'            => $v->fecha_gasto->toDateString(),
+            'estado'                 => $v->estado,
+            'observaciones_admin'    => $v->observaciones_admin,
+            'descuenta_cobro_diario' => $v->descuenta_cobro_diario,
+            'creado'                 => $v->created_at->format('d/m/Y H:i'),
         ]);
 
         return response()->json($vales);
@@ -116,16 +117,20 @@ class ValeController extends Controller
         $comprobantePath = $request->file('comprobante')->store("vales/{$user->id}", 'public');
 
         $vale = Vale::create([
-            'user_id'            => $user->id,
-            'sucursal_id'        => $sucursalId,
-            'tipo'               => $data['tipo'],
-            'vehiculo_id'        => $data['vehiculo_id'] ?? null,
-            'categoria_vehiculo' => $data['categoria_vehiculo'] ?? null,
-            'monto'              => $data['monto'],
-            'comprobante'        => $comprobantePath,
-            'descripcion'        => $data['descripcion'] ?? null,
-            'fecha_gasto'        => $data['fecha_gasto'] ?? now()->toDateString(),
-            'estado'             => 'pendiente',
+            'user_id'                => $user->id,
+            'sucursal_id'            => $sucursalId,
+            'tipo'                   => $data['tipo'],
+            'vehiculo_id'            => $data['vehiculo_id'] ?? null,
+            'categoria_vehiculo'     => $data['categoria_vehiculo'] ?? null,
+            'monto'                  => $data['monto'],
+            'comprobante'            => $comprobantePath,
+            'descripcion'            => $data['descripcion'] ?? null,
+            'fecha_gasto'            => $data['fecha_gasto'] ?? now()->toDateString(),
+            'estado'                 => 'pendiente',
+            // Todo lo enviado desde el móvil es plata que el empleado ya pagó de
+            // lo cobrado ese día (imprevisto de calle, gasolina, consumo) — sí se
+            // descuenta del efectivo a entregar en Resumen del Día.
+            'descuenta_cobro_diario' => true,
         ]);
 
         return response()->json([

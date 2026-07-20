@@ -7,6 +7,7 @@ use App\Models\Cobrador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\RutaCobro;
+use App\Models\Vale;
 use App\Models\VisitaCobro;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -191,6 +192,49 @@ class ResumenCobrosDiaService
             'efectividad_cobro' => $totalVisitas > 0 ? round(($clientesConPago / $totalVisitas) * 100) : 0,
             'promedio_pago' => ($pagos->total_pagos ?? 0) > 0 ? round(((float) ($pagos->total_cobrado ?? 0)) / $pagos->total_pagos, 2) : 0,
         ];
+    }
+
+    /**
+     * Vales (gastos) registrados por cada cobrador en la fecha indicada, para
+     * poder cuadrar cuánto efectivo debe entregar (lo cobrado menos lo que ya
+     * gastó de esa plata). Incluye vales en cualquier estado — el efectivo
+     * salió de su mano ese día sin importar si administración lo aprueba
+     * después; la aprobación solo afecta si se descuenta de su comisión
+     * semanal (ver LiquidacionSemanal, que sí filtra por aprobado).
+     *
+     * Solo cuenta los vales con descuenta_cobro_diario=true: los gastos chicos
+     * que el empleado ya pagó de lo cobrado ese día (imprevisto de calle,
+     * gasolina, consumo — siempre true cuando vienen del móvil). Los gastos
+     * grandes que el administrador registra directo en el sistema (reparación
+     * mayor, pagada aparte por la empresa) quedan fuera de este cálculo.
+     */
+    public static function valesPorCobrador(string $fecha): Collection
+    {
+        $vales = Vale::whereDate('fecha_gasto', Carbon::parse($fecha))
+            ->where('descuenta_cobro_diario', true)
+            ->selectRaw("user_id,
+                SUM(CASE WHEN tipo = 'consumo' THEN monto ELSE 0 END) AS total_consumo,
+                SUM(CASE WHEN tipo = 'vehiculo' THEN monto ELSE 0 END) AS total_vehiculo,
+                SUM(monto) AS total_gastado")
+            ->groupBy('user_id')
+            ->get()
+            ->keyBy('user_id');
+
+        if ($vales->isEmpty()) {
+            return collect();
+        }
+
+        return Cobrador::whereIn('user_id', $vales->keys())
+            ->where('activo', true)
+            ->where('excluir_reportes', false)
+            ->get()
+            ->map(fn (Cobrador $c) => [
+                'cobrador'       => $c,
+                'total_consumo'  => round((float) $vales[$c->user_id]->total_consumo, 2),
+                'total_vehiculo' => round((float) $vales[$c->user_id]->total_vehiculo, 2),
+                'total_gastado'  => round((float) $vales[$c->user_id]->total_gastado, 2),
+            ])
+            ->values();
     }
 
     private static function contarPendientes(Carbon $fechaCarbon): int

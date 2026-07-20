@@ -299,6 +299,49 @@
     </div>
 </div>
 
+@php $valesDia = $this->getValesDia(); @endphp
+@if($valesDia->isNotEmpty())
+    @php
+        $cobradoPorCobrador = collect($resumen)
+            ->groupBy(fn ($r) => $r['cobrador']->id)
+            ->map(fn ($grupo) => (float) $grupo->sum('total_cobrado'));
+    @endphp
+    {{-- Gastos del día (vales) --}}
+    <div class="rc-card" style="margin-bottom:1.75rem;overflow:hidden">
+        <div class="rc-cobrador-header">
+            <p class="rc-cobrador-name">Gastos del día (vales) — para cuadrar lo que cada cobrador debe entregar</p>
+        </div>
+        <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+                <thead class="rc-thead">
+                    <tr>
+                        <th>Cobrador</th>
+                        <th>Cobrado</th>
+                        <th>Vale consumo</th>
+                        <th>Vale vehículo</th>
+                        <th>Total gastado</th>
+                        <th>Neto a entregar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($valesDia as $v)
+                        @php $cobradoCobrador = $cobradoPorCobrador->get($v['cobrador']->id, 0.0); @endphp
+                        <tr class="rc-tr">
+                            <td class="rc-td" style="color:inherit">{{ $v['cobrador']->nombre }} {{ $v['cobrador']->apellido }}</td>
+                            <td class="rc-td">${{ number_format($cobradoCobrador, 2) }}</td>
+                            <td class="rc-td">${{ number_format($v['total_consumo'], 2) }}</td>
+                            <td class="rc-td">${{ number_format($v['total_vehiculo'], 2) }}</td>
+                            <td class="rc-td">${{ number_format($v['total_gastado'], 2) }}</td>
+                            <td class="rc-td">${{ number_format($cobradoCobrador - $v['total_gastado'], 2) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size:0.7rem;color:#9ca3af;padding:0.6rem 1.25rem 0.9rem">Incluye vales en cualquier estado (pendiente, aprobado o rechazado) — refleja el efectivo que salió de su mano ese día. La deducción de la comisión semanal solo cuenta los vales de consumo ya aprobados.</p>
+    </div>
+@endif
+
 {{-- Cards por cobrador --}}
 @forelse($resumen as $r)
     @php $c = $r['cobrador']; $ruta = $r['ruta'] ?? null; @endphp

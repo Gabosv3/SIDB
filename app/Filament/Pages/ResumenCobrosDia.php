@@ -135,6 +135,12 @@ class ResumenCobrosDia extends Page
         return ResumenCobrosDiaService::totales($resumen);
     }
 
+    /** Vales (gastos) del día por cobrador, para cuadrar el efectivo a entregar. */
+    public function getValesDia(): \Illuminate\Support\Collection
+    {
+        return ResumenCobrosDiaService::valesPorCobrador($this->fecha);
+    }
+
     protected function getHeaderActions(): array
     {
         return [

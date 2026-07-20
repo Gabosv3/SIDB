@@ -80,10 +80,11 @@
     $semanaFin   = $this->getSemanaFin();
     $diasEs = ['Mon'=>'Lun','Tue'=>'Mar','Wed'=>'Mié','Thu'=>'Jue','Fri'=>'Vie','Sat'=>'Sáb','Sun'=>'Dom'];
 
-    $totalSemana    = collect($liquidacion)->sum('total_cobrado');
-    $totalComision  = collect($liquidacion)->sum('comision');
-    $totalAnticipos = collect($liquidacion)->sum('total_anticipos');
-    $totalNeto      = collect($liquidacion)->sum('neto');
+    $totalSemana        = collect($liquidacion)->sum('total_cobrado');
+    $totalComision      = collect($liquidacion)->sum('comision');
+    $totalAnticipos     = collect($liquidacion)->sum('total_anticipos');
+    $totalValesConsumo  = collect($liquidacion)->sum('total_vales_consumo');
+    $totalNeto          = collect($liquidacion)->sum('neto');
 @endphp
 
 {{-- Filtros --}}
@@ -119,6 +120,10 @@
     <div class="lq-card" style="padding:1.1rem">
         <p class="lq-stat-label">Total anticipos</p>
         <p class="lq-stat-val lq-anticipo">${{ number_format($totalAnticipos, 2) }}</p>
+    </div>
+    <div class="lq-card" style="padding:1.1rem">
+        <p class="lq-stat-label">Vales de consumo (aprobados)</p>
+        <p class="lq-stat-val lq-anticipo">${{ number_format($totalValesConsumo, 2) }}</p>
     </div>
     <div class="lq-card" style="padding:1.1rem">
         <p class="lq-stat-label">Neto a pagar</p>
@@ -180,6 +185,10 @@
                 <div style="text-align:right">
                     <p class="lq-stat-label">Anticipos</p>
                     <p class="lq-val lq-anticipo">${{ number_format($r['total_anticipos'], 2) }}</p>
+                </div>
+                <div style="text-align:right">
+                    <p class="lq-stat-label">Vale consumo</p>
+                    <p class="lq-val lq-anticipo">${{ number_format($r['total_vales_consumo'], 2) }}</p>
                 </div>
                 <div style="text-align:right">
                     <p class="lq-stat-label">Neto</p>

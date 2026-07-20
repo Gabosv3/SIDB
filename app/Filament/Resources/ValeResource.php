@@ -26,17 +26,17 @@ class ValeResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        return 'Vales';
+        return 'Gastos';
     }
 
     public static function getModelLabel(): string
     {
-        return 'Vale';
+        return 'Gasto';
     }
 
     public static function getPluralModelLabel(): string
     {
-        return 'Vales';
+        return 'Gastos';
     }
 
     public static function getNavigationGroup(): string|\UnitEnum|null
@@ -58,7 +58,7 @@ class ValeResource extends Resource
 
     public static function getNavigationBadgeTooltip(): ?string
     {
-        return 'Vales pendientes de aprobación';
+        return 'Gastos pendientes de aprobación';
     }
 
     public static function getNavigationBadgeColor(): ?string
@@ -69,7 +69,7 @@ class ValeResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Vale')
+            Section::make('Gasto')
                 ->columns(2)
                 ->components([
                     Forms\Components\Select::make('user_id')
@@ -132,6 +132,12 @@ class ValeResource extends Resource
                     Forms\Components\Textarea::make('descripcion')
                         ->label('Descripción')
                         ->rows(2)
+                        ->columnSpanFull(),
+
+                    Forms\Components\Toggle::make('descuenta_cobro_diario')
+                        ->label('Descontar del efectivo a entregar hoy')
+                        ->helperText('Actívalo si es un gasto chico que el empleado ya pagó de lo cobrado ese día (imprevisto de calle, gasolina). Si es una reparación grande que paga la empresa aparte, déjalo apagado — no se resta del efectivo que debe entregar en Resumen del Día.')
+                        ->default(false)
                         ->columnSpanFull(),
                 ]),
 
@@ -198,6 +204,14 @@ class ValeResource extends Resource
                     ->money('USD')
                     ->sortable(),
 
+                Tables\Columns\IconColumn::make('descuenta_cobro_diario')
+                    ->label('Descuenta hoy')
+                    ->boolean()
+                    ->tooltip(fn (bool $state) => $state
+                        ? 'Se resta del efectivo a entregar en Resumen del Día'
+                        : 'No afecta el efectivo a entregar (gasto pagado aparte por la empresa)')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('fecha_gasto')
                     ->label('Fecha')
                     ->date('d/m/Y')
@@ -253,7 +267,7 @@ class ValeResource extends Resource
                         $record->aprobar(auth()->user());
 
                         Notification::make()
-                            ->title('Vale aprobado')
+                            ->title('Gasto aprobado')
                             ->success()
                             ->send();
                     }),
@@ -273,7 +287,7 @@ class ValeResource extends Resource
                         $record->rechazar(auth()->user(), $data['observaciones_admin'] ?? null);
 
                         Notification::make()
-                            ->title('Vale rechazado')
+                            ->title('Gasto rechazado')
                             ->warning()
                             ->send();
                     }),

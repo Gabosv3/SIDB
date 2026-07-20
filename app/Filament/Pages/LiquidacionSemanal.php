@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\AnticipoCobrador;
 use App\Models\Cobrador;
 use App\Models\PagoVenta;
+use App\Models\Vale;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -94,18 +95,29 @@ class LiquidacionSemanal extends Page
                 ->get();
             $totalAnticipos = (float) $anticipos->sum('monto');
 
+            // Vales de consumo (personales) ya aprobados de la semana — se
+            // descuentan igual que un anticipo, porque es plata que se quedó el
+            // empleado. Los vales de vehículo (gasolina/imprevisto) son gasto de
+            // la empresa y NO se descuentan aquí, solo se ven en Resumen del Día.
+            $totalValesConsumo = (float) Vale::where('user_id', $cobrador->user_id)
+                ->where('tipo', 'consumo')
+                ->where('estado', 'aprobado')
+                ->whereBetween('fecha_gasto', [$inicio->toDateString(), $fin->toDateString()])
+                ->sum('monto');
+
             // Comisión 8%
             $comision = round($totalCobrado * 0.08, 2);
-            $neto     = round($comision - $totalAnticipos, 2);
+            $neto     = round($comision - $totalAnticipos - $totalValesConsumo, 2);
 
             return [
-                'cobrador'       => $cobrador,
-                'total_cobrado'  => $totalCobrado,
-                'comision'       => $comision,
-                'total_anticipos'=> $totalAnticipos,
-                'neto'           => $neto,
-                'por_dia'        => $porDia,
-                'anticipos'      => $anticipos,
+                'cobrador'           => $cobrador,
+                'total_cobrado'      => $totalCobrado,
+                'comision'           => $comision,
+                'total_anticipos'    => $totalAnticipos,
+                'total_vales_consumo'=> $totalValesConsumo,
+                'neto'               => $neto,
+                'por_dia'            => $porDia,
+                'anticipos'          => $anticipos,
             ];
         })->filter(fn ($r) => $r['total_cobrado'] > 0 || $r['total_anticipos'] > 0 || ! $this->cobrador_id)
           ->values()->all();
