@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\VehiculoResource\Pages;
+use App\Filament\Resources\VehiculoResource\RelationManagers\MantenimientosRelationManager;
 use App\Models\User;
 use App\Models\Vehiculo;
 use Filament\Actions;
@@ -180,6 +181,19 @@ class VehiculoResource extends Resource
                         'inactivo'      => 'Inactivo',
                         default         => $state,
                     }),
+
+                Tables\Columns\TextColumn::make('ultimo_km')
+                    ->label('Último km')
+                    ->state(fn (Vehiculo $record) => $record->ultimoMantenimiento()?->kilometraje)
+                    ->formatStateUsing(fn (?int $state) => $state ? number_format($state) . ' km' : '—')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('proximo_cambio')
+                    ->label('Próximo cambio')
+                    ->state(fn (Vehiculo $record) => $record->ultimoMantenimiento()?->proximo_cambio_km)
+                    ->formatStateUsing(fn (?int $state) => $state ? number_format($state) . ' km' : '—')
+                    ->color('warning')
+                    ->toggleable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('estado')
@@ -210,6 +224,13 @@ class VehiculoResource extends Resource
                 ]),
             ])
             ->defaultSort('placa');
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            MantenimientosRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

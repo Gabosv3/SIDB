@@ -45,6 +45,17 @@ class Vehiculo extends Model
         return $this->hasMany(Vale::class);
     }
 
+    public function mantenimientos(): HasMany
+    {
+        return $this->hasMany(MantenimientoVehiculo::class);
+    }
+
+    /** Registro de mantenimiento más reciente (por kilometraje), para saber el próximo cambio a simple vista. */
+    public function ultimoMantenimiento(): ?MantenimientoVehiculo
+    {
+        return $this->mantenimientos()->orderByDesc('kilometraje')->first();
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
