@@ -947,8 +947,8 @@ class CobroController extends Controller
 
     #[OA\Get(
         path: '/cobros/historial',
-        summary: 'Historial de cobros de un día del cobrador autenticado',
-        description: 'Lista, del más reciente al más antiguo, cada pago que el cobrador autenticado registró en la fecha indicada. '
+        summary: 'Historial de cobros y visitas de un día del cobrador autenticado',
+        description: 'Lista, del más reciente al más antiguo, cada pago y cada visita sin pago que el cobrador autenticado registró en la fecha indicada (campo "tipo": "pago" o "visita"). '
             .'Sin el parámetro "fecha" devuelve el día de hoy. Solo se permite consultar días del mes en curso (hasta hoy), para que el selector de fecha de la app muestre un mes a la vez.',
         security: [['sanctum' => []]],
         tags: ['Cobros'],
@@ -980,28 +980,62 @@ class CobroController extends Controller
 
         $pagos = PagoVenta::where('user_id', $cobrador->user_id)
             ->whereDate('fecha_pago', $fecha)
-            ->with(['cliente:id,nombre,apellido,codigo_anterior', 'venta:id,numero_venta'])
-            ->orderByDesc('created_at')
+            ->with(['cliente:id,nombre,apellido,codigo_anterior,telefono_whatsapp', 'venta:id,numero_venta', 'venta.detalles.producto:id,nombre,codigo'])
             ->get()
             ->map(fn ($p) => [
+                'tipo'          => 'pago',
                 'id'            => $p->id,
                 'cliente'       => $p->cliente ? [
                     'id'              => $p->cliente->id,
                     'nombre'          => $p->cliente->nombre_completo,
                     'codigo_anterior' => $p->cliente->codigo_anterior,
+                    'whatsapp'        => $p->cliente->telefono_whatsapp,
                 ] : null,
-                'venta'         => $p->venta?->numero_venta,
+                'numero_venta'  => $p->venta?->numero_venta,
+                'productos'     => $p->venta?->detalles->map(fn ($d) => [
+                    'nombre'   => $d->producto?->nombre,
+                    'codigo'   => $d->producto?->codigo,
+                    'cantidad' => (int) $d->cantidad,
+                ])->values() ?? [],
                 'monto'         => (float) $p->monto,
                 'metodo_pago'   => $p->metodo_pago,
                 'referencia'    => $p->referencia,
                 'hora'          => $p->created_at->format('H:i'),
+                '_ts'           => $p->created_at,
             ]);
 
+        $visitas = VisitaCobro::where('user_id', $cobrador->user_id)
+            ->whereDate('fecha_visita', $fecha)
+            ->with('cliente:id,nombre,apellido,codigo_anterior,telefono_whatsapp')
+            ->get()
+            ->map(fn ($v) => [
+                'tipo'           => 'visita',
+                'id'             => $v->id,
+                'cliente'        => $v->cliente ? [
+                    'id'              => $v->cliente->id,
+                    'nombre'          => $v->cliente->nombre_completo,
+                    'codigo_anterior' => $v->cliente->codigo_anterior,
+                    'whatsapp'        => $v->cliente->telefono_whatsapp,
+                ] : null,
+                'resultado'      => $v->resultado,
+                'promesa_fecha'  => $v->promesa_fecha?->toDateString(),
+                'observaciones'  => $v->observaciones,
+                'foto_hogar_url' => $v->foto_hogar ? Storage::url($v->foto_hogar) : null,
+                'hora'           => $v->created_at->format('H:i'),
+                '_ts'            => $v->created_at,
+            ]);
+
+        $items = $pagos->concat($visitas)
+            ->sortByDesc('_ts')
+            ->values()
+            ->map(fn ($item) => \Illuminate\Support\Arr::except($item, ['_ts']));
+
         return response()->json([
-            'fecha'        => $fecha->toDateString(),
-            'total_cobrado'=> round((float) $pagos->sum('monto'), 2),
-            'total_pagos'  => $pagos->count(),
-            'pagos'        => $pagos->values(),
+            'fecha'         => $fecha->toDateString(),
+            'total_cobrado' => round((float) $pagos->sum('monto'), 2),
+            'total_pagos'   => $pagos->count(),
+            'total_visitas' => $visitas->count(),
+            'items'         => $items,
         ]);
     }
 
