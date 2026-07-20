@@ -16,6 +16,7 @@ class PagoVenta extends Model
         'venta_id',
         'cliente_id',
         'user_id',
+        'numero_recibo',
         'monto',
         'fecha_pago',
         'metodo_pago',

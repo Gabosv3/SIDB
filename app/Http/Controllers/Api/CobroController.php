@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\Cobrador;
+use App\Models\CobradorRecibosContador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\Vale;
@@ -55,6 +56,25 @@ class CobroController extends Controller
         return \App\Models\Cliente::where('id', $clienteId)
             ->whereIn('ruta_cobro_id', $rutasIds)
             ->first();
+    }
+
+    /**
+     * Genera el siguiente número de recibo correlativo del cobrador de forma
+     * atómica (autoritativo en el servidor, no en el dispositivo). Debe
+     * llamarse dentro de una transacción de BD ya abierta.
+     */
+    private function siguienteNumeroRecibo(int $cobradorId): string
+    {
+        $contador = CobradorRecibosContador::where('cobrador_id', $cobradorId)->lockForUpdate()->first();
+        if (! $contador) {
+            CobradorRecibosContador::create(['cobrador_id' => $cobradorId, 'ultimo_numero' => 0]);
+            $contador = CobradorRecibosContador::where('cobrador_id', $cobradorId)->lockForUpdate()->first();
+        }
+
+        $siguiente = $contador->ultimo_numero + 1;
+        $contador->update(['ultimo_numero' => $siguiente]);
+
+        return sprintf('REC-%d-%06d', $cobradorId, $siguiente);
     }
 
     // ── GET /cobros/ruta-hoy ────────────────────────────────────────────────
@@ -614,6 +634,8 @@ class CobroController extends Controller
         }
 
         $result = DB::transaction(function () use ($id, $monto, $data, $ventaId) {
+            $numeroRecibo = $this->siguienteNumeroRecibo(auth()->id());
+
             // Se bloquea la fila de la venta y se revalida el saldo DENTRO de la
             // transacción (no antes), para que dos pagos casi simultáneos sobre
             // la misma venta no puedan ambos pasar la validación con el mismo
@@ -651,6 +673,7 @@ class CobroController extends Controller
                 PagoVenta::create([
                     'venta_id'      => $gestion->venta_id,
                     'cliente_id'    => $id,
+                    'numero_recibo' => $numeroRecibo,
                     'monto'         => $aplicar,
                     'fecha_pago'    => today(),
                     'metodo_pago'   => $data['metodo_pago'],
@@ -685,7 +708,7 @@ class CobroController extends Controller
                 ->orderBy('numero_cuota')
                 ->first();
 
-            return compact('cuotasPagadas', 'proxima');
+            return compact('cuotasPagadas', 'proxima', 'numeroRecibo');
         });
 
         // Nombre(s) del producto de la venta pagada, para el ticket impreso —
@@ -700,6 +723,7 @@ class CobroController extends Controller
 
         return response()->json([
             'mensaje'       => 'Pago registrado y distribuido en ' . count($result['cuotasPagadas']) . ' cuota(s).',
+            'numero_recibo' => $result['numeroRecibo'],
             'cliente'       => [
                 'id'              => $cliente->id,
                 'codigo_anterior' => $cliente->codigo_anterior,
@@ -1002,31 +1026,43 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'Solo puedes consultar días del mes en curso, hasta hoy.'], 422);
         }
 
+        // Un solo abono puede generar varios PagoVenta (uno por cuota que cubrió).
+        // Se agrupan por numero_recibo para que se vean como un solo movimiento
+        // en el historial — los registros antiguos, sin numero_recibo, quedan
+        // cada uno como su propio grupo (no se mezclan entre sí).
         $pagos = PagoVenta::where('user_id', $cobrador->user_id)
             ->whereDate('fecha_pago', $fecha)
             ->with(['cliente:id,nombre,apellido,codigo_anterior,telefono_whatsapp', 'venta:id,numero_venta', 'venta.detalles.producto:id,nombre,codigo'])
+            ->orderBy('created_at')
             ->get()
-            ->map(fn ($p) => [
-                'tipo'          => 'pago',
-                'id'            => $p->id,
-                'cliente'       => $p->cliente ? [
-                    'id'              => $p->cliente->id,
-                    'nombre'          => $p->cliente->nombre_completo,
-                    'codigo_anterior' => $p->cliente->codigo_anterior,
-                    'whatsapp'        => $p->cliente->telefono_whatsapp,
-                ] : null,
-                'numero_venta'  => $p->venta?->numero_venta,
-                'productos'     => $p->venta?->detalles->map(fn ($d) => [
-                    'nombre'   => $d->producto?->nombre,
-                    'codigo'   => $d->producto?->codigo,
-                    'cantidad' => (int) $d->cantidad,
-                ])->values() ?? [],
-                'monto'         => (float) $p->monto,
-                'metodo_pago'   => $p->metodo_pago,
-                'referencia'    => $p->referencia,
-                'hora'          => $p->created_at->format('H:i'),
-                '_ts'           => $p->created_at,
-            ]);
+            ->groupBy(fn ($p) => $p->numero_recibo ?? 'sin_recibo_' . $p->id)
+            ->map(function ($grupo) {
+                $p = $grupo->first();
+
+                return [
+                    'tipo'          => 'pago',
+                    'id'            => $p->id,
+                    'numero_recibo' => $p->numero_recibo,
+                    'cliente'       => $p->cliente ? [
+                        'id'              => $p->cliente->id,
+                        'nombre'          => $p->cliente->nombre_completo,
+                        'codigo_anterior' => $p->cliente->codigo_anterior,
+                        'whatsapp'        => $p->cliente->telefono_whatsapp,
+                    ] : null,
+                    'numero_venta'  => $p->venta?->numero_venta,
+                    'productos'     => $p->venta?->detalles->map(fn ($d) => [
+                        'nombre'   => $d->producto?->nombre,
+                        'codigo'   => $d->producto?->codigo,
+                        'cantidad' => (int) $d->cantidad,
+                    ])->values() ?? [],
+                    'monto'         => round((float) $grupo->sum('monto'), 2),
+                    'metodo_pago'   => $p->metodo_pago,
+                    'referencia'    => $p->referencia,
+                    'hora'          => $p->created_at->format('H:i'),
+                    '_ts'           => $p->created_at,
+                ];
+            })
+            ->values();
 
         $visitas = VisitaCobro::where('user_id', $cobrador->user_id)
             ->whereDate('fecha_visita', $fecha)
