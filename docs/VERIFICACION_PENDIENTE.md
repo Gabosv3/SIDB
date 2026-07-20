@@ -21,7 +21,7 @@ php artisan migrate:status | tail -10
 php artisan storage:link
 ```
 
-**Migraciones pendientes (6, ninguna se ha ejecutado):**
+**Migraciones pendientes (8, ninguna se ha ejecutado):**
 
 | # | Migración | Qué agrega |
 |---|-----------|------------|
@@ -31,6 +31,8 @@ php artisan storage:link
 | 4 | `2026_07_18_115955_create_vales_table` | tabla `vales` |
 | 5 | `2026_07_18_201118_create_preventas_table` | tabla `preventas` |
 | 6 | `2026_07_18_201123_create_detalle_preventas_table` | tabla `detalle_preventas` |
+| 7 | `2026_07_19_211720_create_mantenimientos_vehiculo_table` | tabla `mantenimientos_vehiculo` |
+| 8 | `2026_07_19_212956_add_descuenta_cobro_diario_to_vales_table` | `vales.descuenta_cobro_diario` (default `true`) |
 
 > Nota aparte: la migración de WhatsApp/Baileys (`create_baileys_sessions_table`, commit `c748bec`) ya está en `main`, no en esta lista — su verificación end-to-end es la tarea #28, independiente de este documento.
 
@@ -160,9 +162,56 @@ curl -H "Authorization: Bearer {TOKEN_COBRADOR}" "http://localhost/api/cobros/hi
 ```
 
 **Esperado:**
-- Sin `fecha` → `fecha` en la respuesta es hoy, `pagos` trae lo cobrado hoy por ese cobrador (registra un pago de prueba primero con `POST /cobros/clientes/{id}/pagar` para tener datos).
-- Con `fecha` dentro del mes → filtra correctamente por ese día (`whereDate('fecha_pago', ...)`).
+- Sin `fecha` → `fecha` en la respuesta es hoy; `items` trae lo cobrado y las visitas sin pago de hoy, mezclado y ordenado por hora descendente (registra un pago con `POST /cobros/clientes/{id}/pagar` y una visita con `POST /cobros/clientes/{id}/visita` primero para tener datos de ambos tipos).
+- Con `fecha` dentro del mes → filtra correctamente por ese día (`whereDate('fecha_pago', ...)` para pagos, `whereDate('fecha_visita', ...)` para visitas).
 - Con `fecha` de mes anterior o futura → **422** `"Solo puedes consultar días del mes en curso, hasta hoy."`
+- Confirma el orden: un pago y una visita del mismo cobrador con horas distintas deben salir intercalados por hora, no agrupados por tipo.
+
+**Forma exacta de la respuesta (200):**
+```json
+{
+  "fecha": "2026-07-18",
+  "total_cobrado": 20.00,
+  "total_pagos": 1,
+  "total_visitas": 1,
+  "items": [
+    {
+      "tipo": "visita",
+      "id": 15,
+      "cliente": {
+        "id": 88,
+        "nombre": "Juan Carlos Pérez",
+        "codigo_anterior": "4521",
+        "whatsapp": "70000000"
+      },
+      "resultado": "sin_pago",
+      "promesa_fecha": null,
+      "observaciones": "El cliente dice que no tiene efectivo hoy",
+      "foto_hogar_url": "/storage/visitas/88/foto_abc123.jpg",
+      "hora": "10:10"
+    },
+    {
+      "tipo": "pago",
+      "id": 103,
+      "cliente": {
+        "id": 97,
+        "nombre": "Florinda Perez",
+        "codigo_anterior": "7274",
+        "whatsapp": "26543086"
+      },
+      "numero_venta": "VNT-SLEOVUSF",
+      "productos": [
+        { "nombre": "Televisor 55 pulgadas", "codigo": "TV-55", "cantidad": 1 }
+      ],
+      "monto": 20.00,
+      "metodo_pago": "efectivo",
+      "referencia": null,
+      "hora": "09:45"
+    }
+  ]
+}
+```
+> Cada item de `items[]` trae `"tipo": "pago"` o `"tipo": "visita"` — los campos que siguen dependen del tipo (los de pago tienen `numero_venta`/`productos`/`monto`/`metodo_pago`; los de visita tienen `resultado`/`promesa_fecha`/`foto_hogar_url`). Ambos comparten `id`, `cliente`, `hora`. `productos` es **array** (una venta puede tener más de una línea). `cliente.whatsapp` puede ser `null`. `numero_recibo` **no existe** en ningún endpoint — esa numeración era parte de la feature revertida esta sesión (`f53660a`), no está en el código actual.
 
 ---
 
@@ -218,6 +267,46 @@ Esperado: `201`. **Repite** con el vehículo de otro cobrador (no asignado ni de
 ### 5.6 Filament → Vehículos
 
 Crea/edita un vehículo, cambia `estado` a `reserva` y confirma que `asignado_a` se puede dejar vacío. Asigna un vehículo a un usuario y confirma que solo aparecen usuarios con perfil de vendedor o cobrador en el selector.
+
+### 5.7 Filament → Vehículos → Historial de mantenimiento (tab dentro del vehículo)
+
+1. Edita el vehículo `TEST-001` (o el que tengas de prueba) — debe aparecer una pestaña **"Historial de mantenimiento"** junto al formulario.
+2. Click en **"Registrar mantenimiento"**: fecha, kilometraje (ej. 15000), tipo (ej. "Cambio de aceite"), taller, costo, "Próximo cambio sugerido" (ej. 18000), detalle, foto de factura opcional.
+3. Guarda y confirma que la fila aparece en la tabla, ordenada por kilometraje descendente si agregas un segundo registro con km distinto.
+4. Vuelve a la lista principal de Vehículos: las columnas **"Último km"** y **"Próximo cambio"** (ocultas por defecto, actívalas desde el ícono de columnas si aplica) deben reflejar el registro de mayor kilometraje que acabas de crear.
+5. Borra el registro de prueba y confirma que las columnas vuelven a mostrar `—` si no queda ningún mantenimiento.
+
+### 5.8 Renombrado a "Gastos" + cuadre de caja diario + descuento en Liquidación Semanal
+
+El recurso Filament que antes se llamaba "Vales" ahora se llama **"Gastos"** en el menú (grupo "Vehículos y Gastos") — el modelo/tabla/endpoints siguen llamándose `Vale`/`vales` internamente, no cambia nada para la app móvil. Esto es para no confundirse con el "anticipo de sueldo" que ya existía en Liquidación Semanal (`AnticipoCobrador`, sistema completamente aparte, sin tocar).
+
+**Setup — dos vales del mismo cobrador el mismo día:**
+```bash
+# 1) Vale chico desde el móvil (imprevisto de calle) — SIEMPRE descuenta_cobro_diario=true
+curl -H "Authorization: Bearer {TOKEN_COBRADOR}" \
+  -F "tipo=vehiculo" -F "vehiculo_id={ID_VEHICULO}" -F "categoria_vehiculo=imprevisto" \
+  -F "monto=5.00" -F "comprobante=@foto.jpg" \
+  http://localhost/api/vales
+```
+```php
+// 2) Vale grande registrado por el admin directo en Filament (o vía tinker para la prueba)
+\App\Models\Vale::create([
+    'user_id' => $userCobrador->id, 'sucursal_id' => $sucursal->id,
+    'tipo' => 'vehiculo', 'vehiculo_id' => $vehiculoAsignado->id,
+    'categoria_vehiculo' => 'mantenimiento', 'monto' => 150.00,
+    'comprobante' => 'vales/fake.jpg', 'fecha_gasto' => today(),
+    'estado' => 'pendiente', 'descuenta_cobro_diario' => false, // el toggle en Filament debe quedar apagado por defecto
+]);
+```
+
+**Esperado en Filament → Resumen del Día → tabla "Gastos del día":**
+- La columna **"Total gastado"** de este cobrador debe incluir **solo los $5.00** (el vale chico), no los $150.00 del vale grande.
+- **"Neto a entregar"** = cobrado − 5.00 (no −155.00).
+- En el recurso **Gastos**, la columna "Descuenta hoy" debe mostrar el ícono en verde para el vale de $5 y en gris/apagado para el de $150.
+
+**Esperado en Filament → Liquidación Semanal** (con el vale chico marcado `estado=aprobado`):
+- Tarjeta "Vales de consumo (aprobados)" — **solo cuenta si `tipo=consumo`**; el ejemplo de arriba es `tipo=vehiculo`, así que NO debe aparecer ahí (verifica por separado con un vale `tipo=consumo, estado=aprobado` de esa semana).
+- `neto = comisión − anticipos − vales_consumo_aprobados` — confirma la resta con un cálculo a mano.
 
 ---
 
@@ -305,32 +394,36 @@ Esperado: ve la preventa que le asignaste en 7.2 (por `vendedor_id`), no las de 
 \App\Models\Producto::where('codigo', 'TEST-001')->delete();
 \App\Models\Cobrador::where('nombre', 'TEST')->delete();
 \App\Models\Vendedor::where('nombre', 'TEST')->delete();
+\App\Models\MantenimientoVehiculo::whereHas('vehiculo', fn($q) => $q->where('placa', 'like', 'TEST-%'))->delete();
 \App\Models\User::where('email', 'like', 'test_%@sidb.test')->delete();
 
 // Borra también los archivos subidos de prueba
 \Illuminate\Support\Facades\Storage::disk('public')->deleteDirectory('vales');
+\Illuminate\Support\Facades\Storage::disk('public')->deleteDirectory('mantenimientos');
 ```
 
 ---
 
 ## 9. Referencia rápida — todo lo tocado esta sesión (sin commitear)
 
-**Migraciones (6):** ver tabla en la sección 0.
+**Migraciones (8):** ver tabla en la sección 0.
 
-**Modelos nuevos:** `Vehiculo`, `Vale`, `Preventa`, `DetallePreventa`
-**Modelos editados:** `Reintegro`, `Venta`, `Cliente`, `User`
+**Modelos nuevos:** `Vehiculo`, `Vale`, `Preventa`, `DetallePreventa`, `MantenimientoVehiculo`
+**Modelos editados:** `Reintegro`, `Venta`, `Cliente`, `User`, `Vale` (campo `descuenta_cobro_diario`), `Vehiculo` (relación `mantenimientos`)
 
 **Controladores API nuevos:** `VehiculoController`, `ValeController`, `PreventaController`
-**Controladores API editados:** `ClienteController`, `CobroController`, `PagoVentaController`, `PosController`, `ProductoController`, `ReintegroController`, `VentaController`, `AsignacionController`
+**Controladores API editados:** `ClienteController`, `CobroController` (incluye `historial`), `PagoVentaController`, `PosController`, `ProductoController`, `ReintegroController`, `VentaController` (incluye `anular`), `AsignacionController`, `ValeController` (`descuenta_cobro_diario`)
 
 **Endpoints nuevos:**
-- `GET /cobros/historial` (reemplaza `historial-hoy`, ahora acepta `?fecha=`)
+- `GET /cobros/historial` (reemplaza `historial-hoy`; acepta `?fecha=`, mezcla pagos y visitas del día con campo `tipo`, trae `productos[]` y `numero_venta` por pago, `cliente.whatsapp`)
 - `GET /vehiculos/disponibles`
 - `GET /vales`, `POST /vales`
 - `POST /ventas/{id}/anular`
 - `GET /preventas`, `POST /preventas`
 
-**Filament — recursos nuevos:** `VehiculoResource`, `ValeResource`, `PreventaResource`
-**Filament — editados:** `ReintegroResource`, `VentaResource/Pages/ListVentas`, `VentaResource/Pages/CreateVenta` (prefill desde preventa)
+**Servicios editados:** `ResumenCobrosDiaService` (nuevo método `valesPorCobrador()`)
+
+**Filament — recursos/páginas nuevos:** `VehiculoResource` (+ RelationManager `MantenimientosRelationManager`), `ValeResource` (nav. "Gastos"), `PreventaResource`
+**Filament — editados:** `ReintegroResource`, `VentaResource/Pages/ListVentas`, `VentaResource/Pages/CreateVenta` (prefill desde preventa), `ResumenCobrosDia` (tabla "Gastos del día"), `LiquidacionSemanal` (descuenta vale de consumo aprobado)
 
 **Aún sin decidir (fuera de este documento):** los 5 endpoints "faltantes" de la auditoría (subir foto de cliente post-creación, detalle de asignación pasada) — no bloquean esta verificación.
