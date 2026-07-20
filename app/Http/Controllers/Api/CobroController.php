@@ -7,6 +7,7 @@ use App\Models\Cliente;
 use App\Models\Cobrador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
+use App\Models\Vale;
 use App\Models\VisitaCobro;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -431,7 +432,10 @@ class CobroController extends Controller
 
         // Gestiones agrupadas por venta
         $gestiones = GestionCobro::where('cliente_id', $id)
-            ->with('venta:id,numero_venta,total,fecha_venta,estado,monto_pagado,saldo_pendiente')
+            ->with([
+                'venta:id,numero_venta,total,fecha_venta,estado,monto_pagado,saldo_pendiente',
+                'venta.detalles.producto:id,nombre',
+            ])
             ->orderBy('venta_id')
             ->orderBy('numero_cuota')
             ->get();
@@ -443,6 +447,10 @@ class CobroController extends Controller
             return [
                 'id'              => $venta->id,
                 'numero_venta'    => $venta->numero_venta,
+                // Nombres de los productos de la venta unidos por coma (una venta
+                // puede tener más de una línea) — string único, no array, para
+                // que la app lo lea directo como venta.producto.
+                'producto'        => $venta->detalles->pluck('producto.nombre')->filter()->implode(', '),
                 'fecha_venta'     => $venta->fecha_venta instanceof \Carbon\Carbon
                     ? $venta->fecha_venta->format('d/m/Y')
                     : $venta->fecha_venta,
@@ -680,8 +688,23 @@ class CobroController extends Controller
             return compact('cuotasPagadas', 'proxima');
         });
 
+        // Nombre(s) del producto de la venta pagada, para el ticket impreso —
+        // una venta puede tener más de una línea, se unen por coma en un solo
+        // string (mismo criterio que GET /cobros/clientes/{id}).
+        $producto = \App\Models\DetalleVenta::where('venta_id', $ventaId)
+            ->with('producto:id,nombre')
+            ->get()
+            ->pluck('producto.nombre')
+            ->filter()
+            ->implode(', ');
+
         return response()->json([
             'mensaje'       => 'Pago registrado y distribuido en ' . count($result['cuotasPagadas']) . ' cuota(s).',
+            'cliente'       => [
+                'id'              => $cliente->id,
+                'codigo_anterior' => $cliente->codigo_anterior,
+            ],
+            'producto'      => $producto,
             'monto_total'   => $monto,
             'cuotas_pagadas' => $result['cuotasPagadas'],
             'proxima_cuota' => $result['proxima'] ? [
@@ -947,8 +970,8 @@ class CobroController extends Controller
 
     #[OA\Get(
         path: '/cobros/historial',
-        summary: 'Historial de cobros y visitas de un día del cobrador autenticado',
-        description: 'Lista, del más reciente al más antiguo, cada pago y cada visita sin pago que el cobrador autenticado registró en la fecha indicada (campo "tipo": "pago" o "visita"). '
+        summary: 'Historial de cobros, visitas y gastos de un día del cobrador autenticado',
+        description: 'Lista, del más reciente al más antiguo, cada pago, cada visita sin pago y cada vale (gasto) que el cobrador autenticado registró en la fecha indicada (campo "tipo": "pago", "visita" o "gasto"). '
             .'Sin el parámetro "fecha" devuelve el día de hoy. Solo se permite consultar días del mes en curso (hasta hoy), para que el selector de fecha de la app muestre un mes a la vez.',
         security: [['sanctum' => []]],
         tags: ['Cobros'],
@@ -1025,7 +1048,30 @@ class CobroController extends Controller
                 '_ts'            => $v->created_at,
             ]);
 
+        // Gastos (vales) del propio cobrador ese día — consumo y vehículo, en
+        // cualquier estado (pendiente/aprobado/rechazado), para que quede
+        // constancia en su historial de lo que registró, no solo lo cobrado.
+        $gastos = Vale::where('user_id', $cobrador->user_id)
+            ->whereDate('fecha_gasto', $fecha)
+            ->with('vehiculo:id,placa')
+            ->get()
+            ->map(fn (Vale $g) => [
+                'tipo'                   => 'gasto',
+                'id'                     => $g->id,
+                'tipo_gasto'             => $g->tipo,
+                'vehiculo'               => $g->vehiculo?->placa,
+                'categoria_vehiculo'     => $g->categoria_vehiculo,
+                'monto'                  => (float) $g->monto,
+                'comprobante_url'        => $g->comprobante_url,
+                'descripcion'            => $g->descripcion,
+                'estado'                 => $g->estado,
+                'descuenta_cobro_diario' => $g->descuenta_cobro_diario,
+                'hora'                   => $g->created_at->format('H:i'),
+                '_ts'                    => $g->created_at,
+            ]);
+
         $items = $pagos->concat($visitas)
+            ->concat($gastos)
             ->sortByDesc('_ts')
             ->values()
             ->map(fn ($item) => \Illuminate\Support\Arr::except($item, ['_ts']));
@@ -1033,8 +1079,10 @@ class CobroController extends Controller
         return response()->json([
             'fecha'         => $fecha->toDateString(),
             'total_cobrado' => round((float) $pagos->sum('monto'), 2),
+            'total_gastado' => round((float) $gastos->where('descuenta_cobro_diario', true)->sum('monto'), 2),
             'total_pagos'   => $pagos->count(),
             'total_visitas' => $visitas->count(),
+            'total_gastos'  => $gastos->count(),
             'items'         => $items,
         ]);
     }
