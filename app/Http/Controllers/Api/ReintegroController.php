@@ -13,6 +13,15 @@ use OpenApi\Attributes as OA;
 
 class ReintegroController extends Controller
 {
+    /**
+     * Sucursal del usuario autenticado, ya sea por su perfil de vendedor o de
+     * cobrador (un cobrador no tiene "vendedor", pero sí sucursal propia).
+     */
+    private function sucursalIdDelUsuario($user): ?int
+    {
+        return $user->vendedor?->sucursal_id ?? $user->cobrador?->sucursal_id;
+    }
+
     #[OA\Get(
         path: '/reintegros/candidatos',
         summary: 'Ventas candidatas a reintegro por cuotas vencidas',
@@ -58,7 +67,7 @@ class ReintegroController extends Controller
     public function candidatos(Request $request): JsonResponse
     {
         $diasVencidas = $request->integer('dias_vencidos', 30);
-        $sucursalId   = $request->user()->vendedor?->sucursal_id;
+        $sucursalId   = $this->sucursalIdDelUsuario($request->user());
 
         $corte = now()->subDays($diasVencidas)->toDateString();
 
@@ -151,7 +160,7 @@ class ReintegroController extends Controller
     )]
     public function vendedores(Request $request): JsonResponse
     {
-        $sucursalId = $request->user()->vendedor?->sucursal_id;
+        $sucursalId = $this->sucursalIdDelUsuario($request->user());
 
         $vendedores = Vendedor::query()
             ->where('activo', true)
@@ -296,6 +305,7 @@ class ReintegroController extends Controller
     {
         $user     = $request->user();
         $vendedor = $user->vendedor;
+        $cobrador = $user->cobrador;
 
         $query = Reintegro::query()
             ->with([
@@ -303,7 +313,22 @@ class ReintegroController extends Controller
                 'cliente:id,nombre,apellido,dui,telefono_normal',
                 'vendedor:id,nombre,apellido,codigo',
             ])
-            ->when($vendedor, fn ($q) => $q->where('vendedor_id', $vendedor->id))
+            ->where(function ($q) use ($vendedor, $cobrador) {
+                // Un vendedor ve los reintegros que le asignaron. Un cobrador (que
+                // no tiene vendedor_id propio en el reintegro) ve los de su
+                // sucursal. Sin ninguno de los dos perfiles, no ve nada.
+                if ($vendedor) {
+                    $q->orWhere('vendedor_id', $vendedor->id);
+                }
+
+                if ($cobrador) {
+                    $q->orWhere('sucursal_id', $cobrador->sucursal_id);
+                }
+
+                if (! $vendedor && ! $cobrador) {
+                    $q->whereRaw('1 = 0');
+                }
+            })
             ->when($request->filled('estado'), fn ($q) => $q->where('estado', $request->estado));
 
         $reintegros = $query->latest()->paginate($request->integer('per_page', 20));
@@ -389,6 +414,11 @@ class ReintegroController extends Controller
         ]);
 
         $reintegro = Reintegro::findOrFail($id);
+
+        $vendedor = $request->user()->vendedor;
+        if (! $vendedor || $reintegro->vendedor_id !== $vendedor->id) {
+            return response()->json(['mensaje' => 'Este reintegro no te pertenece.'], 403);
+        }
 
         $reintegro->estado       = $data['estado'];
         $reintegro->observaciones = $data['observaciones'] ?? $reintegro->observaciones;

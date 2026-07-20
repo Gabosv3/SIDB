@@ -4,12 +4,42 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
 
 class ClienteController extends Controller
 {
+    /**
+     * Acota el query a los clientes que el usuario autenticado puede ver/editar:
+     * un cobrador solo los de sus propias rutas, un vendedor solo los de su
+     * propia sucursal (un usuario que es ambos ve la unión de los dos). Evita
+     * que cualquier perfil POS pueda leer/editar clientes ajenos por ID (IDOR).
+     */
+    private function scopeClientesDelUsuario(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $q) use ($user) {
+            $huboScope = false;
+
+            if ($cobrador = $user->cobrador) {
+                $rutasIds = $cobrador->rutasCobro()->pluck('id');
+                $q->orWhereIn('ruta_cobro_id', $rutasIds);
+                $huboScope = true;
+            }
+
+            if ($vendedor = $user->vendedor) {
+                $q->orWhere('sucursal_id', $vendedor->sucursal_id);
+                $huboScope = true;
+            }
+
+            if (! $huboScope) {
+                $q->whereRaw('1 = 0');
+            }
+        });
+    }
+
     #[OA\Get(
         path: '/clientes',
         summary: 'Listar y buscar clientes activos',
@@ -24,7 +54,6 @@ class ClienteController extends Controller
                 required: false,
                 schema: new OA\Schema(type: 'string', example: '7338')
             ),
-            new OA\Parameter(name: 'sucursal_id', in: 'query', required: false, schema: new OA\Schema(type: 'integer')),
             new OA\Parameter(name: 'per_page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 50)),
             new OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 1)),
         ],
@@ -54,6 +83,8 @@ class ClienteController extends Controller
     {
         $query = Cliente::query()->where('activo', true);
 
+        $this->scopeClientesDelUsuario($query, $request->user());
+
         if ($request->filled('q')) {
             $q = $request->q;
             $query->where(function ($sub) use ($q) {
@@ -66,15 +97,13 @@ class ClienteController extends Controller
             });
         }
 
-        if ($request->filled('sucursal_id')) {
-            $query->where('sucursal_id', $request->integer('sucursal_id'));
-        }
+        $porPagina = min($request->integer('per_page', 50), 100);
 
         $clientes = $query->select([
             'id', 'nombre', 'apellido', 'dui', 'codigo_anterior',
             'telefono_normal', 'telefono_whatsapp', 'email', 'direccion',
             'limite_credito', 'saldo', 'activo', 'sucursal_id',
-        ])->paginate($request->integer('per_page', 50));
+        ])->paginate($porPagina);
 
         return response()->json($clientes);
     }
@@ -121,8 +150,8 @@ class ClienteController extends Controller
             'apellido'         => 'required|string|max:100',
             'dui'              => 'nullable|string|max:20|unique:clientes,dui',
             'codigo_anterior'  => 'nullable|string|max:50',
-            'telefono_normal'  => 'nullable|string|max:20',
-            'telefono_whatsapp'=> 'nullable|string|max:20',
+            'telefono_normal'  => 'nullable|string|max:20|regex:/^[0-9\-\s]{8,20}$/',
+            'telefono_whatsapp'=> 'nullable|string|max:20|regex:/^[0-9\-\s]{8,20}$/',
             'email'            => 'nullable|email|max:100',
             'direccion'        => 'nullable|string|max:255',
             'departamento'     => 'nullable|string|max:100',
@@ -177,6 +206,7 @@ class ClienteController extends Controller
         ),
         responses: [
             new OA\Response(response: 200, description: 'Ubicación actualizada'),
+            new OA\Response(response: 403, description: 'Este cliente no te pertenece'),
             new OA\Response(response: 404, description: 'Cliente no encontrado'),
             new OA\Response(response: 422, description: 'Validación fallida'),
         ],
@@ -188,7 +218,7 @@ class ClienteController extends Controller
             'longitud' => 'required|numeric|between:-180,180',
         ]);
 
-        $cliente = \App\Models\Cliente::findOrFail($id);
+        $cliente = $this->scopeClientesDelUsuario(Cliente::query(), $request->user())->findOrFail($id);
         $cliente->update($data);
 
         return response()->json([
@@ -221,6 +251,7 @@ class ClienteController extends Controller
         ),
         responses: [
             new OA\Response(response: 200, description: 'Teléfonos actualizados'),
+            new OA\Response(response: 403, description: 'Este cliente no te pertenece'),
             new OA\Response(response: 404, description: 'Cliente no encontrado'),
             new OA\Response(response: 422, description: 'Validación fallida'),
         ],
@@ -228,11 +259,11 @@ class ClienteController extends Controller
     public function actualizarTelefonos(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'telefono_normal'   => 'nullable|string|max:20',
-            'telefono_whatsapp' => 'nullable|string|max:20',
+            'telefono_normal'   => 'nullable|string|max:20|regex:/^[0-9\-\s]{8,20}$/',
+            'telefono_whatsapp' => 'nullable|string|max:20|regex:/^[0-9\-\s]{8,20}$/',
         ]);
 
-        $cliente = \App\Models\Cliente::findOrFail($id);
+        $cliente = $this->scopeClientesDelUsuario(Cliente::query(), $request->user())->findOrFail($id);
         $cliente->update($data);
 
         return response()->json([
@@ -265,6 +296,7 @@ class ClienteController extends Controller
         ),
         responses: [
             new OA\Response(response: 200, description: 'Nombre actualizado'),
+            new OA\Response(response: 403, description: 'Este cliente no te pertenece'),
             new OA\Response(response: 404, description: 'Cliente no encontrado'),
             new OA\Response(response: 422, description: 'Validación fallida'),
         ],
@@ -283,7 +315,7 @@ class ClienteController extends Controller
             ], 422);
         }
 
-        $cliente = \App\Models\Cliente::findOrFail($id);
+        $cliente = $this->scopeClientesDelUsuario(Cliente::query(), $request->user())->findOrFail($id);
         $cliente->update($data);
 
         return response()->json([
@@ -308,19 +340,21 @@ class ClienteController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'Cliente encontrado', content: new OA\JsonContent(ref: '#/components/schemas/Cliente')),
             new OA\Response(response: 401, description: 'No autenticado'),
+            new OA\Response(response: 403, description: 'Este cliente no te pertenece'),
             new OA\Response(response: 404, description: 'No encontrado'),
         ],
     )]
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        $cliente = Cliente::where('activo', true)
+        $query = Cliente::where('activo', true)
             ->select([
                 'id', 'nombre', 'apellido', 'dui', 'nit',
                 'telefono_normal', 'telefono_whatsapp', 'email',
                 'direccion', 'departamento', 'municipio', 'distrito',
                 'limite_credito', 'saldo', 'activo', 'sucursal_id', 'ruta_cobro_id',
-            ])
-            ->findOrFail($id);
+            ]);
+
+        $cliente = $this->scopeClientesDelUsuario($query, $request->user())->findOrFail($id);
 
         return response()->json($cliente);
     }

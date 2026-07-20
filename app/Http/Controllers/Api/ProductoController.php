@@ -126,7 +126,8 @@ class ProductoController extends Controller
             $query->where('sucursal_id', $request->integer('sucursal_id'));
         }
 
-        $productos = $query->paginate($request->integer('per_page', 50));
+        $porPagina = min($request->integer('per_page', 50), 100);
+        $productos = $query->paginate($porPagina);
 
         if ($vendedor) {
             $productos->getCollection()->transform(fn (Producto $producto) => [
@@ -138,9 +139,13 @@ class ProductoController extends Controller
                 'precio_venta'     => $producto->precio_venta,
                 'precios_cuotas'   => $producto->precios_cuotas,
                 'stock_global'     => $producto->stock,
-                'stock_asignado'   => $producto->detalleAsignaciones->first()?->cantidad_asignada ?? 0,
-                'stock_disponible' => $producto->detalleAsignaciones->first()?->disponible ?? 0,
-                'cantidad_vendida' => $producto->detalleAsignaciones->first()?->cantidad_vendida ?? 0,
+                // Ya vienen calculadas correctamente por el JOIN de arriba, scoped
+                // a la asignación de hoy de este vendedor — no usar la relación
+                // detalleAsignaciones() aquí, que no está filtrada por asignación
+                // y podría traer datos de otro vendedor o de otro día.
+                'stock_asignado'   => (int) ($producto->stock_asignado ?? 0),
+                'stock_disponible' => (int) ($producto->stock_disponible ?? 0),
+                'cantidad_vendida' => (int) ($producto->cantidad_vendida ?? 0),
                 'activo'           => $producto->activo,
                 'categoria'        => $producto->categoria?->nombre,
                 'categoria_id'     => $producto->categoria_id,

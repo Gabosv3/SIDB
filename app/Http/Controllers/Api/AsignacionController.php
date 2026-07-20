@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AsignacionDiaria;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use OpenApi\Attributes as OA;
 
 class AsignacionController extends Controller
@@ -74,18 +75,39 @@ class AsignacionController extends Controller
     {
         $vendedor = $request->user()->vendedor;
 
-        $asignacion = AsignacionDiaria::where('id', $id)
-            ->where('vendedor_id', $vendedor?->id)
-            ->firstOrFail();
+        if (! $vendedor) {
+            return response()->json(['message' => 'Este usuario no tiene perfil de vendedor.'], 403);
+        }
 
-        if (! $asignacion->estaActiva()) {
+        $data = $request->validate([
+            'observaciones' => 'nullable|string|max:500',
+        ]);
+
+        // Se bloquea la fila de la asignación dentro de una transacción para que
+        // dos liquidaciones casi simultáneas (doble tap) no dupliquen el stock
+        // devuelto ni los totales — la segunda espera a la primera y ve que ya
+        // no está activa.
+        $asignacion = DB::transaction(function () use ($id, $vendedor, $data) {
+            $asignacion = AsignacionDiaria::where('id', $id)
+                ->where('vendedor_id', $vendedor->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $asignacion->estaActiva()) {
+                return null;
+            }
+
+            $asignacion->liquidar($data['observaciones'] ?? null);
+
+            return $asignacion;
+        });
+
+        if (! $asignacion) {
             return response()->json([
                 'message' => 'Esta asignación ya fue liquidada.',
             ], 422);
         }
 
-        $observaciones = $request->input('observaciones');
-        $asignacion->liquidar($observaciones);
         $asignacion->load('detalles.producto:id,nombre,codigo');
 
         return response()->json([
