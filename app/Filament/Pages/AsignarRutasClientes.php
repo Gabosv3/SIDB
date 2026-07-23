@@ -56,7 +56,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
                 Tables\Columns\TextColumn::make('nombre_completo')
                     ->label('Cliente')
                     ->searchable(['nombre', 'apellido'])
-                    ->sortable()
+                    ->sortable(['nombre'])
                     ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('dui')
