@@ -14,6 +14,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class RutaCobroResource extends Resource implements HasShieldPermissions
 {
@@ -163,7 +164,13 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                 Tables\Columns\TextColumn::make('cobrador.nombre_completo')
                     ->label('Cobrador')
                     ->searchable(['cobrador.nombre', 'cobrador.apellido'])
-                    ->sortable(['cobrador.nombre', 'cobrador.apellido']),
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy(
+                            Cobrador::select('nombre')
+                                ->whereColumn('id', 'rutas_cobro.cobrador_id'),
+                            $direction
+                        );
+                    }),
 
                 Tables\Columns\TextColumn::make('descripcion')
                     ->label('Descripción')
