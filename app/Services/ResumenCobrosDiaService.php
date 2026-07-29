@@ -171,6 +171,34 @@ class ResumenCobrosDiaService
     }
 
     /**
+     * user_id de los cobradores que sí deben contar en reportes/estadísticas:
+     * activos y sin la marca "Excluir de reportes" (perfiles administrativos
+     * o de prueba). Si se pasa $cobradorId, se devuelve solo el suyo — el
+     * selector de "Cobrador" del filtro ya solo lista cobradores válidos, así
+     * que no hace falta revalidar la marca ahí.
+     */
+    private static function userIdsParaReportes(?int $cobradorId = null): array
+    {
+        if ($cobradorId) {
+            $userId = Cobrador::where('id', $cobradorId)->value('user_id');
+
+            return $userId ? [$userId] : [];
+        }
+
+        return Cobrador::where('activo', true)->where('excluir_reportes', false)->pluck('user_id')->all();
+    }
+
+    /** Igual que userIdsParaReportes() pero devuelve el id de Cobrador (para filtrar rutas_cobro.cobrador_id). */
+    private static function cobradorIdsParaReportes(?int $cobradorId = null): array
+    {
+        if ($cobradorId) {
+            return [$cobradorId];
+        }
+
+        return Cobrador::where('activo', true)->where('excluir_reportes', false)->pluck('id')->all();
+    }
+
+    /**
      * Totales del negocio para una fecha, sin desglose por cobrador. Usado
      * para comparar "hoy vs ayer". Si se pasa $cobradorId, se limita a ese
      * cobrador (mismos KPIs de arriba, pero para un solo cobrador).
@@ -178,15 +206,15 @@ class ResumenCobrosDiaService
     public static function totalesSimples(string $fecha, ?int $cobradorId = null): array
     {
         $fechaCarbon = Carbon::parse($fecha);
-        $userId = $cobradorId ? Cobrador::where('id', $cobradorId)->value('user_id') : null;
+        $userIds = self::userIdsParaReportes($cobradorId);
 
         $pagos = PagoVenta::whereDate('fecha_pago', $fechaCarbon)
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', $userIds)
             ->selectRaw('SUM(monto) AS total_cobrado, COUNT(DISTINCT CONCAT(cliente_id, "-", venta_id)) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_visitados')
             ->first();
 
         $totalSinCobro = VisitaCobro::whereDate('created_at', $fechaCarbon)
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', $userIds)
             ->count();
 
         $totalPendientes = self::contarPendientes($fechaCarbon, $cobradorId);
@@ -208,26 +236,27 @@ class ResumenCobrosDiaService
     public static function resumenGeneral(string $fecha, ?int $cobradorId = null): array
     {
         $fechaCarbon = Carbon::parse($fecha);
-        $userId = $cobradorId ? Cobrador::where('id', $cobradorId)->value('user_id') : null;
+        $userIds = self::userIdsParaReportes($cobradorId);
+        $cobradorIds = self::cobradorIdsParaReportes($cobradorId);
 
         $totalCobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->count();
 
-        $userIdsConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->distinct()->pluck('user_id');
-        $userIdsConVisita = VisitaCobro::whereDate('created_at', $fechaCarbon)->distinct()->pluck('user_id');
+        $userIdsConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->whereIn('user_id', $userIds)->distinct()->pluck('user_id');
+        $userIdsConVisita = VisitaCobro::whereDate('created_at', $fechaCarbon)->whereIn('user_id', $userIds)->distinct()->pluck('user_id');
         $cobradoresActivos = $userIdsConPago->merge($userIdsConVisita)->unique()->count();
 
         $totalEsperado = (float) GestionCobro::whereDate('fecha_vencimiento', $fechaCarbon)
             ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-            ->when($userId, fn ($q) => $q->whereHas('cliente.rutaCobro', fn ($q2) => $q2->where('cobrador_id', $cobradorId)))
+            ->whereHas('cliente.rutaCobro', fn ($q2) => $q2->whereIn('cobrador_id', $cobradorIds))
             ->sum('monto_cuota');
 
         $pagos = PagoVenta::whereDate('fecha_pago', $fechaCarbon)
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', $userIds)
             ->selectRaw('SUM(monto) AS total_cobrado, COUNT(DISTINCT CONCAT(cliente_id, "-", venta_id)) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_con_pago')
             ->first();
 
         $visitasSinCobro = VisitaCobro::whereDate('created_at', $fechaCarbon)
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', $userIds)
             ->count();
         $clientesConPago = (int) ($pagos->clientes_con_pago ?? 0);
         $totalVisitas = $clientesConPago + $visitasSinCobro;
@@ -248,11 +277,9 @@ class ResumenCobrosDiaService
      */
     public static function totalValesDia(string $fecha, ?int $cobradorId = null): float
     {
-        $userId = $cobradorId ? Cobrador::where('id', $cobradorId)->value('user_id') : null;
-
         return round((float) Vale::whereDate('fecha_gasto', Carbon::parse($fecha))
             ->where('descuenta_cobro_diario', true)
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', self::userIdsParaReportes($cobradorId))
             ->sum('monto'), 2);
     }
 
@@ -280,18 +307,18 @@ class ResumenCobrosDiaService
     public static function comparativoSemanal(string $fecha, ?int $cobradorId = null): array
     {
         $fechaCarbon = Carbon::parse($fecha);
-        $userId = $cobradorId ? Cobrador::where('id', $cobradorId)->value('user_id') : null;
+        $userIds = self::userIdsParaReportes($cobradorId);
 
         $inicioSemana = $fechaCarbon->copy()->startOfWeek(Carbon::MONDAY);
         $inicioSemanaPasada = $inicioSemana->copy()->subWeek();
         $finSemanaPasada = $fechaCarbon->copy()->subWeek();
 
         $totalEstaSemana = (float) PagoVenta::whereBetween('fecha_pago', [$inicioSemana->toDateString(), $fechaCarbon->toDateString()])
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', $userIds)
             ->sum('monto');
 
         $totalSemanaPasada = (float) PagoVenta::whereBetween('fecha_pago', [$inicioSemanaPasada->toDateString(), $finSemanaPasada->toDateString()])
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', $userIds)
             ->sum('monto');
 
         return [
@@ -311,10 +338,9 @@ class ResumenCobrosDiaService
     {
         $fechaFin = Carbon::parse($fecha);
         $fechaInicio = $fechaFin->copy()->subDays($dias - 1);
-        $userId = $cobradorId ? Cobrador::where('id', $cobradorId)->value('user_id') : null;
 
         $porDia = PagoVenta::whereBetween('fecha_pago', [$fechaInicio->toDateString(), $fechaFin->toDateString()])
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', self::userIdsParaReportes($cobradorId))
             ->selectRaw('fecha_pago, SUM(monto) AS total')
             ->groupBy('fecha_pago')
             ->pluck('total', 'fecha_pago');
@@ -362,10 +388,9 @@ class ResumenCobrosDiaService
     public static function desglosePorMetodo(string $fecha, ?int $cobradorId = null): array
     {
         $fechaCarbon = Carbon::parse($fecha);
-        $userId = $cobradorId ? Cobrador::where('id', $cobradorId)->value('user_id') : null;
 
         return PagoVenta::whereDate('fecha_pago', $fechaCarbon)
-            ->when($userId, fn ($q) => $q->where('user_id', $userId))
+            ->whereIn('user_id', self::userIdsParaReportes($cobradorId))
             ->selectRaw('metodo_pago, SUM(monto) AS total')
             ->groupBy('metodo_pago')
             ->pluck('total', 'metodo_pago')
@@ -423,7 +448,7 @@ class ResumenCobrosDiaService
         $semanaFecha = ConfiguracionSistema::instance()->semanaParaFecha($fechaCarbon);
 
         $rutasIds = RutaCobro::where('dia_semana', $diaFecha)
-            ->when($cobradorId, fn ($q) => $q->where('cobrador_id', $cobradorId))
+            ->whereIn('cobrador_id', self::cobradorIdsParaReportes($cobradorId))
             ->when($semanaFecha !== null, fn ($q) => $q->where(
                 fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaFecha)
             ))

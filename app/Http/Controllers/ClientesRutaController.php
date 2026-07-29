@@ -276,6 +276,8 @@ class ClientesRutaController extends Controller
                     'direccion' => trim(collect([$c->direccion, $c->municipio, $c->departamento])->filter()->implode(', ')),
                     'direccion_raw' => $c->direccion,
                     'tiene_ubicacion' => (bool) ($c->latitud && $c->longitud),
+                    'latitud' => $c->latitud,
+                    'longitud' => $c->longitud,
                     'saldo' => (float) $c->saldo,
                     'ventas_pendientes' => (int) $c->ventas_count,
                     'ruta_cobro_id' => $c->ruta_cobro_id,
@@ -661,6 +663,71 @@ class ClientesRutaController extends Controller
         });
 
         return response()->json(['mensaje' => 'Orden actualizado.']);
+    }
+
+    /**
+     * Sugiere un orden de visita para una ruta usando "vecino más cercano"
+     * sobre las coordenadas GPS (distancia en línea recta, fórmula de
+     * Haversine) — arranca del cliente con el orden actual más bajo y en
+     * cada paso salta al más cercano sin visitar. No es la ruta más corta
+     * por calle (no considera tráfico ni sentido de las vías), es una
+     * aproximación rápida y gratuita con los datos que ya tenemos.
+     * Los clientes sin coordenadas quedan al final, en su orden actual —
+     * esto NO aplica el orden, solo lo calcula; para aplicarlo el frontend
+     * llama a /reordenar con el arreglo que aquí se devuelve.
+     */
+    public function sugerirOrden(Request $request, $tenant, int $rutaId): JsonResponse
+    {
+        $clientes = Cliente::where('ruta_cobro_id', $rutaId)
+            ->where('activo', true)
+            ->get(['id', 'latitud', 'longitud', 'orden']);
+
+        $conGps = $clientes->filter(fn (Cliente $c) => $c->latitud && $c->longitud)->values();
+        $sinGps = $clientes->reject(fn (Cliente $c) => $c->latitud && $c->longitud)->values();
+
+        if ($conGps->count() < 2) {
+            return response()->json([
+                'mensaje' => 'Se necesitan al menos 2 clientes con coordenadas GPS en esta ruta para sugerir un orden.',
+            ], 422);
+        }
+
+        $restantes = $conGps->keyBy('id');
+        $actual = $conGps->sortBy(fn (Cliente $c) => $c->orden ?? PHP_INT_MAX)->first();
+        $ordenSugerido = [$actual->id];
+        $restantes->forget($actual->id);
+
+        while ($restantes->isNotEmpty()) {
+            $masCercano = $restantes->sortBy(
+                fn (Cliente $c) => $this->distanciaKm((float) $actual->latitud, (float) $actual->longitud, (float) $c->latitud, (float) $c->longitud)
+            )->first();
+
+            $ordenSugerido[] = $masCercano->id;
+            $restantes->forget($masCercano->id);
+            $actual = $masCercano;
+        }
+
+        $ordenSugerido = array_merge(
+            $ordenSugerido,
+            $sinGps->sortBy(fn (Cliente $c) => $c->orden ?? PHP_INT_MAX)->pluck('id')->all()
+        );
+
+        return response()->json([
+            'orden' => $ordenSugerido,
+            'con_gps' => $conGps->count(),
+            'sin_gps' => $sinGps->count(),
+        ]);
+    }
+
+    /** Distancia en línea recta entre 2 coordenadas GPS, en kilómetros (fórmula de Haversine). */
+    private function distanciaKm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $radioTierra = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
+
+        return $radioTierra * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     public function cambiarRuta(Request $request, $tenant, Cliente $cliente): JsonResponse

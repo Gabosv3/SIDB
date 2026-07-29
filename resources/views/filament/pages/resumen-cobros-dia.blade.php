@@ -487,6 +487,9 @@
                     $mapsUrl = ($v->latitud && $v->longitud)
                         ? 'https://www.google.com/maps?q=' . $v->latitud . ',' . $v->longitud
                         : null;
+                    $wazeUrl = ($v->latitud && $v->longitud)
+                        ? 'https://waze.com/ul?ll=' . $v->latitud . ',' . $v->longitud . '&navigate=yes'
+                        : null;
                 @endphp
                 <div class="rc-visita-row">
 
@@ -540,6 +543,12 @@
                                     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
                                 </svg>
                                 Ver en mapa
+                            </a>
+                            <a href="{{ $wazeUrl }}" target="_blank" class="rc-mapa-btn" style="margin-top:.3rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+                                </svg>
+                                Waze
                             </a>
                         @else
                             <span class="rc-text-time" style="font-style:italic">Sin ubicación</span>

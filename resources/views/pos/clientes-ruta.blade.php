@@ -328,6 +328,7 @@
                 por página
             </label>
             <span class="pm-card-link" id="cr-quitar-orden" style="cursor:pointer; display:none;">✕ Quitar orden por columna</span>
+            <span class="pm-card-link" id="cr-sugerir-orden" style="cursor:pointer; display:none;" title="Calcula un orden de visita según cercanía GPS (aproximado, línea recta)">🧭 Sugerir orden por GPS</span>
             <span class="pm-card-link" id="cr-refresh-link" style="cursor:pointer;">↻ Actualizar</span>
         </div>
     </div>
@@ -645,6 +646,11 @@
         var rows = clientesFiltrados.map(function (c, idx) {
             var saldoClass = c.saldo > 0 ? 'cr-saldo-pos' : 'cr-saldo-zero';
             var dirWarn = !c.direccion ? '<span class="cr-warn-badge" title="Sin dirección registrada">⚠</span>' : '';
+            var wazeBtn = c.latitud && c.longitud
+                ? '<a class="cr-abono-edit" href="https://waze.com/ul?ll=' + c.latitud + ',' + c.longitud + '&navigate=yes" target="_blank" rel="noopener" title="Abrir en Waze">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                  '</a>'
+                : '';
             var codigoHtml = '<div class="cr-abono-wrap" style="font-size:.7rem; color:var(--muted-2);">' +
                 'Cód: ' + (c.codigo_anterior || '—') +
                 campoEditBtn(c.id, 'codigo_anterior', c.codigo_anterior, 'Código anterior') +
@@ -695,7 +701,7 @@
                     '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><a class="cr-ver-detalle" href="' + baseUrl + '/clientes/' + c.id + '/perfil" title="Ver perfil completo del cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
                     '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
-                    '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + '</div></td>' +
+                    '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + wazeBtn + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span class="' + saldoClass + '">' + money(c.saldo) + '</span>' + campoEditBtn(c.id, 'saldo', c.saldo, 'Saldo') + '</div></td>' +
                     '<td class="pm-td">' + precioHtml + '</td>' +
                     '<td class="pm-td">' + abonoHtml + '</td>' +
@@ -883,6 +889,8 @@
             cardTitle.textContent = ordenColActual ? 'Listado — ordenado por columna (arrastre desactivado)' : 'Listado';
         }
 
+        document.getElementById('cr-sugerir-orden').style.display = puedeReordenar ? '' : 'none';
+
         if (data.paginado && data.total_paginas > 1) {
             paginacionDiv.style.display = 'flex';
             paginaInfo.textContent = 'Página ' + data.pagina_actual + ' de ' + data.total_paginas + ' (' + data.total_clientes + ' clientes en total)' +
@@ -1013,6 +1021,46 @@
         ordenDirActual = 'asc';
         paginaActual = 1;
         cargar();
+    });
+
+    document.getElementById('cr-sugerir-orden').addEventListener('click', function () {
+        var rutaId = rutaSelect.value;
+        if (!rutaId || rutaId === 'todos' || rutaId === 'sin_ruta') return;
+
+        var btn = this;
+        var textoOriginal = btn.textContent;
+        btn.textContent = 'Calculando...';
+
+        fetch(baseUrl + '/rutas/' + rutaId + '/sugerir-orden')
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+            .then(function (res) {
+                btn.textContent = textoOriginal;
+                if (!res.ok) {
+                    showToast(res.body.mensaje || 'No se pudo calcular el orden sugerido.');
+                    return;
+                }
+
+                var aviso = 'Se calculó un orden para ' + res.body.con_gps + ' cliente(s) con GPS' +
+                    (res.body.sin_gps > 0 ? ', dejando ' + res.body.sin_gps + ' sin GPS al final' : '') +
+                    '.\n\nEs una aproximación en línea recta (no la ruta real de calles). ¿Aplicar este orden?';
+                if (!window.confirm(aviso)) return;
+
+                fetch(baseUrl + '/reordenar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ orden: res.body.orden, offset: 0 }),
+                }).then(function (r) { return r.json(); }).then(function () {
+                    showToast('Orden sugerido aplicado.');
+                    cargar();
+                });
+            })
+            .catch(function () {
+                btn.textContent = textoOriginal;
+                showToast('Error de conexión al calcular el orden.');
+            });
     });
 
     btnPaginaAnterior.addEventListener('click', function () {

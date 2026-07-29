@@ -109,6 +109,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/reordenar', 'App\Http\Controllers\ClientesRutaController@reordenar')
         ->name('reordenar')
         ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/rutas/{rutaId}/sugerir-orden', 'App\Http\Controllers\ClientesRutaController@sugerirOrden')
+        ->name('sugerir-orden')
+        ->where(['tenant' => '[0-9]+', 'rutaId' => '[0-9]+']);
     Route::post('{tenant}/clientes/{cliente}/ruta', 'App\Http\Controllers\ClientesRutaController@cambiarRuta')
         ->name('cambiar-ruta')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);

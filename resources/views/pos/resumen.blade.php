@@ -395,6 +395,7 @@
                             $iniciales = mb_strtoupper(mb_substr($v->cliente?->nombre ?? '?', 0, 1) . mb_substr($v->cliente?->apellido ?? '', 0, 1));
                             [$avBg, $avColor] = explode(':', $avatarColors[$i % count($avatarColors)]);
                             $mapsUrl = ($v->latitud && $v->longitud) ? 'https://www.google.com/maps?q=' . $v->latitud . ',' . $v->longitud : null;
+                            $wazeUrl = ($v->latitud && $v->longitud) ? 'https://waze.com/ul?ll=' . $v->latitud . ',' . $v->longitud . '&navigate=yes' : null;
                         @endphp
                         <div class="rd-visita-row">
                             <div class="rd-avatar-init" style="background:{{ $avBg }};color:{{ $avColor }};">{{ $iniciales }}</div>
@@ -411,6 +412,10 @@
                                     <a href="{{ $mapsUrl }}" target="_blank" class="rd-mapa-link">
                                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                                         Ver en mapa
+                                    </a>
+                                    <a href="{{ $wazeUrl }}" target="_blank" class="rd-mapa-link" style="margin-left:.5rem;">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                        Waze
                                     </a>
                                 @endif
                             </div>
