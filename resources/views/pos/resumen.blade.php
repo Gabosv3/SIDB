@@ -178,17 +178,31 @@
         <label class="rd-filter-label">Fecha</label>
         <input type="date" name="fecha" value="{{ $fecha }}" class="rd-filter-input">
     </div>
-    <div class="rd-filter-group">
+    <div class="rd-filter-group" style="position:relative;">
         <label class="rd-filter-label">Cobrador</label>
-        <select name="cobrador_id" class="rd-filter-input">
-            <option value="">Todos los cobradores</option>
+        <button type="button" class="rd-filter-input" style="text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.5rem;" id="rd-cobrador-btn">
+            <span id="rd-cobrador-label">
+                @if(empty($cobradorIds))
+                    Todos los cobradores
+                @else
+                    {{ $cobradores->whereIn('id', $cobradorIds)->count() }} cobrador(es) seleccionado(s)
+                @endif
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="rd-rutas-panel" id="rd-cobrador-panel" style="display:none;">
+            <label class="rd-rutas-item" style="font-weight:700;border-bottom:1px solid var(--border-2);">
+                <input type="checkbox" id="rd-cobrador-todos" {{ empty($cobradorIds) ? 'checked' : '' }}> Todos los cobradores
+            </label>
             @foreach($cobradores as $c)
-                <option value="{{ $c->id }}" {{ (string) $cobradorId === (string) $c->id ? 'selected' : '' }}>{{ $c->nombre }} {{ $c->apellido }}</option>
+                <label class="rd-rutas-item">
+                    <input type="checkbox" name="cobrador_id[]" class="rd-cobrador-check" value="{{ $c->id }}" {{ in_array($c->id, $cobradorIds) ? 'checked' : '' }}> {{ $c->nombre }} {{ $c->apellido }}
+                </label>
             @endforeach
-        </select>
+        </div>
     </div>
     <button type="submit" class="rd-filter-btn">Filtrar</button>
-    @if($fecha !== today()->toDateString() || $cobradorId)
+    @if($fecha !== today()->toDateString() || ! empty($cobradorIds))
         <a href="{{ route('pos.resumen', $tenant) }}" class="rd-filter-reset">Limpiar filtros</a>
     @endif
 </form>
@@ -581,6 +595,52 @@ function toggleCob(id) {
         });
     });
 })();
+
+// ── Filtro de cobrador (multi-select, se envía con el formulario) ──────────
+(function () {
+    var btn = document.getElementById('rd-cobrador-btn');
+    var panel = document.getElementById('rd-cobrador-panel');
+    var label = document.getElementById('rd-cobrador-label');
+    var todasCheck = document.getElementById('rd-cobrador-todos');
+    if (!btn || !panel) return;
+
+    var checks = Array.prototype.slice.call(document.querySelectorAll('.rd-cobrador-check'));
+
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', function (e) {
+        if (!panel.contains(e.target) && e.target !== btn) panel.style.display = 'none';
+    });
+
+    function actualizarLabel() {
+        var seleccionados = checks.filter(function (c) { return c.checked; });
+        if (seleccionados.length === 0) {
+            label.textContent = 'Todos los cobradores';
+        } else if (seleccionados.length === 1) {
+            label.textContent = seleccionados[0].parentElement.textContent.trim();
+        } else {
+            label.textContent = seleccionados.length + ' cobradores seleccionados';
+        }
+    }
+
+    todasCheck.addEventListener('change', function () {
+        if (todasCheck.checked) {
+            checks.forEach(function (c) { c.checked = false; });
+        }
+        actualizarLabel();
+    });
+
+    checks.forEach(function (check) {
+        check.addEventListener('change', function () {
+            var algunoMarcado = checks.some(function (c) { return c.checked; });
+            todasCheck.checked = !algunoMarcado;
+            actualizarLabel();
+        });
+    });
+})();
+
 function toggleMorePendientes(id) {
     var el  = document.getElementById('pend-more-' + id);
     var btn = document.getElementById('pend-btn-' + id);

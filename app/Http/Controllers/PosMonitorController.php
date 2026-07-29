@@ -143,29 +143,31 @@ class PosMonitorController extends Controller
     public function resumen(Request $request, $tenant)
     {
         $fecha = $request->get('fecha') ?: today()->toDateString();
-        $cobradorId = $request->get('cobrador_id') ? (int) $request->get('cobrador_id') : null;
+        // El filtro de cobrador ahora es multi-select — llega como cobrador_id[]=3&cobrador_id[]=5.
+        // Vacío = todos los cobradores (mismo significado que antes con cobrador_id=null).
+        $cobradorIds = array_values(array_filter(array_map('intval', (array) $request->get('cobrador_id', []))));
         $ayer = Carbon::parse($fecha)->subDay()->toDateString();
 
-        $resumen = ResumenCobrosDiaService::resumen($fecha, $cobradorId);
+        $resumen = ResumenCobrosDiaService::resumen($fecha, $cobradorIds);
         $totalesResumen = ResumenCobrosDiaService::totales($resumen);
-        $hoySimple = ResumenCobrosDiaService::totalesSimples($fecha, $cobradorId);
-        $ayerSimple = ResumenCobrosDiaService::totalesSimples($ayer, $cobradorId);
-        $general = ResumenCobrosDiaService::resumenGeneral($fecha, $cobradorId);
+        $hoySimple = ResumenCobrosDiaService::totalesSimples($fecha, $cobradorIds);
+        $ayerSimple = ResumenCobrosDiaService::totalesSimples($ayer, $cobradorIds);
+        $general = ResumenCobrosDiaService::resumenGeneral($fecha, $cobradorIds);
         $cobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get();
         $actividad = $this->actividadReciente($fecha);
 
         // ── KPIs nuevos ──────────────────────────────────────────────────
-        $totalVales = ResumenCobrosDiaService::totalValesDia($fecha, $cobradorId);
-        $morosidad = ResumenCobrosDiaService::morosidad($cobradorId);
-        $comparativoSemanal = ResumenCobrosDiaService::comparativoSemanal($fecha, $cobradorId);
+        $totalVales = ResumenCobrosDiaService::totalValesDia($fecha, $cobradorIds);
+        $morosidad = ResumenCobrosDiaService::morosidad($cobradorIds);
+        $comparativoSemanal = ResumenCobrosDiaService::comparativoSemanal($fecha, $cobradorIds);
 
         // ── Datos para gráficas ──────────────────────────────────────────
-        $graficoTendencia = ResumenCobrosDiaService::tendenciaDiaria($fecha, 14, $cobradorId);
-        $graficoCobradores = ResumenCobrosDiaService::comparacionCobradores($fecha);
-        $graficoMetodos = ResumenCobrosDiaService::desglosePorMetodo($fecha, $cobradorId);
+        $graficoTendencia = ResumenCobrosDiaService::tendenciaDiaria($fecha, 14, $cobradorIds);
+        $graficoCobradores = ResumenCobrosDiaService::comparacionCobradores($fecha, $cobradorIds);
+        $graficoMetodos = ResumenCobrosDiaService::desglosePorMetodo($fecha, $cobradorIds);
 
         return view('pos.resumen', compact(
-            'tenant', 'fecha', 'cobradorId', 'cobradores',
+            'tenant', 'fecha', 'cobradorIds', 'cobradores',
             'resumen', 'totalesResumen', 'hoySimple', 'ayerSimple', 'general', 'actividad',
             'totalVales', 'morosidad', 'comparativoSemanal',
             'graficoTendencia', 'graficoCobradores', 'graficoMetodos'
