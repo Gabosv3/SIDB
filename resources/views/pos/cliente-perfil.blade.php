@@ -255,11 +255,19 @@
             card += '<div class="cr-venta-pagos-list">';
             v.pagos.forEach(function (p) {
                 var cantidadNota = p.cantidad > 1 ? ' <span style="color:var(--muted-2);">(' + p.cantidad + ' pagos)</span>' : '';
+                var reciboNota = p.numero_recibo ? ' <span style="color:var(--muted-2); font-size:.68rem;">· ' + p.numero_recibo + '</span>' : '';
+                var reciboBtn = p.numero_recibo
+                    ? '<a class="cr-abono-edit" href="' + baseUrl + '/recibo/' + p.numero_recibo + '" target="_blank" rel="noopener" title="Generar recibo">' +
+                        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>' +
+                      '</a>'
+                    : '';
+
                 card += '<div class="cr-venta-pago-row">' +
-                    '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + '</span>' +
+                    '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + reciboNota + '</span>' +
                     '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
                         '<strong style="color:#16a34a;">' + money(p.monto) + '</strong>' +
-                        '<button type="button" class="cr-abono-edit cp-pago-fecha-edit" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" title="Corregir este pago">' +
+                        reciboBtn +
+                        '<button type="button" class="cr-abono-edit cp-pago-fecha-edit" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" data-numero-recibo="' + (p.numero_recibo || '') + '" title="Corregir este pago">' +
                             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
                         '</button>' +
                     '</span>' +
@@ -389,8 +397,9 @@
                 var fechaIso = this.dataset.fechaIso;
                 var fecha = this.dataset.fecha;
                 var montoActual = this.dataset.monto;
+                var numeroRecibo = this.dataset.numeroRecibo;
 
-                var nuevo = window.prompt('Monto total de los pagos del ' + fecha + ':', montoActual);
+                var nuevo = window.prompt('Monto total del recibo del ' + fecha + ':', montoActual);
                 if (nuevo === null) return;
                 nuevo = nuevo.replace(',', '.').trim();
                 if (nuevo === '' || isNaN(nuevo) || Number(nuevo) < 0) {
@@ -404,7 +413,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     },
-                    body: JSON.stringify({ venta_id: Number(ventaId), fecha_pago: fechaIso, monto: Number(nuevo) }),
+                    body: JSON.stringify({ venta_id: Number(ventaId), fecha_pago: fechaIso, numero_recibo: numeroRecibo || null, monto: Number(nuevo) }),
                 }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
                   .then(function (res) {
                     showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));

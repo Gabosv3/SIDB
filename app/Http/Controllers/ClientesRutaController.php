@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Cliente;
 use App\Models\Cobrador;
+use App\Models\ConfiguracionSistema;
 use App\Models\DetalleVenta;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Models\VisitaCobro;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -375,16 +377,19 @@ class ClientesRutaController extends Controller
                 ])->values(),
                 'observaciones' => $v->observaciones,
                 // Varios pagos de una misma visita quedan repartidos entre cuotas (uno por
-                // cuota que se llenó ese día), así que se agrupan por fecha para que se vean
-                // como un solo monto y se puedan editar/corregir como una unidad.
+                // cuota que se llenó ese día), así que se agrupan por numero_recibo para que
+                // se vean como un solo movimiento — mismo criterio que /cobros/historial en
+                // la API móvil. Los pagos antiguos, sin recibo asignado, quedan cada uno como
+                // su propio grupo (no se mezclan entre sí ni con los que sí tienen recibo).
                 'pagos' => $v->pagos
-                    ->groupBy(fn ($p) => $p->fecha_pago?->toDateString())
-                    ->map(function ($grupo, $fechaIso) {
+                    ->groupBy(fn ($p) => $p->numero_recibo ?? 'sin_recibo_' . $p->id)
+                    ->map(function ($grupo) {
                         $primero = $grupo->first();
 
                         return [
+                            'numero_recibo' => $primero->numero_recibo,
                             'fecha' => $primero->fecha_pago?->format('d/m/Y'),
-                            'fecha_iso' => $fechaIso,
+                            'fecha_iso' => $primero->fecha_pago?->toDateString(),
                             'monto' => round((float) $grupo->sum('monto'), 2),
                             'metodo_pago' => $grupo->pluck('metodo_pago')->unique()->count() === 1
                                 ? $primero->metodo_pago
@@ -461,6 +466,77 @@ class ClientesRutaController extends Controller
             ],
             'historial_ruta' => $historialRuta,
         ]);
+    }
+
+    /**
+     * Genera el PDF del recibo de un pago (o grupo de pagos con el mismo
+     * numero_recibo — una sola visita puede repartirse en varias cuotas),
+     * con el mismo formato de tiquete que ya imprime la app móvil.
+     */
+    public function generarRecibo(Request $request, $tenant, string $numeroRecibo)
+    {
+        $pagos = PagoVenta::where('numero_recibo', $numeroRecibo)
+            ->with([
+                'cliente:id,nombre,apellido,codigo_anterior,direccion',
+                'venta:id,numero_venta,total,saldo_pendiente',
+                'venta.detalles.producto:id,nombre',
+                'user:id,name',
+                'user.cobrador:id,user_id,nombre,apellido',
+            ])
+            ->orderBy('id')
+            ->get();
+
+        if ($pagos->isEmpty()) {
+            abort(404, 'No se encontró ese recibo.');
+        }
+
+        $primero = $pagos->first();
+        $venta = $primero->venta;
+
+        $productos = $pagos->flatMap(fn (PagoVenta $p) => $p->venta?->detalles ?? collect())
+            ->pluck('producto.nombre')
+            ->filter()
+            ->unique()
+            ->values();
+
+        // "Debía"/"Resta" no se guardan en el pago — se reconstruyen a partir del
+        // saldo actual de la venta y de los pagos posteriores a este recibo (si
+        // el recibo se genera después de que ya hubo más abonos, el saldo actual
+        // ya no refleja el momento de este pago).
+        $abona = round((float) $pagos->sum('monto'), 2);
+        $sumaPosteriores = $venta
+            ? (float) $venta->pagos()->where('id', '>', $pagos->max('id'))->sum('monto')
+            : 0.0;
+        $resta = round((float) ($venta?->saldo_pendiente ?? 0) + $sumaPosteriores, 2);
+        $debia = round($resta + $abona, 2);
+
+        $proximaVisita = $venta
+            ? GestionCobro::where('venta_id', $venta->id)
+                ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
+                ->orderBy('fecha_vencimiento')
+                ->value('fecha_vencimiento')
+            : null;
+
+        $cobrador = $primero->user?->cobrador;
+
+        $pdf = Pdf::loadView('recibo-pago-pdf', [
+            'numeroRecibo' => $numeroRecibo,
+            'cliente' => $primero->cliente,
+            'venta' => $venta,
+            'fecha' => $primero->fecha_pago,
+            'metodoPago' => $pagos->pluck('metodo_pago')->unique()->count() === 1 ? $primero->metodo_pago : 'Mixto',
+            'nombreCobrador' => $cobrador?->nombre ?? $primero->user?->name,
+            'productos' => $productos,
+            'debia' => $debia,
+            'abona' => $abona,
+            'resta' => $resta,
+            'proximaVisita' => $proximaVisita ? \Carbon\Carbon::parse($proximaVisita) : null,
+            'config' => ConfiguracionSistema::instance(),
+        ]);
+
+        $pdf->setPaper([0, 0, 226.77, 400], 'portrait');
+
+        return $pdf->stream("Recibo-{$numeroRecibo}.pdf");
     }
 
     /**
@@ -662,6 +738,7 @@ class ClientesRutaController extends Controller
         $data = $request->validate([
             'venta_id' => 'required|integer',
             'fecha_pago' => 'required|date',
+            'numero_recibo' => 'nullable|string',
             'monto' => 'required|numeric|min:0',
         ]);
 
@@ -671,21 +748,27 @@ class ClientesRutaController extends Controller
             return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
         }
 
-        $pagosDelDia = $venta->pagos()->whereDate('fecha_pago', $data['fecha_pago'])->orderBy('id')->get();
+        // Los pagos se agrupan (y se corrigen) por numero_recibo — una sola visita
+        // puede repartirse en varias cuotas con el mismo recibo. Los registros
+        // antiguos sin recibo asignado siguen agrupándose por fecha, como antes.
+        $pagosDelGrupo = ! empty($data['numero_recibo'])
+            ? $venta->pagos()->where('numero_recibo', $data['numero_recibo'])->orderBy('id')->get()
+            : $venta->pagos()->whereDate('fecha_pago', $data['fecha_pago'])->whereNull('numero_recibo')->orderBy('id')->get();
 
-        if ($pagosDelDia->isEmpty()) {
-            return response()->json(['mensaje' => 'No hay pagos registrados en esa fecha para esta venta.'], 422);
+        if ($pagosDelGrupo->isEmpty()) {
+            return response()->json(['mensaje' => 'No se encontraron pagos para ese recibo en esta venta.'], 422);
         }
 
-        $otrosPagos = (float) $venta->pagos()->whereDate('fecha_pago', '!=', $data['fecha_pago'])->sum('monto');
+        $totalTodosPagos = (float) $venta->pagos()->sum('monto');
+        $otrosPagos = round($totalTodosPagos - (float) $pagosDelGrupo->sum('monto'), 2);
 
         if ($data['monto'] + $otrosPagos + (float) $venta->prima > (float) $venta->total) {
             return response()->json(['mensaje' => 'El monto supera el total de la venta ($'.number_format($venta->total, 2).').'], 422);
         }
 
-        DB::transaction(function () use ($venta, $pagosDelDia, $data) {
-            $principal = $pagosDelDia->first();
-            $pagosDelDia->skip(1)->each(fn (PagoVenta $p) => $p->delete());
+        DB::transaction(function () use ($venta, $pagosDelGrupo, $data) {
+            $principal = $pagosDelGrupo->first();
+            $pagosDelGrupo->skip(1)->each(fn (PagoVenta $p) => $p->delete());
             $principal->update(['monto' => $data['monto']]);
 
             $venta->refresh();
