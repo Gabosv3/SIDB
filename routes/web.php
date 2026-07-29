@@ -97,6 +97,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::get('{tenant}/recibo/{numeroRecibo}', 'App\Http\Controllers\ClientesRutaController@generarRecibo')
         ->name('recibo')
         ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-[0-9]+-[0-9]+']);
+    Route::post('{tenant}/recibo/{numeroRecibo}/anular', 'App\Http\Controllers\ClientesRutaController@anularRecibo')
+        ->name('recibo.anular')
+        ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-[0-9]+-[0-9]+']);
     Route::get('{tenant}/historial', 'App\Http\Controllers\ClientesRutaController@historialGeneral')
         ->name('historial')
         ->where('tenant', '[0-9]+');

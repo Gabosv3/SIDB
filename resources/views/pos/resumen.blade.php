@@ -231,6 +231,11 @@
                 <div style="min-width:0;">
                     <div class="rd-cob-name">{{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}</div>
                     <div class="rd-cob-sub">{{ $r['total_pagos'] }} pago(s) &middot; {{ $r['clientes_visitados'] }} cliente(s) visitado(s)</div>
+                    <div class="rd-cob-sub" style="margin-top:.2rem;">
+                        {{ $r['clientes_ruta_inicio'] }} en la ruta al inicio
+                        &middot; <span style="{{ $r['ventas_canceladas'] > 0 ? 'color:#dc2626;font-weight:600;' : '' }}">{{ $r['ventas_canceladas'] }} cancelada(s)</span>
+                        &middot; <span style="{{ $r['reintegros_enviados'] > 0 ? 'color:#d97706;font-weight:600;' : '' }}">{{ $r['reintegros_enviados'] }} a reintegro</span>
+                    </div>
                 </div>
             </div>
             <div class="rd-cob-total-wrap">

@@ -28,6 +28,9 @@
         .producto { font-size:10.5px; margin-top:2px; }
 
         .pie { margin-top:10px; font-size:10px; text-align:center; }
+
+        .anulado-banner { margin-top:6px; padding:4px; border:2px solid #dc2626; text-align:center; color:#dc2626; font-weight:bold; font-size:12px; letter-spacing:1px; }
+        .anulado-detalle { margin-top:2px; font-size:9px; text-align:center; color:#dc2626; }
     </style>
 </head>
 <body>
@@ -44,6 +47,11 @@
         <span>{{ $numeroRecibo }}</span>
         <span>{{ $fecha?->format('d/m/Y') }}</span>
     </div>
+
+    @if($anulado)
+        <div class="anulado-banner">*** ANULADO ***</div>
+        <div class="anulado-detalle">Este recibo ya no es válido — no representa dinero cobrado.</div>
+    @endif
 
     <div class="divisor"></div>
 

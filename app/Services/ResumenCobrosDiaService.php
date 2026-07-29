@@ -7,8 +7,10 @@ use App\Models\Cobrador;
 use App\Models\ConfiguracionSistema;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
+use App\Models\Reintegro;
 use App\Models\RutaCobro;
 use App\Models\Vale;
+use App\Models\Venta;
 use App\Models\VisitaCobro;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -49,6 +51,17 @@ class ResumenCobrosDiaService
                 ->with('cliente:id,nombre,apellido,codigo_anterior,ruta_cobro_id')
                 ->orderBy('created_at')
                 ->get();
+
+            // Ventas canceladas/devueltas ese día — se cuentan por venta.user_id (el
+            // cobrador que la registró), NO por la ruta actual del cliente: al
+            // cancelarse, si era su única cuenta activa el cliente sale de la ruta
+            // (Venta::boot) y ruta_cobro_id queda en null, perdiendo el vínculo con
+            // la ruta. user_id nunca cambia, así que es el único dato confiable para
+            // saber que esa cancelación fue de este cobrador.
+            $ventasCanceladasCobrador = Venta::where('user_id', $cobrador->user_id)
+                ->whereIn('estado', ['cancelada', 'devuelta'])
+                ->whereDate('updated_at', $fechaCarbon)
+                ->count();
 
             $rutasHoyIds = $cobrador->rutasCobro()
                 ->where('dia_semana', $diaFecha)
@@ -93,6 +106,21 @@ class ResumenCobrosDiaService
                     ->orderBy('nombre')
                     ->get();
 
+                // "Llevó en la ruta al inicio" — clientes activos de ESTA ruta a día de
+                // hoy. No es un snapshot histórico (no existe ese dato en el sistema);
+                // para la fecha de hoy es exacto, para fechas pasadas es la mejor
+                // aproximación disponible (misma convención que $noVisitados arriba).
+                $clientesRutaInicio = Cliente::where('ruta_cobro_id', $rutaId)
+                    ->where('activo', true)
+                    ->count();
+
+                // Reintegros SÍ guardan la ruta de origen (ruta_cobro_id_original), a
+                // diferencia de las cancelaciones — por eso este conteo sí se puede
+                // hacer de forma confiable por ruta.
+                $reintegrosEnviados = Reintegro::where('ruta_cobro_id_original', $rutaId)
+                    ->whereDate('fecha_asignacion', $fechaCarbon)
+                    ->count();
+
                 $resumen->push([
                     'cobrador' => $cobrador,
                     'ruta' => $rutas->get($rutaId),
@@ -103,6 +131,9 @@ class ResumenCobrosDiaService
                     'detalle' => $pagos,
                     'visitas_sin_cobro' => $visitas,
                     'no_visitados' => $noVisitados,
+                    'clientes_ruta_inicio' => $clientesRutaInicio,
+                    'ventas_canceladas' => $ventasCanceladasCobrador,
+                    'reintegros_enviados' => $reintegrosEnviados,
                 ]);
             }
         }

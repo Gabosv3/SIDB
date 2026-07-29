@@ -106,7 +106,7 @@ class EliminarPagoVentaService
                 'estado' => $venta->estado,
             ];
 
-            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->whereNull('anulado_en')->sum('monto'), 2);
             $venta->monto_pagado = $totalPagado;
             $venta->saldo_pendiente = max(0, round((float) $venta->total - $totalPagado, 2));
             $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
@@ -133,11 +133,12 @@ class EliminarPagoVentaService
     }
 
     /**
-     * Redistribuye lo realmente pagado de una venta (tras eliminar pagos)
-     * entre sus cuotas, en el mismo orden (FIFO por numero_cuota) en que
-     * CobroController las fue aplicando originalmente.
+     * Redistribuye lo realmente pagado de una venta (tras eliminar o anular
+     * pagos) entre sus cuotas, en el mismo orden (FIFO por numero_cuota) en
+     * que CobroController las fue aplicando originalmente. Pública porque
+     * AnularReciboService también la reutiliza.
      */
-    private static function resincronizarCuotas(int $ventaId): void
+    public static function resincronizarCuotas(int $ventaId): void
     {
         $venta = Venta::where('id', $ventaId)->lockForUpdate()->first();
         if (! $venta) {

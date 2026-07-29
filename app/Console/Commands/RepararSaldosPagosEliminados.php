@@ -73,7 +73,7 @@ class RepararSaldosPagosEliminados extends Command
 
             $revisadas++;
 
-            $totalReal = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+            $totalReal = round((float) $venta->prima + (float) $venta->pagos()->whereNull('anulado_en')->sum('monto'), 2);
             $saldoReal = max(0, round((float) $venta->total - $totalReal, 2));
             $montoActual = round((float) $venta->monto_pagado, 2);
             $saldoActual = round((float) $venta->saldo_pendiente, 2);

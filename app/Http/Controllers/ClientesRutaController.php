@@ -348,6 +348,7 @@ class ClientesRutaController extends Controller
             'ventas' => fn ($q) => $q->orderBy('fecha_venta')
                 ->with([
                     'pagos' => fn ($p) => $p->orderBy('fecha_pago'),
+                    'pagos.anuladoPor:id,name',
                     'gestionesCobro' => fn ($g) => $g->orderBy('numero_cuota'),
                     'detalles.producto:id,nombre',
                     'vendedor:id,nombre,apellido',
@@ -396,6 +397,10 @@ class ClientesRutaController extends Controller
                                 : 'mixto',
                             'observaciones' => $primero->observaciones,
                             'cantidad' => $grupo->count(),
+                            'anulado' => $primero->anulado_en !== null,
+                            'anulado_en' => $primero->anulado_en?->format('d/m/Y H:i'),
+                            'anulado_por' => $primero->anuladoPor?->name,
+                            'motivo_anulacion' => $primero->motivo_anulacion,
                         ];
                     })
                     ->values(),
@@ -505,7 +510,7 @@ class ClientesRutaController extends Controller
         // ya no refleja el momento de este pago).
         $abona = round((float) $pagos->sum('monto'), 2);
         $sumaPosteriores = $venta
-            ? (float) $venta->pagos()->where('id', '>', $pagos->max('id'))->sum('monto')
+            ? (float) $venta->pagos()->where('id', '>', $pagos->max('id'))->whereNull('anulado_en')->sum('monto')
             : 0.0;
         $resta = round((float) ($venta?->saldo_pendiente ?? 0) + $sumaPosteriores, 2);
         $debia = round($resta + $abona, 2);
@@ -531,12 +536,48 @@ class ClientesRutaController extends Controller
             'abona' => $abona,
             'resta' => $resta,
             'proximaVisita' => $proximaVisita ? \Carbon\Carbon::parse($proximaVisita) : null,
+            'anulado' => $primero->anulado_en !== null,
             'config' => ConfiguracionSistema::instance(),
         ]);
 
         $pdf->setPaper([0, 0, 226.77, 400], 'portrait');
 
         return $pdf->stream("Recibo-{$numeroRecibo}.pdf");
+    }
+
+    /**
+     * Anula un recibo (todos los pagos que comparten ese numero_recibo) sin
+     * borrar nada — el registro queda marcado como anulado y deja de contar
+     * en el saldo/cuotas de la venta. Solo super_admin, con confirmación de
+     * su propia contraseña y motivo obligatorio (mismo criterio que eliminar
+     * un cliente, por tratarse de una reversión de dinero ya cobrado).
+     */
+    public function anularRecibo(Request $request, $tenant, string $numeroRecibo): JsonResponse
+    {
+        if (! auth()->user()?->hasRole('super_admin')) {
+            return response()->json(['mensaje' => 'Solo un super administrador puede anular un recibo.'], 403);
+        }
+
+        $data = $request->validate([
+            'password' => ['required', 'current_password'],
+            'motivo' => ['required', 'string', 'max:255'],
+        ], [
+            'password.required' => 'Debes ingresar tu contraseña para confirmar.',
+            'password.current_password' => 'La contraseña ingresada no es correcta.',
+            'motivo.required' => 'Debes indicar el motivo de la anulación.',
+        ]);
+
+        try {
+            $resultado = \App\Services\AnularReciboService::anular($numeroRecibo, auth()->id(), $data['motivo']);
+        } catch (\RuntimeException $e) {
+            return response()->json(['mensaje' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'mensaje' => "Recibo {$numeroRecibo} anulado.",
+            'cantidad' => $resultado['cantidad'],
+            'monto_total' => $resultado['monto_total'],
+        ]);
     }
 
     /**
@@ -684,8 +725,9 @@ class ClientesRutaController extends Controller
             return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
         }
 
-        $primerPagoId = $venta->pagos()->oldest('fecha_pago')->value('id');
+        $primerPagoId = $venta->pagos()->whereNull('anulado_en')->oldest('fecha_pago')->value('id');
         $otrosPagos = (float) $venta->pagos()
+            ->whereNull('anulado_en')
             ->when($primerPagoId, fn ($q) => $q->where('id', '!=', $primerPagoId))
             ->sum('monto');
 
@@ -694,7 +736,7 @@ class ClientesRutaController extends Controller
         }
 
         DB::transaction(function () use ($venta, $data) {
-            $pagoInicial = $venta->pagos()->oldest('fecha_pago')->first();
+            $pagoInicial = $venta->pagos()->whereNull('anulado_en')->oldest('fecha_pago')->first();
 
             if ($pagoInicial) {
                 $pagoInicial->update(['monto' => $data['monto']]);
@@ -711,7 +753,7 @@ class ClientesRutaController extends Controller
             }
 
             $venta->refresh();
-            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->whereNull('anulado_en')->sum('monto'), 2);
             $venta->monto_pagado = $totalPagado;
             $venta->saldo_pendiente = max(0, round($venta->total - $totalPagado, 2));
             $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
@@ -751,15 +793,16 @@ class ClientesRutaController extends Controller
         // Los pagos se agrupan (y se corrigen) por numero_recibo — una sola visita
         // puede repartirse en varias cuotas con el mismo recibo. Los registros
         // antiguos sin recibo asignado siguen agrupándose por fecha, como antes.
+        // Un recibo ya anulado no se puede "corregir" — primero hay que reactivarlo.
         $pagosDelGrupo = ! empty($data['numero_recibo'])
-            ? $venta->pagos()->where('numero_recibo', $data['numero_recibo'])->orderBy('id')->get()
-            : $venta->pagos()->whereDate('fecha_pago', $data['fecha_pago'])->whereNull('numero_recibo')->orderBy('id')->get();
+            ? $venta->pagos()->where('numero_recibo', $data['numero_recibo'])->whereNull('anulado_en')->orderBy('id')->get()
+            : $venta->pagos()->whereDate('fecha_pago', $data['fecha_pago'])->whereNull('numero_recibo')->whereNull('anulado_en')->orderBy('id')->get();
 
         if ($pagosDelGrupo->isEmpty()) {
-            return response()->json(['mensaje' => 'No se encontraron pagos para ese recibo en esta venta.'], 422);
+            return response()->json(['mensaje' => 'No se encontraron pagos vigentes para ese recibo en esta venta.'], 422);
         }
 
-        $totalTodosPagos = (float) $venta->pagos()->sum('monto');
+        $totalTodosPagos = (float) $venta->pagos()->whereNull('anulado_en')->sum('monto');
         $otrosPagos = round($totalTodosPagos - (float) $pagosDelGrupo->sum('monto'), 2);
 
         if ($data['monto'] + $otrosPagos + (float) $venta->prima > (float) $venta->total) {
@@ -772,7 +815,7 @@ class ClientesRutaController extends Controller
             $principal->update(['monto' => $data['monto']]);
 
             $venta->refresh();
-            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+            $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->whereNull('anulado_en')->sum('monto'), 2);
             $venta->monto_pagado = $totalPagado;
             $venta->saldo_pendiente = max(0, round($venta->total - $totalPagado, 2));
             $venta->estado = $venta->saldo_pendiente <= 0 ? 'completada' : 'pendiente';
@@ -801,7 +844,7 @@ class ClientesRutaController extends Controller
             return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
         }
 
-        $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->sum('monto'), 2);
+        $totalPagado = round((float) $venta->prima + (float) $venta->pagos()->whereNull('anulado_en')->sum('monto'), 2);
         $nuevoTotal = round((float) $data['total'], 2);
 
         if ($nuevoTotal < $totalPagado) {

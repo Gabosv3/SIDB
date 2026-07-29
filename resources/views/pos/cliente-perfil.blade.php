@@ -262,6 +262,28 @@
                       '</a>'
                     : '';
 
+                if (p.anulado) {
+                    var motivoTxt = p.motivo_anulacion ? ' — ' + p.motivo_anulacion : '';
+                    card += '<div class="cr-venta-pago-row" style="flex-direction:column; align-items:flex-start; gap:.15rem;">' +
+                        '<div style="display:flex; justify-content:space-between; width:100%; align-items:center;">' +
+                            '<span style="text-decoration:line-through; color:var(--muted-2);">' + p.fecha + ' — ' + p.metodo_pago + cantidadNota + reciboNota + '</span>' +
+                            '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
+                                '<strong style="text-decoration:line-through; color:var(--muted-2);">' + money(p.monto) + '</strong>' +
+                                '<span class="cr-venta-badge" style="background:#fee2e2; color:#dc2626;">ANULADO</span>' +
+                                reciboBtn +
+                            '</span>' +
+                        '</div>' +
+                        '<span style="color:#dc2626; font-size:.7rem;">Anulado ' + p.anulado_en + (p.anulado_por ? ' por ' + p.anulado_por : '') + motivoTxt + '</span>' +
+                    '</div>';
+                    return;
+                }
+
+                var anularBtn = (esSuperAdmin && p.numero_recibo)
+                    ? '<button type="button" class="cr-abono-edit cp-anular-recibo" data-numero-recibo="' + p.numero_recibo + '" data-nombre-cliente="' + c.nombre.replace(/"/g, '&quot;') + '" title="Anular este recibo" style="color:#dc2626;">' +
+                        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>' +
+                      '</button>'
+                    : '';
+
                 card += '<div class="cr-venta-pago-row">' +
                     '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + reciboNota + '</span>' +
                     '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
@@ -270,6 +292,7 @@
                         '<button type="button" class="cr-abono-edit cp-pago-fecha-edit" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" data-numero-recibo="' + (p.numero_recibo || '') + '" title="Corregir este pago">' +
                             '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
                         '</button>' +
+                        anularBtn +
                     '</span>' +
                 '</div>';
             });
@@ -418,6 +441,51 @@
                   .then(function (res) {
                     showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
                     if (res.ok) cargar();
+                });
+            });
+        });
+
+        body.querySelectorAll('.cp-anular-recibo').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var numeroRecibo = this.dataset.numeroRecibo;
+                var nombreCliente = this.dataset.nombreCliente;
+
+                if (!window.confirm('¿ANULAR el recibo ' + numeroRecibo + ' de ' + nombreCliente + '?\n\nEl registro no se borra, pero deja de contar en el saldo y las cuotas de la venta — como si ese pago no se hubiera hecho.\n\nEsta acción se puede ver siempre en el historial, pero no se puede deshacer desde aquí.')) return;
+
+                var motivo = window.prompt('Motivo de la anulación (obligatorio):', '');
+                if (motivo === null) return;
+                motivo = motivo.trim();
+                if (motivo === '') {
+                    showToast('Debes indicar el motivo de la anulación.');
+                    return;
+                }
+
+                var password = window.prompt('Confirma tu contraseña para anular este recibo:');
+                if (password === null) return;
+                if (password.trim() === '') {
+                    showToast('Debes ingresar tu contraseña para confirmar.');
+                    return;
+                }
+
+                fetch(baseUrl + '/recibo/' + numeroRecibo + '/anular', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ password: password, motivo: motivo }),
+                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                  .then(function (res) {
+                    if (res.ok) {
+                        showToast(res.body.mensaje || 'Recibo anulado.');
+                        cargar();
+                    } else {
+                        var msg = res.body.mensaje
+                            || (res.body.errors && res.body.errors.password && res.body.errors.password[0])
+                            || (res.body.errors && res.body.errors.motivo && res.body.errors.motivo[0])
+                            || 'No se pudo anular el recibo.';
+                        showToast(msg);
+                    }
                 });
             });
         });

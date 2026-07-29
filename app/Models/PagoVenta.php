@@ -22,11 +22,15 @@ class PagoVenta extends Model
         'metodo_pago',
         'referencia',
         'observaciones',
+        'anulado_en',
+        'anulado_por',
+        'motivo_anulacion',
     ];
 
     protected $casts = [
         'monto'      => 'decimal:2',
         'fecha_pago' => 'date',
+        'anulado_en' => 'datetime',
     ];
 
     // ── Boot: actualizar monto_pagado y saldo de la venta ─────────────────────
@@ -38,7 +42,9 @@ class PagoVenta extends Model
         static::created(function (PagoVenta $pago): void {
             $venta = $pago->venta;
             if ($venta) {
-                $totalPagado = $venta->prima + $venta->pagos()->sum('monto');
+                // Un pago anulado sigue en la tabla pero nunca vuelve a contar
+                // en el total pagado de la venta.
+                $totalPagado = $venta->prima + $venta->pagos()->whereNull('anulado_en')->sum('monto');
                 $venta->monto_pagado    = $totalPagado;
                 $venta->saldo_pendiente = max(0, $venta->total - $totalPagado);
                 if ($venta->saldo_pendiente <= 0) {
@@ -55,7 +61,7 @@ class PagoVenta extends Model
         static::deleting(function (PagoVenta $pago): void {
             $venta = $pago->venta;
             if ($venta) {
-                $totalPagado = $venta->prima + $venta->pagos()->where('id', '!=', $pago->id)->sum('monto');
+                $totalPagado = $venta->prima + $venta->pagos()->where('id', '!=', $pago->id)->whereNull('anulado_en')->sum('monto');
                 $venta->monto_pagado    = $totalPagado;
                 $venta->saldo_pendiente = max(0, $venta->total - $totalPagado);
                 if ($venta->saldo_pendiente > 0 && $venta->estado === 'completada') {
@@ -87,5 +93,10 @@ class PagoVenta extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por');
     }
 }
