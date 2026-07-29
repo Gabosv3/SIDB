@@ -59,7 +59,7 @@ class ResumenCobrosDia extends Page
      */
     private function resumenBase(): array
     {
-        $resumen = ResumenCobrosDiaService::resumen($this->fecha, $this->cobrador_id);
+        $resumen = ResumenCobrosDiaService::resumen($this->fecha, $this->cobrador_id ? [$this->cobrador_id] : []);
 
         $termino = mb_strtolower(trim($this->buscarCliente));
         if ($termino === '') {

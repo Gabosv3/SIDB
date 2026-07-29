@@ -42,7 +42,7 @@ class PosMonitorController extends Controller
 
         $alertasCount = $devices->filter(fn ($d) => in_array($d->estado_calc, ['sin_conexion', 'bateria_baja', 'apagado']))->count();
 
-        $resumen = ResumenCobrosDiaService::resumen($fecha, $cobradorId);
+        $resumen = ResumenCobrosDiaService::resumen($fecha, $cobradorId ? [(int) $cobradorId] : []);
         $totalesResumen = ResumenCobrosDiaService::totales($resumen);
         $cobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get();
 
