@@ -239,6 +239,7 @@ return [
         'View:ClientesRuta' => 'Ver Clientes por Ruta',
         'Publicar:AppUpdate' => 'Publicar actualizaciones de la app móvil (APK)',
         'View:MiWhatsApp' => 'Conectar y usar el WhatsApp propio (Baileys)',
+        'Gestionar:DispositivosPos' => 'Liberar dispositivos POS (Monitor POS)',
     ],
 
     /*

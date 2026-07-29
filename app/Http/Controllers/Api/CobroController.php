@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\Cobrador;
 use App\Models\CobradorRecibosContador;
+use App\Models\ConfiguracionSistema;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\Vale;
@@ -96,10 +97,14 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
         $diaHoy = $this->diaHoy();
+        $semanaActual = ConfiguracionSistema::instance()->semanaActual();
 
         $rutas = $cobrador->rutasCobro()
             ->where('dia_semana', $diaHoy)
             ->where('activa', true)
+            ->when($semanaActual !== null, fn ($q) => $q->where(
+                fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaActual)
+            ))
             ->withCount('clientes')
             ->with([
                 'clientes' => fn ($q) => $q
@@ -142,6 +147,7 @@ class CobroController extends Controller
                 'id' => $ruta->id,
                 'nombre' => $ruta->nombre,
                 'dia_semana' => $ruta->dia_semana,
+                'semana_ciclo' => $ruta->semana_ciclo,
                 'total_clientes' => $ruta->clientes_count,
                 'clientes' => $ruta->clientes->map(fn ($c) => [
                     'id' => $c->id,

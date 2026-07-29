@@ -10,6 +10,7 @@ use App\Models\PagoVenta;
 use App\Models\Producto;
 use App\Models\Reintegro;
 use App\Models\RutaCobro;
+use App\Models\User;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Models\VisitaCobro;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Spatie\Activitylog\Models\Activity;
 
 class ClientesRutaController extends Controller
 {
@@ -39,7 +41,7 @@ class ClientesRutaController extends Controller
     {
         $rutaId = $request->get('ruta_cobro_id') ?: null;
 
-        $rutas = RutaCobro::withCount('clientes')->orderBy('nombre')->get();
+        $rutas = RutaCobro::withCount('clientes')->with('cobrador:id,nombre,apellido')->orderBy('nombre')->get();
 
         if (! $rutaId && $rutas->isNotEmpty()) {
             $rutaId = $rutas->first()->id;
@@ -50,19 +52,151 @@ class ClientesRutaController extends Controller
         $camposImportacion = self::CAMPOS_IMPORTACION;
         $esSuperAdmin = auth()->user()?->hasRole('super_admin') ?? false;
 
-        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'camposImportacion', 'esSuperAdmin'));
+        // Precomputado en el controlador (no inline en el blade con @json) — una
+        // expresión larga dentro de @json() se trunca por una limitación del
+        // parser de directivas de Blade con arrays literales de varias llaves.
+        $rutasParaJs = $rutas->map(fn (RutaCobro $r) => [
+            'id' => $r->id,
+            'nombre' => $r->nombre,
+            'dia_semana' => $r->dia_semana,
+            'cobrador_id' => $r->cobrador_id,
+            'cobrador_nombre' => $r->cobrador ? trim($r->cobrador->nombre.' '.$r->cobrador->apellido) : null,
+        ])->values();
+
+        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'camposImportacion', 'esSuperAdmin', 'rutasParaJs'));
+    }
+
+    /**
+     * Página completa del cliente (reemplaza el antiguo modal "Ver detalle").
+     * Los datos (ventas, pagos, historial de movimiento) se cargan por AJAX
+     * contra el mismo endpoint /detalle que ya existía.
+     */
+    public function perfilCliente(Request $request, $tenant, Cliente $cliente)
+    {
+        $esSuperAdmin = auth()->user()?->hasRole('super_admin') ?? false;
+
+        return view('pos.cliente-perfil', compact('tenant', 'cliente', 'esSuperAdmin'));
+    }
+
+    /**
+     * Historial general de movimientos de ruta — todos los clientes, no solo
+     * uno. Página contenedora; los datos se cargan vía historialData().
+     */
+    public function historialGeneral(Request $request, $tenant)
+    {
+        $rutas = RutaCobro::orderBy('nombre')->get(['id', 'nombre']);
+
+        return view('pos.historial-movimientos', compact('tenant', 'rutas'));
+    }
+
+    public function historialData(Request $request, $tenant): JsonResponse
+    {
+        $buscar = trim((string) $request->get('buscar', ''));
+        $porPagina = max(10, min(200, $request->integer('por_pagina', 50)));
+        $pagina = max(1, $request->integer('page', 1));
+        $fechaDesde = $request->get('fecha_desde');
+        $fechaHasta = $request->get('fecha_hasta');
+        $rutaAnteriorId = $request->get('ruta_anterior_id');
+        $rutaNuevaId = $request->get('ruta_nueva_id');
+        $ordenCol = $request->get('orden_col');
+        $ordenDir = $request->get('orden_dir') === 'desc' ? 'desc' : 'asc';
+
+        $query = Activity::where('log_name', 'cliente_ruta_cambio')
+            ->where('subject_type', Cliente::class)
+            ->with('causer:id,name');
+
+        if ($buscar !== '') {
+            $clienteIds = Cliente::where('nombre', 'like', "%{$buscar}%")
+                ->orWhere('apellido', 'like', "%{$buscar}%")
+                ->orWhere('codigo_anterior', 'like', "%{$buscar}%")
+                ->pluck('id');
+            $query->whereIn('subject_id', $clienteIds);
+        }
+
+        if ($fechaDesde) {
+            $query->whereDate('created_at', '>=', $fechaDesde);
+        }
+        if ($fechaHasta) {
+            $query->whereDate('created_at', '<=', $fechaHasta);
+        }
+        if ($rutaAnteriorId !== null && $rutaAnteriorId !== '') {
+            $query->where('properties->ruta_anterior_id', (int) $rutaAnteriorId);
+        }
+        if ($rutaNuevaId !== null && $rutaNuevaId !== '') {
+            $query->where('properties->ruta_nueva_id', (int) $rutaNuevaId);
+        }
+
+        // Orden por columna — cliente/usuario se resuelven con subconsulta (igual
+        // que se hizo para el sort de "cobrador" en RutaCobroResource, ya que no
+        // son columnas propias de activity_log); ruta_anterior/ruta_nueva viven
+        // dentro de la columna JSON `properties`.
+        if ($ordenCol === 'cliente') {
+            $query->orderBy(Cliente::select('nombre')->whereColumn('id', 'activity_log.subject_id'), $ordenDir);
+        } elseif ($ordenCol === 'usuario') {
+            $query->orderBy(User::select('name')->whereColumn('id', 'activity_log.causer_id'), $ordenDir);
+        } elseif ($ordenCol === 'ruta_anterior') {
+            $query->orderByRaw("JSON_UNQUOTE(JSON_EXTRACT(properties, '$.ruta_anterior_nombre')) {$ordenDir}");
+        } elseif ($ordenCol === 'ruta_nueva') {
+            $query->orderByRaw("JSON_UNQUOTE(JSON_EXTRACT(properties, '$.ruta_nueva_nombre')) {$ordenDir}");
+        } elseif ($ordenCol === 'fecha' && $ordenDir === 'asc') {
+            $query->oldest();
+        } else {
+            $query->latest();
+        }
+
+        $paginator = $query->paginate($porPagina, ['*'], 'page', $pagina);
+
+        // Los nombres se resuelven aparte por id — si el cliente ya fue eliminado
+        // (registro no encontrado), el historial se conserva igual, solo sin link.
+        $clientesIds = $paginator->getCollection()->pluck('subject_id')->filter()->unique();
+        $clientesPorId = Cliente::whereIn('id', $clientesIds)->get(['id', 'nombre', 'apellido', 'codigo_anterior'])->keyBy('id');
+
+        $items = $paginator->getCollection()->map(function (Activity $a) use ($clientesPorId) {
+            $cliente = $clientesPorId->get($a->subject_id);
+
+            return [
+                'fecha' => $a->created_at->format('d/m/Y H:i'),
+                'usuario' => $a->causer?->name ?? 'Sistema',
+                'cliente_id' => $a->subject_id,
+                'cliente_nombre' => $cliente?->nombre_completo ?? 'Cliente eliminado',
+                'ruta_anterior' => $a->properties->get('ruta_anterior_nombre'),
+                'cobrador_anterior' => $a->properties->get('cobrador_anterior'),
+                'ruta_nueva' => $a->properties->get('ruta_nueva_nombre'),
+                'cobrador_nuevo' => $a->properties->get('cobrador_nuevo'),
+            ];
+        })->values();
+
+        return response()->json([
+            'items' => $items,
+            'pagina_actual' => $paginator->currentPage(),
+            'total_paginas' => $paginator->lastPage(),
+            'total' => $paginator->total(),
+            'por_pagina' => $porPagina,
+            'orden_col' => $ordenCol,
+            'orden_dir' => $ordenDir,
+        ]);
     }
 
     public function data(Request $request, $tenant): JsonResponse
     {
         $rutaId = $request->get('ruta_cobro_id');
         $buscar = trim((string) $request->get('buscar', ''));
+        // Paginación aplica a cualquier filtro (ruta puntual, "sin_ruta" o "todos") —
+        // así ninguna pantalla trae de golpe una lista enorme. La mayoría de rutas
+        // caben en una sola página (< 100 clientes), así que el arrastre para
+        // reordenar sigue funcionando igual que antes en el caso normal; solo las
+        // rutas realmente grandes quedan repartidas en varias páginas.
+        $esTodos = $rutaId === 'todos';
+        $porPagina = max(10, min(500, $request->integer('por_pagina', 100)));
+        $pagina = max(1, $request->integer('page', 1));
+        $ordenCol = $request->get('orden_col');
+        $ordenDir = $request->get('orden_dir') === 'desc' ? 'desc' : 'asc';
 
         $query = Cliente::where('activo', true);
 
         if ($rutaId === 'sin_ruta') {
             $query->whereNull('ruta_cobro_id');
-        } elseif ($rutaId !== 'todos') {
+        } elseif (! $esTodos) {
             $query->where('ruta_cobro_id', $rutaId);
         }
 
@@ -74,19 +208,61 @@ class ClientesRutaController extends Controller
             });
         }
 
-        $clientes = $query
-            ->with(['rutaCobro:id,nombre', 'ventas' => fn ($q) => $q->where('tipo_pago', 'credito')->oldest('fecha_venta')->with(['pagos' => fn ($p) => $p->oldest('fecha_pago')])])
-            ->withCount(['ventas as ventas_count' => fn ($q) => $q->where('saldo_pendiente', '>', 0)])
-            ->orderByRaw('orden IS NULL, orden ASC')
-            ->orderBy('nombre')
-            ->get()
+        // Totales del set completo que calza con el filtro — no solo lo que se
+        // ve en la página actual — para que las tarjetas de arriba no mientan.
+        $totalClientes = (clone $query)->count();
+        $totalSaldo = round((float) (clone $query)->sum('saldo'), 2);
+        $totalPagado = round((float) Venta::where('tipo_pago', 'credito')
+            ->whereIn('cliente_id', (clone $query)->select('clientes.id'))
+            ->sum('monto_pagado'), 2);
+        $totalRevisados = (clone $query)->whereNotNull('revisado_en')->count();
+        $totalSinGps = (clone $query)->where(fn ($q) => $q->whereNull('latitud')->orWhereNull('longitud'))->count();
+
+        $listado = $query
+            ->with(['rutaCobro:id,nombre,cobrador_id', 'ventas' => fn ($q) => $q->where('tipo_pago', 'credito')
+                ->oldest('fecha_venta')
+                // Antes traía TODOS los pagos de cada venta (a veces 20+ cuotas) solo
+                // para quedarse con el primero — con una subconsulta se trae ya
+                // calculado, sin cargar el historial completo de pagos por venta.
+                ->addSelect([
+                    'abono_inicial' => PagoVenta::selectRaw('monto')
+                        ->whereColumn('venta_id', 'ventas.id')
+                        ->oldest('fecha_pago')
+                        ->limit(1),
+                ])])
+            ->withCount(['ventas as ventas_count' => fn ($q) => $q->where('saldo_pendiente', '>', 0)]);
+
+        // Orden manual (arrastre) por defecto; si se pide una columna específica,
+        // esa manda — pero entonces el arrastre para reordenar se desactiva en el
+        // frontend (no tiene sentido combinar ambos a la vez).
+        $columnasOrdenables = [
+            'nombre' => 'nombre',
+            'saldo' => 'saldo',
+            'telefono' => 'telefono_normal',
+            'direccion' => 'direccion',
+        ];
+
+        if ($ordenCol && isset($columnasOrdenables[$ordenCol])) {
+            $listado->orderBy($columnasOrdenables[$ordenCol], $ordenDir);
+        } elseif ($ordenCol === 'ventas_pendientes') {
+            $listado->orderBy('ventas_count', $ordenDir);
+        } elseif ($ordenCol === 'ruta_nombre') {
+            $listado->orderBy(RutaCobro::select('nombre')->whereColumn('id', 'clientes.ruta_cobro_id'), $ordenDir);
+        } else {
+            $listado->orderByRaw('orden IS NULL, orden ASC')->orderBy('nombre');
+        }
+
+        $paginator = $listado->paginate($porPagina, ['*'], 'page', $pagina);
+        $coleccion = $paginator->getCollection();
+
+        $clientes = $coleccion
             ->map(function (Cliente $c) {
                 $ventasCredito = $c->ventas->map(fn ($v) => [
                     'venta_id' => $v->id,
                     'total' => (float) $v->total,
                     'saldo_pendiente' => (float) $v->saldo_pendiente,
                     'monto_pagado' => (float) $v->monto_pagado,
-                    'abono_inicial' => $v->pagos->first() ? (float) $v->pagos->first()->monto : null,
+                    'abono_inicial' => $v->abono_inicial !== null ? (float) $v->abono_inicial : null,
                 ])->values();
 
                 return [
@@ -102,18 +278,65 @@ class ClientesRutaController extends Controller
                     'ventas_pendientes' => (int) $c->ventas_count,
                     'ruta_cobro_id' => $c->ruta_cobro_id,
                     'ruta_nombre' => $c->rutaCobro?->nombre,
+                    'cobrador_id_ruta' => $c->rutaCobro?->cobrador_id,
                     'ventas_credito' => $ventasCredito,
                     'total_pagado_cliente' => round($ventasCredito->sum('monto_pagado'), 2),
+                    'revisado' => $c->revisado_en !== null,
                 ];
             })
             ->values();
 
         return response()->json([
             'clientes' => $clientes,
-            'total_saldo' => round($clientes->sum('saldo'), 2),
-            'total_pagado' => round($clientes->sum('total_pagado_cliente'), 2),
-            'total_clientes' => $clientes->count(),
+            'total_saldo' => $totalSaldo,
+            'total_pagado' => $totalPagado,
+            'total_clientes' => $totalClientes,
+            'total_revisados' => $totalRevisados,
+            'total_sin_gps' => $totalSinGps,
+            'paginado' => $paginator->lastPage() > 1,
+            'pagina_actual' => $paginator->currentPage(),
+            'total_paginas' => $paginator->lastPage(),
+            'por_pagina' => $porPagina,
+            'orden_col' => $ordenCol,
+            'orden_dir' => $ordenDir,
         ]);
+    }
+
+    /**
+     * Marca (o desmarca) un cliente como "revisado" en el checklist de
+     * /clientes-ruta. Antes vivía solo en localStorage del navegador; ahora
+     * es compartido entre cualquiera que entre a esta pantalla.
+     */
+    public function marcarRevisado(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        $data = $request->validate([
+            'revisado' => 'required|boolean',
+        ]);
+
+        $cliente->update(['revisado_en' => $data['revisado'] ? now() : null]);
+
+        return response()->json(['mensaje' => 'Revisión actualizada.']);
+    }
+
+    /**
+     * Limpia el checklist de "revisado" para todos los clientes que calzan
+     * con el filtro actual (una ruta puntual, "sin_ruta" o "todos").
+     */
+    public function limpiarRevision(Request $request, $tenant): JsonResponse
+    {
+        $rutaId = $request->get('ruta_cobro_id');
+
+        $query = Cliente::where('activo', true);
+
+        if ($rutaId === 'sin_ruta') {
+            $query->whereNull('ruta_cobro_id');
+        } elseif ($rutaId !== 'todos') {
+            $query->where('ruta_cobro_id', $rutaId);
+        }
+
+        $cantidad = $query->whereNotNull('revisado_en')->update(['revisado_en' => null]);
+
+        return response()->json(['mensaje' => 'Revisión reiniciada.', 'cantidad' => $cantidad]);
     }
 
     public function detalleCliente(Request $request, $tenant, Cliente $cliente): JsonResponse
@@ -124,6 +347,8 @@ class ClientesRutaController extends Controller
                 ->with([
                     'pagos' => fn ($p) => $p->orderBy('fecha_pago'),
                     'gestionesCobro' => fn ($g) => $g->orderBy('numero_cuota'),
+                    'detalles.producto:id,nombre',
+                    'vendedor:id,nombre,apellido',
                 ]),
         ]);
 
@@ -140,6 +365,14 @@ class ClientesRutaController extends Controller
                 'total' => (float) $v->total,
                 'monto_pagado' => (float) $v->monto_pagado,
                 'saldo_pendiente' => (float) $v->saldo_pendiente,
+                'dias_credito' => $v->dias_credito,
+                'vendedor_nombre' => $v->vendedor ? trim($v->vendedor->nombre.' '.$v->vendedor->apellido) : null,
+                'productos' => $v->detalles->map(fn ($d) => [
+                    'nombre' => $d->producto?->nombre ?? 'Producto eliminado',
+                    'cantidad' => (int) $d->cantidad,
+                    'precio_unitario' => (float) $d->precio_unitario,
+                    'subtotal' => (float) $d->subtotal,
+                ])->values(),
                 'observaciones' => $v->observaciones,
                 // Varios pagos de una misma visita quedan repartidos entre cuotas (uno por
                 // cuota que se llenó ese día), así que se agrupan por fecha para que se vean
@@ -171,19 +404,53 @@ class ClientesRutaController extends Controller
             ];
         })->values();
 
+        $historialRuta = Activity::where('log_name', 'cliente_ruta_cambio')
+            ->where('subject_type', Cliente::class)
+            ->where('subject_id', $cliente->id)
+            ->with('causer:id,name')
+            ->latest()
+            ->limit(30)
+            ->get()
+            ->map(fn (Activity $a) => [
+                'fecha' => $a->created_at->format('d/m/Y H:i'),
+                'usuario' => $a->causer?->name ?? 'Sistema',
+                'ruta_anterior' => $a->properties->get('ruta_anterior_nombre'),
+                'cobrador_anterior' => $a->properties->get('cobrador_anterior'),
+                'ruta_nueva' => $a->properties->get('ruta_nueva_nombre'),
+                'cobrador_nuevo' => $a->properties->get('cobrador_nuevo'),
+            ])
+            ->values();
+
         return response()->json([
             'cliente' => [
                 'id' => $cliente->id,
                 'codigo_anterior' => $cliente->codigo_anterior,
                 'nombre' => $cliente->nombre_completo,
                 'dui' => $cliente->dui,
+                'nit' => $cliente->nit,
+                'email' => $cliente->email,
                 'telefono' => $cliente->telefono_normal,
                 'whatsapp' => $cliente->telefono_whatsapp,
                 'direccion' => $cliente->direccion,
+                'departamento' => $cliente->departamento,
+                'municipio' => $cliente->municipio,
+                'distrito' => $cliente->distrito,
                 'saldo' => (float) $cliente->saldo,
+                'limite_credito' => $cliente->limite_credito !== null ? (float) $cliente->limite_credito : null,
                 'ruta_nombre' => $cliente->rutaCobro?->nombre,
                 'ruta_dia' => $cliente->rutaCobro?->dia_semana,
                 'activo' => (bool) $cliente->activo,
+                'dui_foto_frente' => $cliente->dui_foto_frente ? asset('storage/'.$cliente->dui_foto_frente) : null,
+                'dui_foto_reverso' => $cliente->dui_foto_reverso ? asset('storage/'.$cliente->dui_foto_reverso) : null,
+                'foto_casa' => $cliente->foto_casa ? asset('storage/'.$cliente->foto_casa) : null,
+                'referencias_familiares' => collect([
+                    ['nombre' => $cliente->ref_fam1_nombre, 'telefono' => $cliente->ref_fam1_telefono, 'parentesco' => $cliente->ref_fam1_parentesco],
+                    ['nombre' => $cliente->ref_fam2_nombre, 'telefono' => $cliente->ref_fam2_telefono, 'parentesco' => $cliente->ref_fam2_parentesco],
+                ])->filter(fn ($r) => filled($r['nombre']))->values(),
+                'referencias_conocidas' => collect([
+                    ['nombre' => $cliente->ref_con1_nombre, 'telefono' => $cliente->ref_con1_telefono, 'trabajo' => $cliente->ref_con1_trabajo],
+                    ['nombre' => $cliente->ref_con2_nombre, 'telefono' => $cliente->ref_con2_telefono, 'trabajo' => $cliente->ref_con2_trabajo],
+                ])->filter(fn ($r) => filled($r['nombre']))->values(),
             ],
             'ventas' => $ventas,
             'resumen' => [
@@ -192,6 +459,7 @@ class ClientesRutaController extends Controller
                 'total_pagado' => round($ventas->sum('monto_pagado'), 2),
                 'total_pendiente' => round($ventas->sum('saldo_pendiente'), 2),
             ],
+            'historial_ruta' => $historialRuta,
         ]);
     }
 
@@ -261,11 +529,17 @@ class ClientesRutaController extends Controller
         $data = $request->validate([
             'orden' => 'required|array|min:1',
             'orden.*' => 'required|integer|exists:clientes,id',
+            // Cuando la lista está paginada, cada página solo reordena su propio
+            // rango — el offset (posición absoluta del primer elemento de la
+            // página) evita que dos páginas se pisen el mismo rango de "orden".
+            'offset' => 'nullable|integer|min:0',
         ]);
 
-        DB::transaction(function () use ($data) {
+        $offset = $data['offset'] ?? 0;
+
+        DB::transaction(function () use ($data, $offset) {
             foreach ($data['orden'] as $posicion => $clienteId) {
-                Cliente::where('id', $clienteId)->update(['orden' => $posicion + 1]);
+                Cliente::where('id', $clienteId)->update(['orden' => $offset + $posicion + 1]);
             }
         });
 
@@ -278,12 +552,47 @@ class ClientesRutaController extends Controller
             'ruta_cobro_id' => 'nullable|integer|exists:rutas_cobro,id',
         ]);
 
+        $rutaAnterior = $cliente->rutaCobro()->with('cobrador:id,nombre,apellido')->first();
+        $rutaNueva = ! empty($data['ruta_cobro_id'])
+            ? RutaCobro::with('cobrador:id,nombre,apellido')->find($data['ruta_cobro_id'])
+            : null;
+
         $cliente->update([
             'ruta_cobro_id' => $data['ruta_cobro_id'] ?? null,
             'orden' => null,
         ]);
 
+        $this->registrarMovimientoRuta($cliente, $rutaAnterior, $rutaNueva);
+
         return response()->json(['mensaje' => 'Cliente actualizado.']);
+    }
+
+    /**
+     * Registra en el historial de movimiento (visible en "Ver detalle" del
+     * cliente) cada vez que su ruta/cobrador cambia — incluyendo la primera
+     * asignación al crear el cliente (ahí $rutaAnterior va null).
+     */
+    private function registrarMovimientoRuta(Cliente $cliente, ?RutaCobro $rutaAnterior, ?RutaCobro $rutaNueva): void
+    {
+        $nombreCobrador = fn (?RutaCobro $r) => $r?->cobrador ? trim($r->cobrador->nombre.' '.$r->cobrador->apellido) : null;
+
+        activity('cliente_ruta_cambio')
+            ->causedBy(auth()->user())
+            ->performedOn($cliente)
+            ->withProperties([
+                'ruta_anterior_id' => $rutaAnterior?->id,
+                'ruta_anterior_nombre' => $rutaAnterior?->nombre,
+                'cobrador_anterior' => $nombreCobrador($rutaAnterior),
+                'ruta_nueva_id' => $rutaNueva?->id,
+                'ruta_nueva_nombre' => $rutaNueva?->nombre,
+                'cobrador_nuevo' => $nombreCobrador($rutaNueva),
+            ])
+            ->log(sprintf(
+                'Movió a %s de "%s" a "%s"',
+                $cliente->nombre_completo,
+                $rutaAnterior?->nombre ?? 'Sin ruta',
+                $rutaNueva?->nombre ?? 'Sin ruta'
+            ));
     }
 
     public function actualizarAbonoInicial(Request $request, $tenant, Cliente $cliente): JsonResponse
@@ -843,6 +1152,14 @@ class ClientesRutaController extends Controller
 
             return ['cliente' => $cliente, 'venta' => $ventaInfo];
         });
+
+        if (! empty($data['ruta_cobro_id'])) {
+            $this->registrarMovimientoRuta(
+                $resultado['cliente'],
+                null,
+                RutaCobro::with('cobrador:id,nombre,apellido')->find($data['ruta_cobro_id'])
+            );
+        }
 
         return response()->json([
             'mensaje' => 'Cliente "' . $resultado['cliente']->nombre_completo . '" creado correctamente.',

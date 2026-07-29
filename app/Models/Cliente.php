@@ -46,6 +46,7 @@ class Cliente extends Model
         'orden',
         'activo',
         'grupo_id',
+        'revisado_en',
         // Referencias familiares
         'ref_fam1_nombre',
         'ref_fam1_telefono',
@@ -67,6 +68,7 @@ class Cliente extends Model
         'limite_credito' => 'decimal:2',
         'saldo'          => 'decimal:2',
         'activo'         => 'boolean',
+        'revisado_en'    => 'datetime',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────

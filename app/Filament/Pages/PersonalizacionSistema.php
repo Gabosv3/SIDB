@@ -11,6 +11,7 @@ use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\EmbeddedSchema;
 use Filament\Schemas\Components\Form;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
@@ -386,6 +387,32 @@ class PersonalizacionSistema extends Page
                             ->rows(2)
                             ->maxLength(1000)
                             ->columnSpanFull(),
+                    ]),
+
+                // ── Ciclo quincenal de rutas ────────────────────────────────────
+                Section::make('Ciclo quincenal de rutas (Semana 1 / Semana 2)')
+                    ->description('Fecha de referencia desde la que se alternan la semana 1 y la semana 2 cada 7 días. El POS solo muestra a cada cobrador las rutas clasificadas en la semana que corresponda a la fecha de hoy.')
+                    ->icon('heroicon-m-calendar-days')
+                    ->columns(2)
+                    ->components([
+                        Forms\Components\DatePicker::make('semana1_fecha_ancla')
+                            ->label('Fecha de referencia de la Semana 1')
+                            ->helperText('Cualquier lunes que marque el inicio de una semana 1. Deja el campo vacío para que ninguna ruta se filtre por semana.')
+                            ->native(false)
+                            ->live()
+                            ->columnSpan(1),
+
+                        Forms\Components\Placeholder::make('semana_actual_preview')
+                            ->label('Semana actual')
+                            ->content(function (Get $get) {
+                                $ancla = $get('semana1_fecha_ancla');
+                                if (! $ancla) {
+                                    return 'Ciclo no configurado — todas las rutas se muestran siempre.';
+                                }
+                                $config = new ConfiguracionSistema(['semana1_fecha_ancla' => $ancla]);
+                                return 'Hoy (' . today()->format('d/m/Y') . ') es semana ' . $config->semanaActual() . '.';
+                            })
+                            ->columnSpan(1),
                     ]),
 
             ]);

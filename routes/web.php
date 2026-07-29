@@ -69,6 +69,10 @@ Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function 
             ->name('monitor.data')
             ->where('tenant', '[0-9]+');
     });
+    Route::post('{tenant}/monitor/dispositivos/{device}/liberar', 'App\Http\Controllers\PosMonitorController@liberarDispositivo')
+        ->middleware('can:Gestionar:DispositivosPos')
+        ->name('monitor.liberar')
+        ->where('tenant', '[0-9]+');
     Route::get('{tenant}/resumen', 'App\Http\Controllers\PosMonitorController@resumen')
         ->middleware('can:View:ResumenDia')
         ->name('resumen')
@@ -87,6 +91,15 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::get('{tenant}/clientes/{cliente}/detalle', 'App\Http\Controllers\ClientesRutaController@detalleCliente')
         ->name('detalle')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::get('{tenant}/clientes/{cliente}/perfil', 'App\Http\Controllers\ClientesRutaController@perfilCliente')
+        ->name('perfil-cliente')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::get('{tenant}/historial', 'App\Http\Controllers\ClientesRutaController@historialGeneral')
+        ->name('historial')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/historial/data', 'App\Http\Controllers\ClientesRutaController@historialData')
+        ->name('historial-data')
+        ->where('tenant', '[0-9]+');
     Route::post('{tenant}/reordenar', 'App\Http\Controllers\ClientesRutaController@reordenar')
         ->name('reordenar')
         ->where('tenant', '[0-9]+');
@@ -105,6 +118,12 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/clientes/{cliente}/campo', 'App\Http\Controllers\ClientesRutaController@actualizarCampo')
         ->name('campo')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/clientes/{cliente}/revisado', 'App\Http\Controllers\ClientesRutaController@marcarRevisado')
+        ->name('revisado')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/limpiar-revision', 'App\Http\Controllers\ClientesRutaController@limpiarRevision')
+        ->name('limpiar-revision')
+        ->where('tenant', '[0-9]+');
     Route::delete('{tenant}/clientes/{cliente}', 'App\Http\Controllers\ClientesRutaController@eliminarCliente')
         ->name('eliminar-cliente')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);

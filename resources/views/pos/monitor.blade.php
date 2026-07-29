@@ -34,6 +34,11 @@
     .pm-metric + .pm-metric { border-left:1px solid var(--border-2); }
     .pm-spark      { width:100%; height:40px; display:block; }
     .pm-empty      { padding:2.5rem; text-align:center; color:var(--muted-2); font-size:.82rem; }
+    .pm-liberar-btn {
+        margin-top:.3rem; border:1px solid #fecaca; background:#fef2f2; color:#dc2626;
+        font-size:.65rem; font-weight:600; padding:.15rem .45rem; border-radius:.35rem; cursor:pointer;
+    }
+    .pm-liberar-btn:hover { background:#fee2e2; }
 
     @media (max-width:1100px) {
         .pm-main-grid  { grid-template-columns:1fr; }
@@ -184,6 +189,9 @@
                                 <div style="font-weight:600;font-size:.8rem;color:var(--text-2);">{{ optional($d->user)->name ?? '—' }}</div>
                                 @if($d->cobrador)
                                 <div style="font-size:.68rem;color:#9ca3af;">{{ $d->cobrador->nombre }} {{ $d->cobrador->apellido }}</div>
+                                @endif
+                                @if($puedeLiberar && $d->user_id)
+                                <button type="button" class="pm-liberar-btn" onclick="liberarDispositivo({{ $d->id }}, {{ Illuminate\Support\Js::from($d->nombre) }})">Liberar dispositivo</button>
                                 @endif
                             </td>
                             <td class="pm-td">
@@ -348,6 +356,24 @@
 <script>
 var DATA_URL = '{{ route('pos.monitor.data', $tenant) }}';
 var POLL_MS  = 10000; // 10 segundos
+var PUEDE_LIBERAR = @json($puedeLiberar);
+var LIBERAR_URL_BASE = '{{ url('pos/'.$tenant.'/monitor/dispositivos') }}';
+var CSRF_TOKEN = '{{ csrf_token() }}';
+
+function liberarDispositivo(id, nombre) {
+    if (!confirm('¿Liberar "' + nombre + '"? Quedará sin usuario hasta que alguien vuelva a iniciar sesión ahí.')) return;
+    fetch(LIBERAR_URL_BASE + '/' + id + '/liberar', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+    })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function () { poll(); })
+        .catch(function () { alert('No se pudo liberar el dispositivo.'); });
+}
 
 // ── Estado de badges / colores ─────────────────────────────────────────────
 var ESTADO = {
@@ -510,6 +536,7 @@ function refreshTable(devices) {
             '<td class="pm-td">' +
                 '<div style="font-weight:600;font-size:.8rem;color:var(--text-2);">' + (d.usuario || '—') + '</div>' +
                 (d.cobrador ? '<div style="font-size:.68rem;color:#9ca3af;">' + d.cobrador + '</div>' : '') +
+                (PUEDE_LIBERAR && d.user_id ? '<button type="button" class="pm-liberar-btn" onclick=\'liberarDispositivo(' + d.id + ',' + JSON.stringify(d.nombre) + ')\'>Liberar dispositivo</button>' : '') +
             '</td>' +
             '<td class="pm-td"><span class="pm-badge" style="background:' + st.bg + ';color:' + st.color + ';">' +
                 '<span class="pm-dot" style="background:' + st.dot + ';"></span>' + st.label + '</span></td>' +

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Cliente;
 use App\Models\Cobrador;
+use App\Models\ConfiguracionSistema;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\RutaCobro;
@@ -26,6 +27,7 @@ class ResumenCobrosDiaService
         $fechaCarbon = Carbon::parse($fecha);
         $diasEs = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
         $diaFecha = $diasEs[$fechaCarbon->dayOfWeekIso - 1];
+        $semanaFecha = ConfiguracionSistema::instance()->semanaParaFecha($fechaCarbon);
 
         $cobradores = Cobrador::with('user')
             ->where('activo', true)
@@ -50,6 +52,9 @@ class ResumenCobrosDiaService
 
             $rutasHoyIds = $cobrador->rutasCobro()
                 ->where('dia_semana', $diaFecha)
+                ->when($semanaFecha !== null, fn ($q) => $q->where(
+                    fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaFecha)
+                ))
                 ->pluck('id');
 
             $rutaIdsConActividad = $pagosTodos->pluck('cliente.ruta_cobro_id')
@@ -241,8 +246,13 @@ class ResumenCobrosDiaService
     {
         $diasEs = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
         $diaFecha = $diasEs[$fechaCarbon->dayOfWeekIso - 1];
+        $semanaFecha = ConfiguracionSistema::instance()->semanaParaFecha($fechaCarbon);
 
-        $rutasIds = RutaCobro::where('dia_semana', $diaFecha)->pluck('id');
+        $rutasIds = RutaCobro::where('dia_semana', $diaFecha)
+            ->when($semanaFecha !== null, fn ($q) => $q->where(
+                fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaFecha)
+            ))
+            ->pluck('id');
 
         $clientesConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->pluck('cliente_id');
         $clientesConVisita = VisitaCobro::whereDate('created_at', $fechaCarbon)->pluck('cliente_id');

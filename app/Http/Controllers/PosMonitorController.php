@@ -16,6 +16,7 @@ class PosMonitorController extends Controller
     {
         $fecha      = $request->get('fecha') ?: today()->toDateString();
         $cobradorId = $request->get('cobrador_id') ?: null;
+        $puedeLiberar = $request->user()?->can('Gestionar:DispositivosPos') ?? false;
 
         $devices = PosDevice::with(['cobrador', 'user'])->where('activo', true)->orderBy('nombre')->get();
 
@@ -49,8 +50,28 @@ class PosMonitorController extends Controller
             'devices', 'ventasHoy', 'ventasAyer',
             'cobrosDia', 'cobrosAyer',
             'conexionesPorHora', 'alertasCount', 'tenant',
-            'fecha', 'cobradorId', 'resumen', 'totalesResumen', 'cobradores'
+            'fecha', 'cobradorId', 'resumen', 'totalesResumen', 'cobradores',
+            'puedeLiberar'
         ));
+    }
+
+    /**
+     * Libera un dispositivo (le quita el usuario/cobrador vinculado) para que
+     * otro empleado pueda tomarlo con su próximo login. La protección contra
+     * secuestro en PosController::heartbeat() no deja que esto pase solo con
+     * iniciar sesión — tiene que liberarse desde aquí primero.
+     */
+    public function liberarDispositivo(Request $request, $tenant, PosDevice $device)
+    {
+        $device->update([
+            'user_id' => null,
+            'cobrador_id' => null,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => "Dispositivo \"{$device->nombre}\" liberado.",
+        ]);
     }
 
     public function data(Request $request, $tenant)
@@ -101,6 +122,7 @@ class PosMonitorController extends Controller
                 'latitud' => $d->latitud,
                 'longitud' => $d->longitud,
                 'usuario' => optional($d->user)->name,
+                'user_id' => $d->user_id,
                 'cobrador' => $d->cobrador ? $d->cobrador->nombre.' '.$d->cobrador->apellido : null,
                 'app_version' => $d->app_version,
                 'cobrado_hoy' => (float) ($datos->cobrado ?? 0),

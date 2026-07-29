@@ -114,6 +114,15 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                         ])
                         ->required(),
 
+                    Forms\Components\Select::make('semana_ciclo')
+                        ->label('Semana del ciclo quincenal')
+                        ->placeholder('Sin clasificar (se muestra siempre)')
+                        ->options([
+                            1 => 'Semana 1',
+                            2 => 'Semana 2',
+                        ])
+                        ->helperText('Si se deja sin clasificar, la ruta se muestra en el POS todas las semanas.'),
+
                     Forms\Components\TextInput::make('descripcion')
                         ->label('Descripción')
                         ->placeholder('Describe los sectores o zonas incluidas en esta ruta')
@@ -161,6 +170,13 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                         default => 'gray',
                     }),
 
+                Tables\Columns\TextColumn::make('semana_ciclo')
+                    ->label('Semana')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state ? "Semana {$state}" : 'Todas')
+                    ->color(fn ($state) => $state ? 'info' : 'gray')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('cobrador.nombre_completo')
                     ->label('Cobrador')
                     ->searchable(['cobrador.nombre', 'cobrador.apellido'])
@@ -192,6 +208,13 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                     ->label('Estado')
                     ->trueLabel('Solo activas')
                     ->falseLabel('Solo inactivas'),
+
+                Tables\Filters\SelectFilter::make('semana_ciclo')
+                    ->label('Semana')
+                    ->options([
+                        1 => 'Semana 1',
+                        2 => 'Semana 2',
+                    ]),
             ])
             ->actions([
                 Actions\EditAction::make(),

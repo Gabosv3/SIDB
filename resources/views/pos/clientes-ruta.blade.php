@@ -36,6 +36,11 @@
     .pm-thead th.cr-sticky-1, .pm-thead th.cr-sticky-2, .pm-thead th.cr-sticky-3 { background:var(--subtle); z-index:3; }
     .pm-tr:hover .cr-sticky-1, .pm-tr:hover .cr-sticky-2, .pm-tr:hover .cr-sticky-3 { background:var(--subtle); }
 
+    .cr-th-sort { cursor:pointer; user-select:none; white-space:nowrap; }
+    .cr-th-sort:hover { color:var(--text); }
+    .cr-sort-arrow { display:inline-block; margin-left:.25rem; font-size:.7rem; color:var(--muted-2); }
+    .cr-th-sort.cr-sort-active .cr-sort-arrow { color:#10b981; }
+
     .cr-handle { cursor:grab; color:var(--muted-2); touch-action:none; display:inline-flex; padding:.35rem; border-radius:.4rem; }
     .cr-handle:hover { background:var(--subtle); }
     .cr-handle:active { cursor:grabbing; }
@@ -64,7 +69,7 @@
     .cr-venta-group .cr-abono-wrap + .cr-abono-wrap { border-top:1px dashed var(--border); padding-top:2px; }
     .cr-abono-edit:hover { background:var(--subtle); border-color:var(--border); color:#10b981; }
 
-    .cr-ver-detalle { background:none; border:1px solid transparent; cursor:pointer; color:#6366f1; padding:.3rem; border-radius:.4rem; display:inline-flex; flex-shrink:0; }
+    .cr-ver-detalle { background:none; border:1px solid transparent; cursor:pointer; color:#6366f1; padding:.3rem; border-radius:.4rem; display:inline-flex; flex-shrink:0; text-decoration:none; }
     .cr-ver-detalle:hover { background:var(--subtle); border-color:var(--border); }
 
     /* ── Modal de detalle ── */
@@ -183,6 +188,10 @@
         <p>Ordena la secuencia de visita y revisa que cada cliente esté en la ruta correcta.</p>
     </div>
     <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+        <a href="{{ route('clientes-ruta.historial', $tenant) }}" class="cr-import-btn-secundario" style="text-decoration:none; display:inline-flex; align-items:center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px; margin-right:.4rem;"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+            Historial de movimientos
+        </a>
         <button type="button" class="cr-import-btn-secundario" id="cr-abrir-nuevo-cliente">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px; margin-right:.4rem;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             Nuevo Cliente
@@ -205,10 +214,18 @@
         </select>
     </div>
     <div class="cr-filter-group">
+        <label class="cr-filter-label">Semana</label>
+        <select id="cr-semana-filter" class="cr-filter-input">
+            <option value="">Todas las semanas</option>
+            <option value="1">Semana 1</option>
+            <option value="2">Semana 2</option>
+        </select>
+    </div>
+    <div class="cr-filter-group">
         <label class="cr-filter-label">Ruta de cobro</label>
         <select id="cr-ruta-filter" class="cr-filter-input">
             @foreach($rutas as $r)
-                <option value="{{ $r->id }}" data-cobrador-id="{{ $r->cobrador_id }}" {{ (string) $rutaId === (string) $r->id ? 'selected' : '' }}>
+                <option value="{{ $r->id }}" data-cobrador-id="{{ $r->cobrador_id }}" data-semana-ciclo="{{ $r->semana_ciclo }}" {{ (string) $rutaId === (string) $r->id ? 'selected' : '' }}>
                     {{ $r->nombre }} — {{ ucfirst($r->dia_semana) }} ({{ $r->clientes_count }})
                 </option>
             @endforeach
@@ -296,9 +313,23 @@
 </div>
 
 <div class="pm-card">
-    <div class="pm-card-header">
-        <span class="pm-card-title">Listado — arrastra el ícono para reordenar</span>
-        <span class="pm-card-link" id="cr-refresh-link" style="cursor:pointer;">↻ Actualizar</span>
+    <div class="pm-card-header" style="flex-wrap:wrap; gap:.6rem;">
+        <span class="pm-card-title" id="cr-card-title">Listado — arrastra el ícono para reordenar</span>
+        <div style="display:flex; align-items:center; gap:.9rem;">
+            <label style="display:flex; align-items:center; gap:.4rem; font-size:.74rem; color:var(--muted);">
+                Mostrar
+                <select id="cr-por-pagina" class="cr-filter-input" style="min-width:0; padding:.3rem .5rem; font-size:.74rem;">
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100" selected>100</option>
+                    <option value="200">200</option>
+                    <option value="500">500</option>
+                </select>
+                por página
+            </label>
+            <span class="pm-card-link" id="cr-quitar-orden" style="cursor:pointer; display:none;">✕ Quitar orden por columna</span>
+            <span class="pm-card-link" id="cr-refresh-link" style="cursor:pointer;">↻ Actualizar</span>
+        </div>
     </div>
     <div class="pm-table-wrap">
         <table class="pm-table">
@@ -306,21 +337,28 @@
                 <tr>
                     <th class="cr-sticky-1"></th>
                     <th class="cr-sticky-2">#</th>
-                    <th class="cr-sticky-3" style="min-width:160px;">Cliente</th>
+                    <th class="cr-sticky-3 cr-th-sort" data-sort="nombre" style="min-width:160px;">Cliente<span class="cr-sort-arrow"></span></th>
                     <th title="Marca aquí mientras comparas con tus tarjetas físicas">✓</th>
-                    <th>Teléfono</th>
-                    <th>Dirección</th>
-                    <th>Saldo</th>
+                    <th class="cr-th-sort" data-sort="telefono">Teléfono<span class="cr-sort-arrow"></span></th>
+                    <th class="cr-th-sort" data-sort="direccion">Dirección<span class="cr-sort-arrow"></span></th>
+                    <th class="cr-th-sort" data-sort="saldo">Saldo<span class="cr-sort-arrow"></span></th>
                     <th>Precio</th>
                     <th>Abono inicial</th>
-                    <th>Ventas</th>
-                    <th>Ruta asignada</th>
+                    <th class="cr-th-sort" data-sort="ventas_pendientes">Ventas<span class="cr-sort-arrow"></span></th>
+                    <th class="cr-th-sort" data-sort="ruta_nombre">Ruta asignada<span class="cr-sort-arrow"></span></th>
                 </tr>
             </thead>
             <tbody id="cr-tbody">
                 <tr><td class="pm-td" colspan="11">Cargando...</td></tr>
             </tbody>
         </table>
+    </div>
+    <div id="cr-paginacion" style="display:none; align-items:center; justify-content:space-between; gap:.75rem; padding:.75rem 1rem; border-top:1px solid var(--border-2);">
+        <span id="cr-pagina-info" style="font-size:.75rem; color:var(--muted);"></span>
+        <div style="display:flex; gap:.5rem;">
+            <button type="button" id="cr-pagina-anterior" class="cr-import-btn-secundario" style="padding:.35rem .8rem; font-size:.75rem;">← Anterior</button>
+            <button type="button" id="cr-pagina-siguiente" class="cr-import-btn-secundario" style="padding:.35rem .8rem; font-size:.75rem;">Siguiente →</button>
+        </div>
     </div>
 </div>
 
@@ -482,14 +520,36 @@
     </div>
 </div>
 
-<div class="cr-modal-overlay" id="cr-detalle-overlay">
-    <div class="cr-modal" style="max-width:760px;">
+<div class="cr-modal-overlay" id="cr-cambiar-cobrador-overlay">
+    <div class="cr-modal" style="max-width:420px;">
         <div class="cr-modal-header">
-            <span>Detalle del cliente</span>
-            <button type="button" class="cr-modal-close" id="cr-detalle-close">&times;</button>
+            <span>Cambiar de cobrador</span>
+            <button type="button" class="cr-modal-close" id="cr-cambiar-cobrador-close">&times;</button>
         </div>
-        <div class="cr-modal-body" id="cr-detalle-body">
-            <div class="cr-detalle-loading">Cargando...</div>
+        <div class="cr-modal-body">
+            <p class="cr-import-hint" id="cr-cambiar-cobrador-cliente-nombre"></p>
+            <div class="cr-import-ruta-form">
+                <div class="cr-import-field">
+                    <label>Nuevo cobrador</label>
+                    <select id="cr-cambiar-cobrador-cobrador" class="cr-filter-input">
+                        <option value="">Selecciona un cobrador</option>
+                        @foreach($cobradores as $c)
+                            <option value="{{ $c->id }}">{{ trim($c->nombre.' '.$c->apellido) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="cr-import-field">
+                    <label>Ruta del nuevo cobrador</label>
+                    <select id="cr-cambiar-cobrador-ruta" class="cr-filter-input">
+                        <option value="">— Selecciona un cobrador primero —</option>
+                    </select>
+                </div>
+            </div>
+            <p class="cr-import-error" id="cr-cambiar-cobrador-error"></p>
+            <div class="cr-import-actions">
+                <button type="button" class="cr-import-btn-secundario" id="cr-cambiar-cobrador-cancelar">Cancelar</button>
+                <button type="button" class="cr-import-btn" id="cr-cambiar-cobrador-confirmar">Mover cliente</button>
+            </div>
         </div>
     </div>
 </div>
@@ -504,29 +564,26 @@
     var esSuperAdmin = @json($esSuperAdmin);
     var rutaSelect = document.getElementById('cr-ruta-filter');
     var cobradorSelect = document.getElementById('cr-cobrador-filter');
+    var semanaSelect = document.getElementById('cr-semana-filter');
     var buscarInput = document.getElementById('cr-buscar');
     var tbody = document.getElementById('cr-tbody');
     var toast = document.getElementById('cr-toast');
-    var rutasDisponibles = @json($rutas->map(fn($r) => ['id' => $r->id, 'nombre' => $r->nombre])->values());
+    var rutasDisponibles = @json($rutasParaJs);
     var sortable = null;
     var buscarTimeout = null;
     var soloSinRevisarInput = document.getElementById('cr-solo-sin-revisar');
+    var paginaActual = 1;
+    var paginacionDiv = document.getElementById('cr-paginacion');
+    var paginaInfo = document.getElementById('cr-pagina-info');
+    var btnPaginaAnterior = document.getElementById('cr-pagina-anterior');
+    var btnPaginaSiguiente = document.getElementById('cr-pagina-siguiente');
+    var porPaginaSelect = document.getElementById('cr-por-pagina');
+    var ordenColActual = null;
+    var ordenDirActual = 'asc';
 
-    // ── Revisión temporal (checklist para comparar contra tarjetas físicas) ──
-    // Se guarda en localStorage por ruta, no toca la base de datos, y es de
-    // este navegador/dispositivo únicamente.
-    function revisionKey() {
-        return 'cr-revisado-ruta-' + rutaSelect.value;
-    }
-    function cargarRevisados() {
-        try {
-            return new Set(JSON.parse(localStorage.getItem(revisionKey()) || '[]'));
-        } catch (e) { return new Set(); }
-    }
-    function guardarRevisados(set) {
-        localStorage.setItem(revisionKey(), JSON.stringify(Array.from(set)));
-    }
-    var revisados = cargarRevisados();
+    // ── Revisión (checklist para comparar contra tarjetas físicas) ──────────
+    // Se guarda en el servidor (clientes.revisado_en), compartida entre
+    // cualquiera que entre a esta pantalla — ya no es por navegador/dispositivo.
     var ultimoData = null;
 
     function showToast(msg) {
@@ -548,27 +605,33 @@
         return '<button type="button" class="cr-abono-edit cr-campo-edit" data-cliente="' + clienteId + '" data-campo="' + campo + '" data-valor="' + v.replace(/"/g, '&quot;') + '" data-label="' + label + '" title="Editar ' + label.toLowerCase() + '">' + editIcon() + '</button>';
     }
 
-    function rutaOptionsHtml(clienteRutaId) {
+    // Restringido a las rutas del MISMO cobrador que ya tiene el cliente — evita
+    // que un cambio rápido y accidental lo mande con otro cobrador. Si el cliente
+    // todavía no tiene ruta (primera asignación) se muestran todas.
+    function rutaOptionsHtml(clienteRutaId, cobradorIdActual) {
         var html = '<option value="">— Sin ruta —</option>';
         rutasDisponibles.forEach(function (r) {
+            if (cobradorIdActual && String(r.cobrador_id) !== String(cobradorIdActual)) return;
             html += '<option value="' + r.id + '"' + (String(clienteRutaId) === String(r.id) ? ' selected' : '') + '>' + r.nombre + '</option>';
         });
         return html;
     }
 
-    function render(data) {
-        revisados = cargarRevisados();
+    function cambiarCobradorBtnHtml(clienteId, nombreCliente) {
+        return '<button type="button" class="cr-abono-edit cr-cambiar-cobrador-btn" data-cliente="' + clienteId + '" data-nombre="' + nombreCliente.replace(/"/g, '&quot;') + '" title="Cambiar de cobrador">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>' +
+        '</button>';
+    }
 
+    function render(data) {
         document.getElementById('cr-total-clientes').textContent = data.total_clientes;
         document.getElementById('cr-total-saldo').textContent = money(data.total_saldo);
         document.getElementById('cr-total-pagado').textContent = money(data.total_pagado);
-        document.getElementById('cr-sin-gps').textContent = data.clientes.filter(function (c) { return !c.tiene_ubicacion; }).length;
-
-        var revisadosEnLista = data.clientes.filter(function (c) { return revisados.has(c.id); }).length;
-        document.getElementById('cr-revisados').textContent = revisadosEnLista + ' / ' + data.clientes.length;
+        document.getElementById('cr-sin-gps').textContent = data.total_sin_gps;
+        document.getElementById('cr-revisados').textContent = data.total_revisados + ' / ' + data.total_clientes;
 
         var clientesFiltrados = soloSinRevisarInput.checked
-            ? data.clientes.filter(function (c) { return !revisados.has(c.id); })
+            ? data.clientes.filter(function (c) { return !c.revisado; })
             : data.clientes;
 
         if (clientesFiltrados.length === 0) {
@@ -578,6 +641,7 @@
         }
 
         var modo = rutaSelect.value;
+        var offsetActual = ((data.pagina_actual || 1) - 1) * (data.por_pagina || 100);
         var rows = clientesFiltrados.map(function (c, idx) {
             var saldoClass = c.saldo > 0 ? 'cr-saldo-pos' : 'cr-saldo-zero';
             var dirWarn = !c.direccion ? '<span class="cr-warn-badge" title="Sin dirección registrada">⚠</span>' : '';
@@ -622,13 +686,13 @@
             }
 
             var ventasClass = c.ventas_pendientes > 0 ? 'cr-pill has' : 'cr-pill';
-            var estaRevisado = revisados.has(c.id);
+            var estaRevisado = !!c.revisado;
 
             return '' +
                 '<tr class="pm-tr cr-row' + (estaRevisado ? ' cr-revisado' : '') + '" data-id="' + c.id + '">' +
                     '<td class="pm-td cr-sticky-1"><span class="cr-handle">⠿⠿</span></td>' +
-                    '<td class="pm-td cr-sticky-2"><span class="cr-orden-badge">' + (idx + 1) + '</span></td>' +
-                    '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><button type="button" class="cr-ver-detalle" data-cliente="' + c.id + '" title="Ver detalle del cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
+                    '<td class="pm-td cr-sticky-2"><span class="cr-orden-badge">' + (offsetActual + idx + 1) + '</span></td>' +
+                    '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><a class="cr-ver-detalle" href="' + baseUrl + '/clientes/' + c.id + '/perfil" title="Ver perfil completo del cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
                     '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + '</div></td>' +
@@ -636,7 +700,7 @@
                     '<td class="pm-td">' + precioHtml + '</td>' +
                     '<td class="pm-td">' + abonoHtml + '</td>' +
                     '<td class="pm-td"><span class="' + ventasClass + '">' + c.ventas_pendientes + '</span></td>' +
-                    '<td class="pm-td"><select class="cr-ruta-select" data-id="' + c.id + '">' + rutaOptionsHtml(c.ruta_cobro_id) + '</select>' + rutaActualHtml + '</td>' +
+                    '<td class="pm-td"><div class="cr-abono-wrap"><select class="cr-ruta-select" data-id="' + c.id + '">' + rutaOptionsHtml(c.ruta_cobro_id, c.cobrador_id_ruta) + '</select>' + cambiarCobradorBtnHtml(c.id, c.nombre) + '</div>' + rutaActualHtml + '</td>' +
                 '</tr>';
         }).join('');
 
@@ -645,10 +709,29 @@
         tbody.querySelectorAll('.cr-revisar-check').forEach(function (chk) {
             chk.addEventListener('change', function () {
                 var clienteId = Number(this.dataset.cliente);
-                if (this.checked) revisados.add(clienteId);
-                else revisados.delete(clienteId);
-                guardarRevisados(revisados);
+                var marcado = this.checked;
+
+                // Optimista: refleja el cambio de una vez en ultimoData y vuelve a
+                // pintar, sin esperar la respuesta del servidor.
+                var cliente = ultimoData.clientes.find(function (c) { return c.id === clienteId; });
+                if (cliente) {
+                    var yaEstaba = !!cliente.revisado;
+                    cliente.revisado = marcado;
+                    if (marcado && !yaEstaba) ultimoData.total_revisados++;
+                    else if (!marcado && yaEstaba) ultimoData.total_revisados--;
+                }
                 render(ultimoData);
+
+                fetch(baseUrl + '/clientes/' + clienteId + '/revisado', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ revisado: marcado }),
+                }).catch(function () {
+                    showToast('No se pudo guardar la revisión, intenta de nuevo.');
+                });
             });
         });
 
@@ -762,41 +845,68 @@
             });
         });
 
+        tbody.querySelectorAll('.cr-cambiar-cobrador-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                abrirCambiarCobradorModal(this.dataset.cliente, this.dataset.nombre);
+            });
+        });
+
         if (sortable) sortable.destroy();
-        var puedeReordenar = modo !== 'todos' && !soloSinRevisarInput.checked;
+        var multiPagina = data.paginado && data.total_paginas > 1;
+        var puedeReordenar = modo !== 'todos' && !soloSinRevisarInput.checked && !ordenColActual;
+        var cardTitle = document.getElementById('cr-card-title');
+
         if (puedeReordenar) {
             sortable = Sortable.create(tbody, {
                 handle: '.cr-handle',
                 animation: 150,
                 onEnd: function () {
                     var ids = Array.from(tbody.querySelectorAll('.cr-row')).map(function (tr) { return tr.dataset.id; });
-                    tbody.querySelectorAll('.cr-orden-badge').forEach(function (b, i) { b.textContent = i + 1; });
+                    tbody.querySelectorAll('.cr-orden-badge').forEach(function (b, i) { b.textContent = offsetActual + i + 1; });
                     fetch(baseUrl + '/reordenar', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         },
-                        body: JSON.stringify({ orden: ids }),
+                        body: JSON.stringify({ orden: ids, offset: offsetActual }),
                     }).then(function (r) { return r.json(); }).then(function () {
                         showToast('Orden guardado.');
                     });
                 },
             });
+            cardTitle.textContent = multiPagina
+                ? 'Listado — arrastra el ícono para reordenar (solo dentro de esta página)'
+                : 'Listado — arrastra el ícono para reordenar';
         } else {
             tbody.querySelectorAll('.cr-handle').forEach(function (h) { h.style.visibility = 'hidden'; });
+            cardTitle.textContent = ordenColActual ? 'Listado — ordenado por columna (arrastre desactivado)' : 'Listado';
+        }
+
+        if (data.paginado && data.total_paginas > 1) {
+            paginacionDiv.style.display = 'flex';
+            paginaInfo.textContent = 'Página ' + data.pagina_actual + ' de ' + data.total_paginas + ' (' + data.total_clientes + ' clientes en total)' +
+                (puedeReordenar ? ' — el orden solo se ajusta dentro de cada página' : '');
+            btnPaginaAnterior.disabled = data.pagina_actual <= 1;
+            btnPaginaSiguiente.disabled = data.pagina_actual >= data.total_paginas;
+        } else {
+            paginacionDiv.style.display = 'none';
         }
     }
 
     function cargar() {
         var rutaId = rutaSelect.value;
         var buscar = buscarInput.value.trim();
-        var url = baseUrl + '/data?ruta_cobro_id=' + encodeURIComponent(rutaId);
+        var url = baseUrl + '/data?ruta_cobro_id=' + encodeURIComponent(rutaId) + '&page=' + paginaActual + '&por_pagina=' + porPaginaSelect.value;
         if (buscar !== '') url += '&buscar=' + encodeURIComponent(buscar);
+        if (ordenColActual) url += '&orden_col=' + encodeURIComponent(ordenColActual) + '&orden_dir=' + encodeURIComponent(ordenDirActual);
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 ultimoData = data;
+                ordenColActual = data.orden_col || null;
+                ordenDirActual = data.orden_dir || 'asc';
+                actualizarFlechasOrden();
                 render(data);
             });
     }
@@ -804,30 +914,44 @@
     soloSinRevisarInput.addEventListener('change', function () { render(ultimoData); });
 
     document.getElementById('cr-revision-limpiar').addEventListener('click', function () {
-        if (!confirm('¿Limpiar la revisión temporal de esta ruta? Esto solo afecta el checklist en este navegador, no borra nada de la base de datos.')) return;
-        localStorage.removeItem(revisionKey());
-        revisados = new Set();
-        soloSinRevisarInput.checked = false;
-        render(ultimoData);
-        showToast('Revisión reiniciada.');
+        if (!confirm('¿Limpiar la revisión de esta selección para TODOS los que usan esta pantalla? No borra nada de clientes, ventas ni pagos — solo el checklist.')) return;
+        var url = baseUrl + '/limpiar-revision?ruta_cobro_id=' + encodeURIComponent(rutaSelect.value);
+        fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        })
+            .then(function (r) { return r.json(); })
+            .then(function () {
+                soloSinRevisarInput.checked = false;
+                paginaActual = 1;
+                cargar();
+                showToast('Revisión reiniciada.');
+            })
+            .catch(function () { showToast('No se pudo reiniciar la revisión.'); });
     });
 
     rutaSelect.addEventListener('change', function () {
         var url = new URL(window.location);
         url.searchParams.set('ruta_cobro_id', rutaSelect.value);
         window.history.replaceState({}, '', url);
+        paginaActual = 1;
         cargar();
     });
 
-    // ── Filtro por cobrador: reduce las opciones de "Ruta de cobro" a las suyas ──
-    cobradorSelect.addEventListener('change', function () {
+    // ── Filtro por cobrador y/o semana: reduce las opciones de "Ruta de cobro" ──
+    function aplicarFiltrosRutaOpciones() {
         var cobradorId = cobradorSelect.value;
+        var semana = semanaSelect.value;
         var opciones = Array.prototype.slice.call(rutaSelect.options);
         var huboCambioDeSeleccion = false;
 
         opciones.forEach(function (opt) {
             if (!opt.dataset.cobradorId) return; // "sin_ruta" / "todos": siempre visibles
-            var visible = !cobradorId || opt.dataset.cobradorId === cobradorId;
+            var matchCobrador = !cobradorId || opt.dataset.cobradorId === cobradorId;
+            // Una ruta sin semana clasificada (data-semana-ciclo="") se muestra
+            // siempre, igual que en el POS — no se filtra hasta que se clasifique.
+            var matchSemana = !semana || opt.dataset.semanaCiclo === semana || opt.dataset.semanaCiclo === '';
+            var visible = matchCobrador && matchSemana;
             opt.style.display = visible ? '' : 'none';
             if (!visible && opt.selected) {
                 opt.selected = false;
@@ -842,14 +966,65 @@
             if (primeraVisible) primeraVisible.selected = true;
             rutaSelect.dispatchEvent(new Event('change'));
         }
-    });
+    }
+
+    cobradorSelect.addEventListener('change', aplicarFiltrosRutaOpciones);
+    semanaSelect.addEventListener('change', aplicarFiltrosRutaOpciones);
 
     buscarInput.addEventListener('input', function () {
         clearTimeout(buscarTimeout);
+        paginaActual = 1;
         buscarTimeout = setTimeout(cargar, 300);
     });
 
     document.getElementById('cr-refresh-link').addEventListener('click', cargar);
+
+    porPaginaSelect.addEventListener('change', function () {
+        paginaActual = 1;
+        cargar();
+    });
+
+    // ── Orden por columna (clic en el encabezado) ────────────────────────
+    document.querySelectorAll('.cr-th-sort').forEach(function (th) {
+        th.addEventListener('click', function () {
+            var col = th.dataset.sort;
+            if (ordenColActual === col) {
+                ordenDirActual = ordenDirActual === 'asc' ? 'desc' : 'asc';
+            } else {
+                ordenColActual = col;
+                ordenDirActual = 'asc';
+            }
+            paginaActual = 1;
+            cargar();
+        });
+    });
+
+    function actualizarFlechasOrden() {
+        document.querySelectorAll('.cr-th-sort').forEach(function (th) {
+            var activo = th.dataset.sort === ordenColActual;
+            th.classList.toggle('cr-sort-active', activo);
+            th.querySelector('.cr-sort-arrow').textContent = activo ? (ordenDirActual === 'asc' ? '▲' : '▼') : '';
+        });
+        document.getElementById('cr-quitar-orden').style.display = ordenColActual ? '' : 'none';
+    }
+
+    document.getElementById('cr-quitar-orden').addEventListener('click', function () {
+        ordenColActual = null;
+        ordenDirActual = 'asc';
+        paginaActual = 1;
+        cargar();
+    });
+
+    btnPaginaAnterior.addEventListener('click', function () {
+        if (paginaActual <= 1) return;
+        paginaActual--;
+        cargar();
+    });
+    btnPaginaSiguiente.addEventListener('click', function () {
+        if (!ultimoData || paginaActual >= ultimoData.total_paginas) return;
+        paginaActual++;
+        cargar();
+    });
 
     // ── Importar Excel ───────────────────────────────────────────────────
     var camposImportacion = @json($camposImportacion);
@@ -974,221 +1149,82 @@
         });
     });
 
-    // ── Ver detalle del cliente ──────────────────────────────────────────
-    var detalleOverlay = document.getElementById('cr-detalle-overlay');
-    var detalleBody = document.getElementById('cr-detalle-body');
+    // ── Cambiar de cobrador (acción aparte, deliberada) ──────────────────
+    var cambiarCobradorOverlay = document.getElementById('cr-cambiar-cobrador-overlay');
+    var cambiarCobradorCobradorSel = document.getElementById('cr-cambiar-cobrador-cobrador');
+    var cambiarCobradorRutaSel = document.getElementById('cr-cambiar-cobrador-ruta');
+    var cambiarCobradorClienteId = null;
 
-    detalleBody.addEventListener('click', function (e) {
-        var btn = e.target.closest('.cr-pago-fecha-edit');
-        if (!btn) return;
+    function abrirCambiarCobradorModal(clienteId, nombreCliente) {
+        cambiarCobradorClienteId = clienteId;
+        document.getElementById('cr-cambiar-cobrador-cliente-nombre').textContent = 'Cliente: ' + nombreCliente;
+        document.getElementById('cr-cambiar-cobrador-error').textContent = '';
+        cambiarCobradorCobradorSel.value = '';
+        cambiarCobradorRutaSel.innerHTML = '<option value="">— Selecciona un cobrador primero —</option>';
+        cambiarCobradorOverlay.classList.add('show');
+    }
+    function cerrarCambiarCobradorModal() { cambiarCobradorOverlay.classList.remove('show'); }
 
-        var clienteId = btn.dataset.cliente;
-        var ventaId = btn.dataset.venta;
-        var fechaIso = btn.dataset.fechaIso;
-        var fecha = btn.dataset.fecha;
-        var montoActual = btn.dataset.monto;
+    cambiarCobradorCobradorSel.addEventListener('change', function () {
+        var cobradorId = this.value;
+        if (!cobradorId) {
+            cambiarCobradorRutaSel.innerHTML = '<option value="">— Selecciona un cobrador primero —</option>';
+            return;
+        }
+        var rutasDelCobrador = rutasDisponibles.filter(function (r) { return String(r.cobrador_id) === String(cobradorId); });
+        if (rutasDelCobrador.length === 0) {
+            cambiarCobradorRutaSel.innerHTML = '<option value="">Este cobrador no tiene rutas</option>';
+            return;
+        }
+        cambiarCobradorRutaSel.innerHTML = rutasDelCobrador.map(function (r) {
+            return '<option value="' + r.id + '">' + r.nombre + (r.dia_semana ? ' — ' + r.dia_semana : '') + '</option>';
+        }).join('');
+    });
 
-        var nuevo = window.prompt('Monto total de los pagos del ' + fecha + ':', montoActual);
-        if (nuevo === null) return;
-        nuevo = nuevo.replace(',', '.').trim();
-        if (nuevo === '' || isNaN(nuevo) || Number(nuevo) < 0) {
-            showToast('Monto inválido.');
+    document.getElementById('cr-cambiar-cobrador-close').addEventListener('click', cerrarCambiarCobradorModal);
+    document.getElementById('cr-cambiar-cobrador-cancelar').addEventListener('click', cerrarCambiarCobradorModal);
+    cambiarCobradorOverlay.addEventListener('click', function (e) { if (e.target === cambiarCobradorOverlay) cerrarCambiarCobradorModal(); });
+
+    document.getElementById('cr-cambiar-cobrador-confirmar').addEventListener('click', function () {
+        var errorEl = document.getElementById('cr-cambiar-cobrador-error');
+        var rutaId = cambiarCobradorRutaSel.value;
+        if (!cambiarCobradorCobradorSel.value || !rutaId) {
+            errorEl.textContent = 'Selecciona el cobrador y la ruta de destino.';
             return;
         }
 
-        fetch(baseUrl + '/clientes/' + clienteId + '/pago-fecha', {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Moviendo...';
+
+        fetch(baseUrl + '/clientes/' + cambiarCobradorClienteId + '/ruta', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
             },
-            body: JSON.stringify({ venta_id: Number(ventaId), fecha_pago: fechaIso, monto: Number(nuevo) }),
+            body: JSON.stringify({ ruta_cobro_id: rutaId }),
         }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
           .then(function (res) {
-            showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
-            if (res.ok) {
-                abrirDetalle(clienteId);
-                cargar();
+            btn.disabled = false;
+            btn.textContent = 'Mover cliente';
+            if (!res.ok) {
+                errorEl.textContent = res.body.mensaje || 'No se pudo mover al cliente.';
+                return;
             }
+            cerrarCambiarCobradorModal();
+            showToast('Cliente movido a otro cobrador.');
+            cargar();
+        }).catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Mover cliente';
+            errorEl.textContent = 'Error de conexión.';
         });
     });
 
-    detalleBody.addEventListener('click', function (e) {
-        var btn = e.target.closest('.cr-eliminar-cliente-btn');
-        if (!btn) return;
-
-        var clienteId = btn.dataset.cliente;
-        var nombre = btn.dataset.nombre;
-        var ventas = btn.dataset.ventas;
-        var pendiente = btn.dataset.total;
-
-        var advertencia = '¿ELIMINAR a ' + nombre + ' con TODA su gestión?\n\n' +
-            'Se borrarán ' + ventas + ' venta(s), sus pagos y cuotas' +
-            (Number(pendiente) > 0 ? ' (saldo pendiente: ' + money(pendiente) + ')' : '') + '.\n\n' +
-            'Esta acción NO se puede deshacer.';
-        if (!window.confirm(advertencia)) return;
-
-        var motivo = window.prompt('Motivo de la eliminación (opcional):', '') || '';
-
-        var password = window.prompt('Confirma tu contraseña para eliminar a ' + nombre + ':');
-        if (password === null) return;
-        if (password.trim() === '') {
-            showToast('Debes ingresar tu contraseña para confirmar.');
-            return;
-        }
-
-        fetch(baseUrl + '/clientes/' + clienteId, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            },
-            body: JSON.stringify({ password: password, motivo: motivo }),
-        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-          .then(function (res) {
-            if (res.ok) {
-                showToast(res.body.mensaje || 'Cliente eliminado.');
-                cerrarDetalle();
-                cargar();
-            } else {
-                var msg = res.body.mensaje
-                    || (res.body.errors && res.body.errors.password && res.body.errors.password[0])
-                    || 'No se pudo eliminar el cliente.';
-                showToast(msg);
-            }
-        });
-    });
-
-    var estadoLabels = { pendiente: 'Pendiente', completada: 'Completada', cancelada: 'Cancelada', devuelta: 'Devuelta' };
-    var estadoColores = {
-        pendiente: ['#fef9c3', '#854d0e'], completada: ['#dcfce7', '#16a34a'],
-        cancelada: ['#fee2e2', '#dc2626'], devuelta: ['#e0f2fe', '#0369a1'],
-    };
-
-    function abrirDetalle(clienteId) {
-        detalleBody.innerHTML = '<div class="cr-detalle-loading">Cargando...</div>';
-        detalleOverlay.classList.add('show');
-
-        fetch(baseUrl + '/clientes/' + clienteId + '/detalle')
-            .then(function (r) { return r.json(); })
-            .then(renderDetalle)
-            .catch(function () {
-                detalleBody.innerHTML = '<div class="cr-detalle-loading">Error al cargar el detalle.</div>';
-            });
-    }
-    function cerrarDetalle() { detalleOverlay.classList.remove('show'); }
-
-    function renderDetalle(data) {
-        var c = data.cliente;
-        var r = data.resumen;
-
-        var eliminarBtn = esSuperAdmin
-            ? '<button type="button" class="cr-eliminar-cliente-btn" data-cliente="' + c.id + '" data-nombre="' + c.nombre.replace(/"/g, '&quot;') + '" data-ventas="' + r.total_ventas + '" data-total="' + r.total_pendiente + '" title="Eliminar cliente con toda su gestión">' +
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>' +
-                ' Eliminar cliente' +
-            '</button>'
-            : '';
-
-        var html = '<div class="cr-detalle-header"><div>' +
-            '<div class="cr-detalle-nombre">' + c.nombre + (c.codigo_anterior ? ' <span style="color:var(--muted-2); font-weight:400;">(' + c.codigo_anterior + ')</span>' : '') + '</div>' +
-            '<div class="cr-detalle-sub">' +
-                (c.telefono ? '📞 ' + c.telefono + '<br>' : '') +
-                (c.direccion ? '📍 ' + c.direccion + '<br>' : '') +
-                (c.ruta_nombre ? '🚚 ' + c.ruta_nombre + (c.ruta_dia ? ' (' + c.ruta_dia + ')' : '') : '<span style="color:#dc2626;">⚠ Sin ruta asignada</span>') +
-            '</div></div>' + eliminarBtn + '</div>';
-
-        html += '<div class="cr-detalle-resumen">' +
-            '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num">' + r.total_ventas + '</div><div class="cr-detalle-resumen-label">Ventas</div></div>' +
-            '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num" style="color:#16a34a;">' + money(r.total_pagado) + '</div><div class="cr-detalle-resumen-label">Pagado</div></div>' +
-            '<div class="cr-detalle-resumen-item"><div class="cr-detalle-resumen-num" style="color:#dc2626;">' + money(r.total_pendiente) + '</div><div class="cr-detalle-resumen-label">Pendiente</div></div>' +
-        '</div>';
-
-        if (data.ventas.length === 0) {
-            html += '<p style="text-align:center; color:var(--muted); font-size:.85rem;">Este cliente no tiene ventas registradas.</p>';
-        }
-
-        // Ventas de la misma fecha se agrupan visualmente (no se fusionan ni se ocultan,
-        // cada una conserva su propia tarjeta y sigue siendo independiente).
-        var gruposPorFecha = {};
-        var ordenFechas = [];
-        data.ventas.forEach(function (v) {
-            if (!gruposPorFecha[v.fecha_venta]) {
-                gruposPorFecha[v.fecha_venta] = [];
-                ordenFechas.push(v.fecha_venta);
-            }
-            gruposPorFecha[v.fecha_venta].push(v);
-        });
-
-        function ventaCardHtml(v) {
-            var colores = estadoColores[v.estado] || ['#f1f5f9', '#475569'];
-            var pct = v.total > 0 ? Math.min(100, Math.round((v.monto_pagado / v.total) * 100)) : 0;
-
-            var card = '<div class="cr-venta-card">' +
-                '<div class="cr-venta-card-header">' +
-                    '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')</span></div>' +
-                    '<span class="cr-venta-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (estadoLabels[v.estado] || v.estado) + '</span>' +
-                '</div>' +
-                '<div style="display:flex; gap:1.5rem; font-size:.82rem; flex-wrap:wrap;">' +
-                    '<div>Total: <strong>' + money(v.total) + '</strong></div>' +
-                    '<div style="color:#16a34a;">Pagado: <strong>' + money(v.monto_pagado) + '</strong></div>' +
-                    '<div style="color:' + (v.saldo_pendiente > 0 ? '#dc2626' : '#16a34a') + ';">Saldo: <strong>' + money(v.saldo_pendiente) + '</strong></div>' +
-                '</div>' +
-                '<div class="cr-venta-cuotas-bar"><div style="width:' + pct + '%; background:#16a34a;"></div></div>';
-
-            if (v.cuotas_resumen) {
-                card += '<div style="font-size:.74rem; color:var(--muted); margin-top:.4rem;">' +
-                    v.cuotas_resumen.cobradas + ' de ' + v.cuotas_resumen.total + ' cuotas cobradas' +
-                    (v.cuotas_resumen.vencidas > 0 ? ' · <span style="color:#dc2626; font-weight:600;">' + v.cuotas_resumen.vencidas + ' vencidas</span>' : '') +
-                '</div>';
-            }
-
-            if (v.proxima_cuota) {
-                card += '<div style="font-size:.74rem; color:var(--muted-2); margin-top:.2rem;">Próxima cuota: #' + v.proxima_cuota.numero_cuota + '/' + v.proxima_cuota.total_cuotas + ' — vence ' + v.proxima_cuota.fecha_vencimiento.substring(8,10) + '/' + v.proxima_cuota.fecha_vencimiento.substring(5,7) + '/' + v.proxima_cuota.fecha_vencimiento.substring(0,4) + '</div>';
-            }
-
-            if (v.pagos.length > 0) {
-                card += '<div class="cr-venta-pagos-list">';
-                v.pagos.forEach(function (p) {
-                    var cantidadNota = p.cantidad > 1 ? ' <span style="color:var(--muted-2);">(' + p.cantidad + ' pagos)</span>' : '';
-                    card += '<div class="cr-venta-pago-row">' +
-                        '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + '</span>' +
-                        '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
-                            '<strong style="color:#16a34a;">' + money(p.monto) + '</strong>' +
-                            '<button type="button" class="cr-abono-edit cr-pago-fecha-edit" data-cliente="' + c.id + '" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" title="Corregir este pago">' +
-                                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
-                            '</button>' +
-                        '</span>' +
-                    '</div>';
-                });
-                card += '</div>';
-            }
-
-            return card + '</div>';
-        }
-
-        ordenFechas.forEach(function (fecha) {
-            var ventasDelDia = gruposPorFecha[fecha];
-
-            if (ventasDelDia.length > 1) {
-                html += '<div class="cr-venta-fecha-group">' +
-                    '<div class="cr-venta-fecha-group-label">🔗 ' + ventasDelDia.length + ' ventas del ' + fecha + '</div>' +
-                    ventasDelDia.map(ventaCardHtml).join('') +
-                '</div>';
-            } else {
-                html += ventaCardHtml(ventasDelDia[0]);
-            }
-        });
-
-        detalleBody.innerHTML = html;
-    }
-
-    tbody.addEventListener('click', function (e) {
-        var btn = e.target.closest('.cr-ver-detalle');
-        if (btn) abrirDetalle(btn.dataset.cliente);
-    });
-
-    document.getElementById('cr-detalle-close').addEventListener('click', cerrarDetalle);
-    detalleOverlay.addEventListener('click', function (e) { if (e.target === detalleOverlay) cerrarDetalle(); });
+    // Ver detalle: ahora es una página completa (perfil del cliente), enlazada
+    // directamente desde el ícono del ojo en cada fila — ver rutaOptionsHtml/
+    // el <a> generado en render() más abajo. Ya no hay modal ni JS aquí.
 
     document.getElementById('cr-import-subir').addEventListener('click', function () {
         var fileInput = document.getElementById('cr-import-file');

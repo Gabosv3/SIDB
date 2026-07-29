@@ -18,12 +18,14 @@ class RutaCobro extends Model
         'cobrador_id',
         'nombre',
         'dia_semana',
+        'semana_ciclo',
         'descripcion',
         'activa',
     ];
 
     protected $casts = [
         'activa' => 'boolean',
+        'semana_ciclo' => 'integer',
     ];
 
     protected $appends = [
@@ -35,7 +37,21 @@ class RutaCobro extends Model
     public function getNombreConDiaAttribute(): string
     {
         $dia = $this->dia_semana ? ucfirst($this->dia_semana) : 'Sin día';
-        return "{$this->nombre} ({$dia})";
+        $semana = $this->semana_ciclo ? " — Semana {$this->semana_ciclo}" : '';
+        return "{$this->nombre} ({$dia}{$semana})";
+    }
+
+    /**
+     * ¿Esta ruta corre en la semana dada del ciclo quincenal (1 o 2)? Una
+     * ruta sin semana_ciclo asignada todavía (null) se considera visible en
+     * cualquier semana — es el valor de transición para no ocultar rutas de
+     * golpe hasta que se clasifiquen. $semanaCiclo también puede venir null
+     * (ciclo no configurado en Personalización del Sistema), en cuyo caso
+     * tampoco se filtra nada.
+     */
+    public function correspondeASemana(?int $semanaCiclo): bool
+    {
+        return $this->semana_ciclo === null || $semanaCiclo === null || $this->semana_ciclo === $semanaCiclo;
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────
