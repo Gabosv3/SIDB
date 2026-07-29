@@ -32,16 +32,34 @@
         ['label' => 'Sin cobro',           'sub' => null,                'num' => $hoySimple['total_sin_cobro'],                      'delta' => $pmDelta($hoySimple['total_sin_cobro'], $ayerSimple['total_sin_cobro'])],
         ['label' => 'Pendientes',          'sub' => null,                'num' => $hoySimple['total_pendientes'],                     'delta' => $pmDelta($hoySimple['total_pendientes'], $ayerSimple['total_pendientes'])],
     ];
+
+    // % de ruta completada: atendidos (con o sin cobro) contra el total con algo pendiente ese día.
+    $atendidosHoy = $hoySimple['clientes_visitados'] + $hoySimple['total_sin_cobro'];
+    $totalConAlgoPendiente = $atendidosHoy + $hoySimple['total_pendientes'];
+    $pctRutaCompletada = $totalConAlgoPendiente > 0 ? round(($atendidosHoy / $totalConAlgoPendiente) * 100) : 0;
+
+    $pctMeta = $general['total_esperado'] > 0 ? round(($general['total_cobrado'] / $general['total_esperado']) * 100) : 0;
 @endphp
 
 @section('styles')
 <style>
     .rd-kpi-grid   { display:grid; grid-template-columns:repeat(5,1fr); gap:1rem; margin-bottom:1.5rem; }
+    .rd-kpi-grid-4 { grid-template-columns:repeat(4,1fr); }
     .rd-kpi-card   { padding:1rem 1.1rem; }
     .rd-kpi-label  { font-size:.7rem; font-weight:600; color:#6b7280; }
     .rd-kpi-num    { font-size:1.3rem; font-weight:800; color:#111827; margin-top:.3rem; }
     .rd-kpi-delta  { font-size:.72rem; font-weight:700; margin-top:.4rem; display:inline-flex; align-items:center; gap:.25rem; }
     .rd-delta-up   { color:#16a34a; } .rd-delta-down { color:#dc2626; } .rd-delta-flat { color:#9ca3af; }
+    @media (max-width:1100px) { .rd-kpi-grid-4 { grid-template-columns:repeat(2,1fr); } }
+
+    .rd-charts-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; margin-bottom:1.5rem; }
+    .rd-chart-card  { padding:0; }
+    .rd-chart-body  { padding:1rem 1.1rem; height:220px; position:relative; }
+    @media (max-width:900px) { .rd-charts-grid { grid-template-columns:1fr; } }
+
+    .rd-meta-progress-wrap  { height:22px; border-radius:11px; background:var(--subtle,#f1f5f9); overflow:hidden; border:1px solid var(--border,#e5e7eb); }
+    .rd-meta-progress-bar   { height:100%; border-radius:11px; transition:width .3s; }
+    .rd-meta-progress-label { margin-top:.6rem; font-size:.8rem; color:var(--text-2,#374151); text-align:center; }
     @media (max-width:1100px) { .rd-kpi-grid { grid-template-columns:repeat(2,1fr); } }
 
     .rd-filter-bar   { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.75rem; margin-bottom:1.5rem; }
@@ -210,6 +228,64 @@
             @endif
         </div>
     @endforeach
+</div>
+
+{{-- ── KPIs adicionales ── --}}
+<div class="rd-kpi-grid rd-kpi-grid-4">
+    <div class="pm-card rd-kpi-card">
+        <div class="rd-kpi-label">Vales / gastos del día</div>
+        <div class="rd-kpi-num">${{ number_format($totalVales, 2) }}</div>
+        <div class="rd-kpi-delta rd-delta-flat">Descontado de lo cobrado</div>
+    </div>
+    <div class="pm-card rd-kpi-card">
+        <div class="rd-kpi-label">Morosidad (cuotas vencidas)</div>
+        <div class="rd-kpi-num" style="{{ $morosidad['cantidad'] > 0 ? 'color:#dc2626;' : '' }}">{{ $morosidad['cantidad'] }}</div>
+        <div class="rd-kpi-delta rd-delta-flat">${{ number_format($morosidad['monto'], 2) }} en mora</div>
+    </div>
+    <div class="pm-card rd-kpi-card">
+        <div class="rd-kpi-label">Ruta completada</div>
+        <div class="rd-kpi-num">{{ $pctRutaCompletada }}%</div>
+        <div class="rd-kpi-delta rd-delta-flat">{{ $atendidosHoy }} de {{ $totalConAlgoPendiente }} atendidos</div>
+    </div>
+    <div class="pm-card rd-kpi-card">
+        <div class="rd-kpi-label">Esta semana vs pasada</div>
+        <div class="rd-kpi-num">${{ number_format($comparativoSemanal['esta_semana'], 2) }}</div>
+        @if($comparativoSemanal['delta'] == 0)
+            <div class="rd-kpi-delta rd-delta-flat">Sin cambio vs semana pasada</div>
+        @else
+            <div class="rd-kpi-delta {{ $comparativoSemanal['delta'] > 0 ? 'rd-delta-up' : 'rd-delta-down' }}">
+                {{ $comparativoSemanal['delta'] > 0 ? '▲' : '▼' }} {{ abs($comparativoSemanal['delta']) }}% vs semana pasada
+            </div>
+        @endif
+    </div>
+</div>
+
+{{-- ── Gráficas ── --}}
+<div class="rd-charts-grid">
+    <div class="pm-card rd-chart-card">
+        <div class="pm-card-header"><span class="pm-card-title">Tendencia — últimos 14 días</span></div>
+        <div class="rd-chart-body"><canvas id="rd-chart-tendencia"></canvas></div>
+    </div>
+    <div class="pm-card rd-chart-card">
+        <div class="pm-card-header"><span class="pm-card-title">Cobrado por cobrador</span></div>
+        <div class="rd-chart-body"><canvas id="rd-chart-cobradores"></canvas></div>
+    </div>
+    <div class="pm-card rd-chart-card">
+        <div class="pm-card-header"><span class="pm-card-title">Por método de pago</span></div>
+        <div class="rd-chart-body"><canvas id="rd-chart-metodos"></canvas></div>
+    </div>
+    <div class="pm-card rd-chart-card">
+        <div class="pm-card-header"><span class="pm-card-title">Meta del día</span></div>
+        <div class="rd-chart-body" style="display:flex; flex-direction:column; justify-content:center; padding:0 .5rem;">
+            <div class="rd-meta-progress-wrap">
+                <div class="rd-meta-progress-bar" style="width:{{ min(100, $pctMeta) }}%; background:{{ $pctMeta >= 100 ? '#16a34a' : '#10b981' }};"></div>
+            </div>
+            <div class="rd-meta-progress-label">
+                <strong>{{ $pctMeta }}%</strong> de la meta —
+                ${{ number_format($general['total_cobrado'], 2) }} de ${{ number_format($general['total_esperado'], 2) }}
+            </div>
+        </div>
+    </div>
 </div>
 
 {{-- ── Tarjetas por cobrador ── --}}
@@ -512,5 +588,93 @@ function toggleMorePendientes(id) {
         btn.textContent = btn.dataset.label;
     }
 }
+
+// ── Gráficas (Chart.js, ya cargado en el layout) ────────────────────────────
+(function () {
+    if (typeof Chart === 'undefined') return;
+
+    var esOscuro = document.documentElement.classList.contains('dark');
+    var colorTexto = esOscuro ? '#cbd5e1' : '#374151';
+    var colorGrid = esOscuro ? '#2e2e3a' : '#f3f4f6';
+
+    Chart.defaults.color = colorTexto;
+    Chart.defaults.font.size = 11;
+
+    var tendencia = @json($graficoTendencia);
+    new Chart(document.getElementById('rd-chart-tendencia'), {
+        type: 'line',
+        data: {
+            labels: tendencia.map(function (d) { return d.fecha; }),
+            datasets: [{
+                label: 'Cobrado',
+                data: tendencia.map(function (d) { return d.total; }),
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,.12)',
+                fill: true,
+                tension: .3,
+                pointRadius: 2,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: colorGrid }, ticks: { callback: function (v) { return '$' + v; } } },
+                x: { grid: { display: false } },
+            },
+        },
+    });
+
+    var cobradores = @json($graficoCobradores);
+    new Chart(document.getElementById('rd-chart-cobradores'), {
+        type: 'bar',
+        data: {
+            labels: cobradores.map(function (c) { return c.nombre; }),
+            datasets: [{
+                label: 'Cobrado',
+                data: cobradores.map(function (c) { return c.total; }),
+                backgroundColor: '#6366f1',
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: colorGrid }, ticks: { callback: function (v) { return '$' + v; } } },
+                x: { grid: { display: false } },
+            },
+        },
+    });
+
+    var metodosObj = @json($graficoMetodos);
+    var metodoLabelsJs = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque: 'Cheque', deposito: 'Depósito' };
+    var metodoColoresJs = { efectivo: '#16a34a', transferencia: '#2563eb', cheque: '#9333ea', deposito: '#d97706' };
+    var metodosKeys = Object.keys(metodosObj);
+
+    if (metodosKeys.length > 0) {
+        new Chart(document.getElementById('rd-chart-metodos'), {
+            type: 'doughnut',
+            data: {
+                labels: metodosKeys.map(function (k) { return metodoLabelsJs[k] || k; }),
+                datasets: [{
+                    data: metodosKeys.map(function (k) { return metodosObj[k]; }),
+                    backgroundColor: metodosKeys.map(function (k) { return metodoColoresJs[k] || '#9ca3af'; }),
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } },
+                    tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': $' + ctx.parsed.toFixed(2); } } },
+                },
+            },
+        });
+    } else {
+        document.getElementById('rd-chart-metodos').closest('.rd-chart-body').innerHTML =
+            '<div class="pm-empty" style="padding:2rem 0;">Sin pagos registrados esta fecha.</div>';
+    }
+})();
 </script>
 @endsection

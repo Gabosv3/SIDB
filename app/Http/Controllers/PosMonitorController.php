@@ -143,20 +143,32 @@ class PosMonitorController extends Controller
     public function resumen(Request $request, $tenant)
     {
         $fecha = $request->get('fecha') ?: today()->toDateString();
-        $cobradorId = $request->get('cobrador_id') ?: null;
+        $cobradorId = $request->get('cobrador_id') ? (int) $request->get('cobrador_id') : null;
         $ayer = Carbon::parse($fecha)->subDay()->toDateString();
 
         $resumen = ResumenCobrosDiaService::resumen($fecha, $cobradorId);
         $totalesResumen = ResumenCobrosDiaService::totales($resumen);
-        $hoySimple = ResumenCobrosDiaService::totalesSimples($fecha);
-        $ayerSimple = ResumenCobrosDiaService::totalesSimples($ayer);
-        $general = ResumenCobrosDiaService::resumenGeneral($fecha);
+        $hoySimple = ResumenCobrosDiaService::totalesSimples($fecha, $cobradorId);
+        $ayerSimple = ResumenCobrosDiaService::totalesSimples($ayer, $cobradorId);
+        $general = ResumenCobrosDiaService::resumenGeneral($fecha, $cobradorId);
         $cobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get();
         $actividad = $this->actividadReciente($fecha);
 
+        // ── KPIs nuevos ──────────────────────────────────────────────────
+        $totalVales = ResumenCobrosDiaService::totalValesDia($fecha, $cobradorId);
+        $morosidad = ResumenCobrosDiaService::morosidad($cobradorId);
+        $comparativoSemanal = ResumenCobrosDiaService::comparativoSemanal($fecha, $cobradorId);
+
+        // ── Datos para gráficas ──────────────────────────────────────────
+        $graficoTendencia = ResumenCobrosDiaService::tendenciaDiaria($fecha, 14, $cobradorId);
+        $graficoCobradores = ResumenCobrosDiaService::comparacionCobradores($fecha);
+        $graficoMetodos = ResumenCobrosDiaService::desglosePorMetodo($fecha, $cobradorId);
+
         return view('pos.resumen', compact(
             'tenant', 'fecha', 'cobradorId', 'cobradores',
-            'resumen', 'totalesResumen', 'hoySimple', 'ayerSimple', 'general', 'actividad'
+            'resumen', 'totalesResumen', 'hoySimple', 'ayerSimple', 'general', 'actividad',
+            'totalVales', 'morosidad', 'comparativoSemanal',
+            'graficoTendencia', 'graficoCobradores', 'graficoMetodos'
         ));
     }
 
