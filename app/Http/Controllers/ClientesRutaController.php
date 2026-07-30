@@ -472,6 +472,20 @@ class ClientesRutaController extends Controller
             ])
             ->values();
 
+        $visitasSinCobro = VisitaCobro::where('cliente_id', $cliente->id)
+            ->with('user:id,name')
+            ->latest('created_at')
+            ->limit(30)
+            ->get()
+            ->map(fn (VisitaCobro $v) => [
+                'fecha' => $v->created_at->format('d/m/Y H:i'),
+                'resultado' => $v->resultado,
+                'usuario' => $v->user?->name ?? 'Sistema',
+                'observaciones' => $v->observaciones,
+                'promesa_fecha' => $v->promesa_fecha?->format('d/m/Y'),
+            ])
+            ->values();
+
         return response()->json([
             'cliente' => [
                 'id' => $cliente->id,
@@ -486,6 +500,8 @@ class ClientesRutaController extends Controller
                 'departamento' => $cliente->departamento,
                 'municipio' => $cliente->municipio,
                 'distrito' => $cliente->distrito,
+                'latitud' => $cliente->latitud,
+                'longitud' => $cliente->longitud,
                 'saldo' => (float) $cliente->saldo,
                 'limite_credito' => $cliente->limite_credito !== null ? (float) $cliente->limite_credito : null,
                 'ruta_nombre' => $cliente->rutaCobro?->nombre,
@@ -511,6 +527,7 @@ class ClientesRutaController extends Controller
                 'total_pendiente' => round($ventas->sum('saldo_pendiente'), 2),
             ],
             'historial_ruta' => $historialRuta,
+            'visitas_sin_cobro' => $visitasSinCobro,
         ]);
     }
 

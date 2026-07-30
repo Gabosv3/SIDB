@@ -48,6 +48,15 @@
     .cp-doc-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
     .cp-doc-label { font-size:.66rem; color:var(--muted); text-align:center; margin-top:.25rem; }
 
+    /* ── Mapa ── */
+    .cp-mapa-frame { width:100%; height:220px; border:0; border-radius:.6rem; display:block; }
+    .cp-mapa-links { display:flex; gap:.6rem; padding:.7rem 1.1rem 1rem; }
+    .cp-mapa-link { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:.35rem; padding:.5rem; border-radius:.55rem; border:1px solid var(--border); font-size:.74rem; font-weight:600; color:var(--text-2); text-decoration:none; }
+    .cp-mapa-link:hover { background:var(--subtle); }
+
+    /* ── Visitas sin cobro ── */
+    .cp-visita-badge { display:inline-flex; align-items:center; padding:.18rem .55rem; border-radius:9999px; font-size:.68rem; font-weight:700; }
+
     /* ── Ventas ── */
     .cr-venta-card { border:1px solid var(--border); border-radius:.75rem; padding:1rem; margin-bottom:1rem; background:var(--card); }
     .cr-venta-fecha-group { border:1px solid var(--border); border-radius:.85rem; padding:.75rem .75rem 0; margin-bottom:1rem; background:var(--subtle); }
@@ -124,6 +133,13 @@
         cancelada: ['#fee2e2', '#dc2626'], devuelta: ['#e0f2fe', '#0369a1'],
     };
 
+    var resultadoLabels = { sin_pago: 'Sin pago', promesa_pago: 'Promesa de pago', no_encontrado: 'No encontrado', rechazo: 'Rechazo', abono_previo: 'Abono previo' };
+    var resultadoColores = {
+        sin_pago: ['#fef9c3', '#854d0e'], promesa_pago: ['#e0f2fe', '#0369a1'],
+        no_encontrado: ['#f1f5f9', '#475569'], rechazo: ['#ffe4e6', '#9f1239'],
+        abono_previo: ['#dcfce7', '#166534'],
+    };
+
     function cargar() {
         body.innerHTML = '<div class="cp-loading">Cargando...</div>';
 
@@ -179,6 +195,32 @@
     function infoRow(label, valor) {
         if (!valor) return '';
         return '<div class="cp-info-row"><span class="cp-info-label">' + label + '</span><span class="cp-info-value">' + valor + '</span></div>';
+    }
+
+    function mapaCardHtml(c) {
+        var lat = c.latitud, lng = c.longitud;
+
+        if (!lat || !lng) {
+            return '<div class="pm-card cp-info-card">' +
+                '<div class="pm-card-header"><span class="pm-card-title">🗺️ Ubicación</span></div>' +
+                '<div style="padding:.3rem 1.1rem 1rem;"><div class="cp-empty-hint">Sin ubicación GPS registrada.</div></div>' +
+            '</div>';
+        }
+
+        var delta = 0.004;
+        var bbox = (Number(lng) - delta) + '%2C' + (Number(lat) - delta) + '%2C' + (Number(lng) + delta) + '%2C' + (Number(lat) + delta);
+        var mapaSrc = 'https://www.openstreetmap.org/export/embed.html?bbox=' + bbox + '&layer=mapnik&marker=' + lat + '%2C' + lng;
+        var mapaGrandeUrl = 'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lng + '#map=17/' + lat + '/' + lng;
+
+        return '<div class="pm-card cp-info-card">' +
+            '<div class="pm-card-header"><span class="pm-card-title">🗺️ Ubicación</span></div>' +
+            '<iframe class="cp-mapa-frame" src="' + mapaSrc + '" loading="lazy" title="Mapa de ubicación"></iframe>' +
+            '<div class="cp-mapa-links">' +
+                '<a class="cp-mapa-link" href="' + mapaGrandeUrl + '" target="_blank" rel="noopener">Ver mapa grande</a>' +
+                '<a class="cp-mapa-link" href="https://www.google.com/maps?q=' + lat + ',' + lng + '" target="_blank" rel="noopener">Google Maps</a>' +
+                '<a class="cp-mapa-link" href="https://waze.com/ul?ll=' + lat + ',' + lng + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
+            '</div>' +
+        '</div>';
     }
 
     function infoCardHtml(c) {
@@ -245,6 +287,29 @@
             html += '<div class="cp-historial-item">' +
                 '<strong style="font-size:.85rem;">' + (h.ruta_anterior || 'Sin ruta') + (h.cobrador_anterior ? ' (' + h.cobrador_anterior + ')' : '') + ' → ' + (h.ruta_nueva || 'Sin ruta') + (h.cobrador_nuevo ? ' (' + h.cobrador_nuevo + ')' : '') + '</strong>' +
                 '<span style="color:var(--muted-2); font-size:.72rem;">' + h.fecha + ' — ' + h.usuario + '</span>' +
+            '</div>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function visitasSinCobroHtml(visitas) {
+        var html = '<div class="cp-section-title">🚪 Visitas sin cobro</div>';
+
+        if (!visitas || visitas.length === 0) {
+            return html + '<div class="pm-card"><div class="cp-vacio" style="padding:.9rem 1.1rem;">Sin visitas sin cobro registradas.</div></div>';
+        }
+
+        html += '<div class="pm-card" style="padding:0 1.1rem;">';
+        visitas.forEach(function (v) {
+            var colores = resultadoColores[v.resultado] || ['#f1f5f9', '#475569'];
+            html += '<div class="cp-historial-item">' +
+                '<div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;">' +
+                    '<span class="cp-visita-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (resultadoLabels[v.resultado] || v.resultado) + '</span>' +
+                    '<span style="color:var(--muted-2); font-size:.72rem;">' + v.fecha + ' — ' + v.usuario + '</span>' +
+                '</div>' +
+                (v.observaciones ? '<span style="font-size:.78rem; color:var(--text-2); margin-top:.15rem;">' + v.observaciones + '</span>' : '') +
+                (v.promesa_fecha ? '<span style="font-size:.72rem; color:var(--muted-2);">Promesa de pago: ' + v.promesa_fecha + '</span>' : '') +
             '</div>';
         });
         html += '</div>';
@@ -400,9 +465,11 @@
             }
         });
 
+        html += visitasSinCobroHtml(data.visitas_sin_cobro);
         html += historialHtml(data.historial_ruta);
 
         html += '</div><div class="cp-sidebar">' +
+            mapaCardHtml(c) +
             infoCardHtml(c) +
             referenciasCardHtml(c) +
             documentosCardHtml(c) +
