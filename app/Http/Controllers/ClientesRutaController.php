@@ -242,6 +242,12 @@ class ClientesRutaController extends Controller
                     ->whereColumn('cliente_id', 'clientes.id'),
                 'ultima_visita_fecha' => VisitaCobro::selectRaw('MAX(created_at)')
                     ->whereColumn('cliente_id', 'clientes.id'),
+                // Resultado de la visita más reciente (no_encontrado, rechazo, etc.) —
+                // corresponde a la misma fila que ultima_visita_fecha (mismo MAX(created_at)).
+                'ultima_visita_resultado' => VisitaCobro::select('resultado')
+                    ->whereColumn('cliente_id', 'clientes.id')
+                    ->orderByDesc('created_at')
+                    ->limit(1),
             ]);
 
         // Orden manual (arrastre) por defecto; si se pide una columna específica,
@@ -281,11 +287,21 @@ class ClientesRutaController extends Controller
                     'abono_inicial' => $v->abono_inicial !== null ? (float) $v->abono_inicial : null,
                 ])->values();
 
-                $ultimaVisita = collect([$c->ultimo_pago_fecha, $c->ultima_visita_fecha])
-                    ->filter()
-                    ->map(fn ($f) => \Carbon\Carbon::parse($f))
-                    ->sort()
-                    ->last();
+                $fechaPago = $c->ultimo_pago_fecha ? \Carbon\Carbon::parse($c->ultimo_pago_fecha) : null;
+                $fechaVisita = $c->ultima_visita_fecha ? \Carbon\Carbon::parse($c->ultima_visita_fecha) : null;
+
+                // Cuál de los dos eventos fue el más reciente determina qué se muestra
+                // en la columna "Última visita": si ganó una visita sin cobro, se
+                // muestra su resultado (no encontrado, rechazo, etc.); si ganó un pago,
+                // se muestra como "Pagó".
+                $ultimaVisitaTipo = null;
+                if ($fechaVisita && (! $fechaPago || $fechaVisita->gt($fechaPago))) {
+                    $ultimaVisitaTipo = 'visita';
+                } elseif ($fechaPago) {
+                    $ultimaVisitaTipo = 'pago';
+                }
+
+                $ultimaVisita = collect([$fechaPago, $fechaVisita])->filter()->sort()->last();
 
                 return [
                     'id' => $c->id,
@@ -301,6 +317,8 @@ class ClientesRutaController extends Controller
                     'saldo' => (float) $c->saldo,
                     'ventas_pendientes' => (int) $c->ventas_count,
                     'ultima_visita' => $ultimaVisita?->format('d/m/Y'),
+                    'ultima_visita_tipo' => $ultimaVisitaTipo,
+                    'ultima_visita_resultado' => $ultimaVisitaTipo === 'visita' ? $c->ultima_visita_resultado : null,
                     'ruta_cobro_id' => $c->ruta_cobro_id,
                     'ruta_nombre' => $c->rutaCobro?->nombre,
                     'cobrador_id_ruta' => $c->rutaCobro?->cobrador_id,

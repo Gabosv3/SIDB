@@ -62,6 +62,8 @@
     .cr-warn-badge { display:inline-flex; align-items:center; gap:.3rem; padding:.2rem .55rem; border-radius:9999px; font-size:.66rem; font-weight:700; background:#fef9c3; color:#854d0e; white-space:nowrap; }
     html.dark .cr-warn-badge { background:rgba(202,138,4,.18); color:#fde68a; }
 
+    .cr-visita-badge { display:inline-block; padding:.15rem .5rem; border-radius:9999px; font-size:.66rem; font-weight:700; white-space:nowrap; }
+
     .cr-abono-wrap { display:inline-flex; align-items:center; gap:.4rem; }
     .cr-abono-edit { background:none; border:1px solid transparent; cursor:pointer; color:var(--muted-2); padding:.3rem; border-radius:.4rem; display:inline-flex; }
     .cr-venta-group { display:flex; flex-direction:column; gap:1px; }
@@ -346,7 +348,7 @@
                     <th>Precio</th>
                     <th>Abono inicial</th>
                     <th class="cr-th-sort" data-sort="ventas_pendientes">Ventas<span class="cr-sort-arrow"></span></th>
-                    <th class="cr-th-sort" data-sort="ultima_visita" title="Fecha del último pago o visita registrada">Última visita<span class="cr-sort-arrow"></span></th>
+                    <th class="cr-th-sort" data-sort="ultima_visita" title="Fecha y resultado del último pago o visita registrada">Última visita<span class="cr-sort-arrow"></span></th>
                     <th class="cr-th-sort" data-sort="ruta_nombre">Ruta asignada<span class="cr-sort-arrow"></span></th>
                 </tr>
             </thead>
@@ -571,6 +573,14 @@
     var tbody = document.getElementById('cr-tbody');
     var toast = document.getElementById('cr-toast');
     var rutasDisponibles = @json($rutasParaJs);
+    var resultadoLabels = {sin_pago: 'Sin pago', promesa_pago: 'Promesa de pago', no_encontrado: 'No encontrado', rechazo: 'Rechazo', abono_previo: 'Abono previo'};
+    var resultadoColores = {
+        sin_pago: ['#fef9c3', '#854d0e'],
+        promesa_pago: ['#e0f2fe', '#0369a1'],
+        no_encontrado: ['#f1f5f9', '#475569'],
+        rechazo: ['#ffe4e6', '#9f1239'],
+        abono_previo: ['#dcfce7', '#166534'],
+    };
     var sortable = null;
     var buscarTimeout = null;
     var soloSinRevisarInput = document.getElementById('cr-solo-sin-revisar');
@@ -647,9 +657,16 @@
         var rows = clientesFiltrados.map(function (c, idx) {
             var saldoClass = c.saldo > 0 ? 'cr-saldo-pos' : 'cr-saldo-zero';
             var dirWarn = !c.direccion ? '<span class="cr-warn-badge" title="Sin dirección registrada">⚠</span>' : '';
-            var wazeBtn = c.latitud && c.longitud
+            var tieneGps = !!(c.latitud && c.longitud);
+            var gpsWarn = !tieneGps ? '<span class="cr-warn-badge" title="Sin ubicación GPS registrada">📍 Sin GPS</span>' : '';
+            var wazeBtn = tieneGps
                 ? '<a class="cr-abono-edit" href="https://waze.com/ul?ll=' + c.latitud + ',' + c.longitud + '&navigate=yes" target="_blank" rel="noopener" title="Abrir en Waze">' +
                     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                  '</a>'
+                : '';
+            var mapsBtn = tieneGps
+                ? '<a class="cr-abono-edit" href="https://www.google.com/maps?q=' + c.latitud + ',' + c.longitud + '" target="_blank" rel="noopener" title="Abrir en Google Maps">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' +
                   '</a>'
                 : '';
             var codigoHtml = '<div class="cr-abono-wrap" style="font-size:.7rem; color:var(--muted-2);">' +
@@ -695,6 +712,17 @@
             var ventasClass = c.ventas_pendientes > 0 ? 'cr-pill has' : 'cr-pill';
             var estaRevisado = !!c.revisado;
 
+            var visitaHtml;
+            if (!c.ultima_visita) {
+                visitaHtml = '<span style="color:var(--muted-2);">—</span>';
+            } else if (c.ultima_visita_tipo === 'pago') {
+                visitaHtml = '<div class="cr-abono-wrap"><span class="cr-visita-badge" style="background:#dcfce7;color:#166534;">Pagó</span><span style="font-size:.7rem;color:var(--muted-2);">' + c.ultima_visita + '</span></div>';
+            } else {
+                var rc = resultadoColores[c.ultima_visita_resultado] || resultadoColores.no_encontrado;
+                var rl = resultadoLabels[c.ultima_visita_resultado] || c.ultima_visita_resultado || '—';
+                visitaHtml = '<div class="cr-abono-wrap"><span class="cr-visita-badge" style="background:' + rc[0] + ';color:' + rc[1] + ';">' + rl + '</span><span style="font-size:.7rem;color:var(--muted-2);">' + c.ultima_visita + '</span></div>';
+            }
+
             return '' +
                 '<tr class="pm-tr cr-row' + (estaRevisado ? ' cr-revisado' : '') + '" data-id="' + c.id + '">' +
                     '<td class="pm-td cr-sticky-1"><span class="cr-handle">⠿⠿</span></td>' +
@@ -702,12 +730,12 @@
                     '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><a class="cr-ver-detalle" href="' + baseUrl + '/clientes/' + c.id + '/perfil" title="Ver perfil completo del cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
                     '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
-                    '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + wazeBtn + '</div></td>' +
+                    '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + gpsWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + mapsBtn + wazeBtn + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span class="' + saldoClass + '">' + money(c.saldo) + '</span>' + campoEditBtn(c.id, 'saldo', c.saldo, 'Saldo') + '</div></td>' +
                     '<td class="pm-td">' + precioHtml + '</td>' +
                     '<td class="pm-td">' + abonoHtml + '</td>' +
                     '<td class="pm-td"><span class="' + ventasClass + '">' + c.ventas_pendientes + '</span></td>' +
-                    '<td class="pm-td">' + (c.ultima_visita || '<span style="color:var(--muted-2);">—</span>') + '</td>' +
+                    '<td class="pm-td">' + visitaHtml + '</td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><select class="cr-ruta-select" data-id="' + c.id + '">' + rutaOptionsHtml(c.ruta_cobro_id, c.cobrador_id_ruta) + '</select>' + cambiarCobradorBtnHtml(c.id, c.nombre) + '</div>' + rutaActualHtml + '</td>' +
                 '</tr>';
         }).join('');
