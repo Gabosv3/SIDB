@@ -348,6 +348,96 @@ class ClientesRutaController extends Controller
     }
 
     /**
+     * Clientes (solo código y nombre) que calzan con el filtro actual de
+     * /clientes-ruta — mismo criterio que data(), pero sin paginar: la
+     * exportación siempre trae la lista completa, no solo la página visible.
+     */
+    private function clientesParaExportar(Request $request)
+    {
+        $rutaId = $request->get('ruta_cobro_id');
+        $buscar = trim((string) $request->get('buscar', ''));
+        $esTodos = $rutaId === 'todos';
+
+        $query = Cliente::where('activo', true);
+
+        if ($rutaId === 'sin_ruta') {
+            $query->whereNull('ruta_cobro_id');
+        } elseif (! $esTodos) {
+            $query->where('ruta_cobro_id', $rutaId);
+        }
+
+        if ($buscar !== '') {
+            $query->where(function ($q) use ($buscar) {
+                $q->where('codigo_anterior', 'like', "%{$buscar}%")
+                    ->orWhere('nombre', 'like', "%{$buscar}%")
+                    ->orWhere('apellido', 'like', "%{$buscar}%");
+            });
+        }
+
+        return $query->select('id', 'codigo_anterior', 'nombre', 'apellido', 'orden')
+            ->orderByRaw('orden IS NULL, orden ASC')
+            ->orderBy('nombre')
+            ->get();
+    }
+
+    /** Exporta código + nombre de los clientes filtrados a un .xlsx. */
+    public function exportarExcel(Request $request, $tenant)
+    {
+        $clientes = $this->clientesParaExportar($request);
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', 'Código');
+        $sheet->setCellValue('B1', 'Nombre');
+        $sheet->getStyle('A1:B1')->getFont()->setBold(true);
+
+        $fila = 2;
+        foreach ($clientes as $c) {
+            $sheet->setCellValueExplicit('A'.$fila, $c->codigo_anterior ?? '', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            $sheet->setCellValue('B'.$fila, $c->nombre_completo);
+            $fila++;
+        }
+        $sheet->getColumnDimension('A')->setWidth(14);
+        $sheet->getColumnDimension('B')->setWidth(38);
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $nombreArchivo = 'clientes-'.now()->format('Y-m-d_His').'.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $nombreArchivo, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * Exporta código + nombre de los clientes filtrados a un .doc (HTML con
+     * el encabezado que Word reconoce — evita agregar phpoffice/phpword como
+     * dependencia solo para una tabla de 2 columnas).
+     */
+    public function exportarWord(Request $request, $tenant)
+    {
+        $clientes = $this->clientesParaExportar($request);
+
+        $filas = $clientes->map(fn (Cliente $c) => '<tr><td>'.e($c->codigo_anterior ?? '—').'</td><td>'.e($c->nombre_completo).'</td></tr>')->implode('');
+
+        $html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+            .'<head><meta charset="UTF-8"><title>Listado de clientes</title>'
+            .'<style>body{font-family:Arial,sans-serif;} table{border-collapse:collapse;width:100%;font-size:11pt;} th,td{border:1px solid #333;padding:6px 10px;text-align:left;} th{background:#f0f0f0;}</style>'
+            .'</head><body>'
+            .'<h2>Listado de clientes</h2>'
+            .'<table><tr><th>Código</th><th>Nombre</th></tr>'.$filas.'</table>'
+            .'</body></html>';
+
+        $nombreArchivo = 'clientes-'.now()->format('Y-m-d_His').'.doc';
+
+        return response($html, 200, [
+            'Content-Type' => 'application/msword',
+            'Content-Disposition' => 'attachment; filename="'.$nombreArchivo.'"',
+        ]);
+    }
+
+    /**
      * Marca (o desmarca) un cliente como "revisado" en el checklist de
      * /clientes-ruta. Antes vivía solo en localStorage del navegador; ahora
      * es compartido entre cualquiera que entre a esta pantalla.

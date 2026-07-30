@@ -88,6 +88,12 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::get('{tenant}/data', 'App\Http\Controllers\ClientesRutaController@data')
         ->name('data')
         ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/exportar/excel', 'App\Http\Controllers\ClientesRutaController@exportarExcel')
+        ->name('exportar-excel')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/exportar/word', 'App\Http\Controllers\ClientesRutaController@exportarWord')
+        ->name('exportar-word')
+        ->where('tenant', '[0-9]+');
     Route::get('{tenant}/clientes/{cliente}/detalle', 'App\Http\Controllers\ClientesRutaController@detalleCliente')
         ->name('detalle')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);

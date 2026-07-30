@@ -331,6 +331,8 @@
             </label>
             <span class="pm-card-link" id="cr-quitar-orden" style="cursor:pointer; display:none;">✕ Quitar orden por columna</span>
             <span class="pm-card-link" id="cr-sugerir-orden" style="cursor:pointer; display:none;" title="Calcula un orden de visita según cercanía GPS (aproximado, línea recta)">🧭 Sugerir orden por GPS</span>
+            <a class="pm-card-link" id="cr-exportar-excel" href="#" title="Descargar código y nombre de esta lista en Excel">📊 Excel</a>
+            <a class="pm-card-link" id="cr-exportar-word" href="#" title="Descargar código y nombre de esta lista en Word">📄 Word</a>
             <span class="pm-card-link" id="cr-refresh-link" style="cursor:pointer;">↻ Actualizar</span>
         </div>
     </div>
@@ -941,6 +943,13 @@
         var url = baseUrl + '/data?ruta_cobro_id=' + encodeURIComponent(rutaId) + '&page=' + paginaActual + '&por_pagina=' + porPaginaSelect.value;
         if (buscar !== '') url += '&buscar=' + encodeURIComponent(buscar);
         if (ordenColActual) url += '&orden_col=' + encodeURIComponent(ordenColActual) + '&orden_dir=' + encodeURIComponent(ordenDirActual);
+
+        // Los links de exportar siempre reflejan la ruta/búsqueda actual — no la
+        // página ni el orden manual, ya que la exportación trae la lista completa.
+        var paramsExport = 'ruta_cobro_id=' + encodeURIComponent(rutaId) + (buscar !== '' ? '&buscar=' + encodeURIComponent(buscar) : '');
+        document.getElementById('cr-exportar-excel').href = baseUrl + '/exportar/excel?' + paramsExport;
+        document.getElementById('cr-exportar-word').href = baseUrl + '/exportar/word?' + paramsExport;
+
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
