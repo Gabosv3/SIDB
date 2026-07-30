@@ -126,11 +126,45 @@
 
     function cargar() {
         body.innerHTML = '<div class="cp-loading">Cargando...</div>';
-        fetch(baseUrl + '/clientes/' + clienteId + '/detalle')
-            .then(function (r) { return r.json(); })
+
+        var url = baseUrl + '/clientes/' + clienteId + '/detalle';
+        var inicio = Date.now();
+        var controller = new AbortController();
+        // Si el servidor mata el proceso sin responder nada, el navegador se
+        // queda esperando indefinidamente — este límite lo corta y lo distingue
+        // de un error real de respuesta (status, JSON inválido, etc.).
+        var timeoutId = setTimeout(function () { controller.abort(); }, 45000);
+
+        console.log('[perfil-cliente] Pidiendo ' + url + ' ...');
+
+        fetch(url, { signal: controller.signal })
+            .then(function (r) {
+                clearTimeout(timeoutId);
+                var segundos = ((Date.now() - inicio) / 1000).toFixed(1);
+                console.log('[perfil-cliente] Respuesta recibida en ' + segundos + 's — status ' + r.status + ' ' + r.statusText);
+
+                return r.text().then(function (texto) {
+                    if (!r.ok) {
+                        console.error('[perfil-cliente] status=' + r.status + ' body=', texto);
+                        throw new Error('HTTP ' + r.status + ': ' + texto.slice(0, 500));
+                    }
+                    try {
+                        return JSON.parse(texto);
+                    } catch (e) {
+                        console.error('[perfil-cliente] La respuesta no es JSON válido. Cuerpo crudo:', texto);
+                        throw new Error('Respuesta no es JSON válido (revisa la consola para ver el contenido completo).');
+                    }
+                });
+            })
             .then(render)
-            .catch(function () {
-                body.innerHTML = '<div class="cp-loading">Error al cargar el perfil del cliente.</div>';
+            .catch(function (err) {
+                clearTimeout(timeoutId);
+                var segundos = ((Date.now() - inicio) / 1000).toFixed(1);
+                var motivo = (err && err.name === 'AbortError')
+                    ? 'El servidor no respondió en ' + segundos + 's (tiempo agotado) — probablemente el proceso se cortó del lado del servidor.'
+                    : (err && err.message ? err.message : 'Error de red desconocido.');
+                console.error('[perfil-cliente] Falló después de ' + segundos + 's:', err);
+                body.innerHTML = '<div class="cp-loading">Error al cargar el perfil del cliente.<br><span style="font-size:.75rem; color:var(--muted-2);">' + motivo + ' — abre la consola del navegador (F12) para más detalle.</span></div>';
             });
     }
 
