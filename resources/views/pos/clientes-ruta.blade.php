@@ -582,6 +582,7 @@
         abono_previo: ['#dcfce7', '#166534'],
     };
     var sortable = null;
+    var arrastrando = false;
     var buscarTimeout = null;
     var soloSinRevisarInput = document.getElementById('cr-solo-sin-revisar');
     var paginaActual = 1;
@@ -896,7 +897,9 @@
             sortable = Sortable.create(tbody, {
                 handle: '.cr-handle',
                 animation: 150,
+                onStart: function () { arrastrando = true; },
                 onEnd: function () {
+                    arrastrando = false;
                     var ids = Array.from(tbody.querySelectorAll('.cr-row')).map(function (tr) { return tr.dataset.id; });
                     tbody.querySelectorAll('.cr-orden-badge').forEach(function (b, i) { b.textContent = offsetActual + i + 1; });
                     fetch(baseUrl + '/reordenar', {
@@ -1459,6 +1462,17 @@
             errorEl.textContent = 'Error de conexión al importar.';
         });
     });
+
+    // ── Auto-actualización cada 12s ───────────────────────────────────────────
+    // Refresca la tabla sola en segundo plano para que varios usuarios viendo
+    // esta pantalla a la vez vean cambios de otros sin recargar manualmente.
+    // Se salta el ciclo (no la próxima) si: la pestaña está en segundo plano,
+    // hay un arrastre de reordenamiento en curso, o hay un modal abierto —
+    // en cualquiera de esos casos re-renderizar la tabla sería disruptivo.
+    setInterval(function () {
+        if (document.hidden || arrastrando || document.querySelector('.cr-modal-overlay.show')) return;
+        cargar();
+    }, 12000);
 
     cargar();
 })();

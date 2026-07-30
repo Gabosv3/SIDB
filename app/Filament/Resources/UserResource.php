@@ -120,6 +120,27 @@ class UserResource extends Resource implements HasShieldPermissions
                                         ->dehydrated(false)
                                         ->requiredWith('password'),
                                 ]),
+
+                            Section::make('Estado de la cuenta')
+                                ->description('Controla si este usuario puede iniciar sesión')
+                                ->icon('heroicon-m-power')
+                                ->columns(1)
+                                ->components([
+                                    Forms\Components\Select::make('account_status')
+                                        ->label('Estado')
+                                        ->options([
+                                            'activa' => 'Activa',
+                                            'bloqueada' => 'Bloqueada',
+                                            'desactivada' => 'Desactivada',
+                                        ])
+                                        ->default('activa')
+                                        ->required()
+                                        ->native(false)
+                                        ->disabled(fn (?User $record): bool => $record !== null && $record->id === auth()->id())
+                                        ->helperText(fn (?User $record): string => $record !== null && $record->id === auth()->id()
+                                            ? 'No puedes cambiar el estado de tu propia cuenta.'
+                                            : 'Bloqueada o Desactivada impiden iniciar sesión y usar la API del POS; se cierran todas las sesiones activas de ese usuario al guardar.'),
+                                ]),
                         ]),
 
                     Tabs\Tab::make('Permisos')
@@ -186,6 +207,22 @@ class UserResource extends Resource implements HasShieldPermissions
                     ->color('info')
                     ->separator(','),
 
+                Tables\Columns\TextColumn::make('account_status')
+                    ->label('Estado')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'activa' => 'Activa',
+                        'bloqueada' => 'Bloqueada',
+                        'desactivada' => 'Desactivada',
+                        default => $state,
+                    })
+                    ->color(fn (string $state): string => match ($state) {
+                        'activa' => 'success',
+                        'bloqueada' => 'warning',
+                        'desactivada' => 'danger',
+                        default => 'gray',
+                    }),
+
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
@@ -198,6 +235,14 @@ class UserResource extends Resource implements HasShieldPermissions
                     ->relationship('roles', 'name')
                     ->searchable()
                     ->preload(),
+
+                Tables\Filters\SelectFilter::make('account_status')
+                    ->label('Estado')
+                    ->options([
+                        'activa' => 'Activa',
+                        'bloqueada' => 'Bloqueada',
+                        'desactivada' => 'Desactivada',
+                    ]),
             ])
             ->actions([
                 Actions\Action::make('verPerfil')
