@@ -15,6 +15,7 @@ use App\Observers\DetalleCompraObserver;
 use App\Observers\PagoCompraObserver;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use PragmaRX\Google2FAQRCode\Google2FA;
 
@@ -41,5 +42,39 @@ class AppServiceProvider extends ServiceProvider
 
         // Registrar último login (IP/dispositivo) en el perfil de empleado
         Event::listen(Login::class, RegistrarUltimoLogin::class);
+
+        $this->registrarCapturaDeErroresFatales();
+    }
+
+    /**
+     * Un error fatal real de PHP (memoria agotada, timeout del proceso, etc.)
+     * puede saltarse por completo el manejador de excepciones de Laravel y no
+     * dejar ningún rastro en storage/logs/laravel.log — solo se ve como un
+     * 500 en blanco en el navegador. register_shutdown_function() sigue
+     * ejecutándose incluso después de un fatal, así que es la única forma
+     * confiable de enterarse de esos casos.
+     */
+    private function registrarCapturaDeErroresFatales(): void
+    {
+        register_shutdown_function(function () {
+            $error = error_get_last();
+
+            if (! $error || ! in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                return;
+            }
+
+            try {
+                Log::critical('Error fatal de PHP no capturado por el manejador de excepciones', [
+                    'mensaje' => $error['message'],
+                    'archivo' => $error['file'],
+                    'linea' => $error['line'],
+                    'url' => request()?->fullUrl(),
+                    'metodo' => request()?->method(),
+                    'usuario_id' => auth()->id(),
+                ]);
+            } catch (\Throwable $e) {
+                // Si ni siquiera queda memoria/recursos para loguear, no hay nada más que hacer.
+            }
+        });
     }
 }
