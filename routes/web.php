@@ -154,6 +154,26 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// WhatsApp Monitor (WhatsApp Coexistence, solo lectura)
+Route::middleware(['web', 'auth', 'can:View:WhatsAppCenter'])->prefix('whatsapp-center')->name('whatsapp-center.')->group(function () {
+    Route::get('{tenant}', 'App\Http\Controllers\WhatsAppCenterController@dashboard')
+        ->name('index')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/dashboard-data', 'App\Http\Controllers\WhatsAppCenterController@dashboardData')
+        ->name('dashboard-data')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/conversaciones', 'App\Http\Controllers\WhatsAppCenterController@conversaciones')
+        ->name('conversaciones')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/data', 'App\Http\Controllers\WhatsAppCenterController@data')
+        ->name('data')
+        ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/conversaciones/{conversacion}/mensajes', 'App\Http\Controllers\WhatsAppCenterController@mensajes')
+        ->name('mensajes')
+        ->where(['tenant' => '[0-9]+', 'conversacion' => '[0-9]+']);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Perfil de Empleado
 Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados')->name('empleados.')->group(function () {
     Route::get('{tenant}/{user}', 'App\Http\Controllers\EmpleadoPerfilController@show')

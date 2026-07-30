@@ -237,8 +237,8 @@ return [
         'Export:Clientes' => 'Exportar Clientes (CSV)',
         'View:PerfilEmpleado' => 'Ver Perfil de Empleado',
         'View:ClientesRuta' => 'Ver Clientes por Ruta',
+        'View:WhatsAppCenter' => 'Ver WhatsApp Center',
         'Publicar:AppUpdate' => 'Publicar actualizaciones de la app móvil (APK)',
-        'View:MiWhatsApp' => 'Conectar y usar el WhatsApp propio (Baileys)',
         'Gestionar:DispositivosPos' => 'Liberar dispositivos POS (Monitor POS)',
     ],
 
