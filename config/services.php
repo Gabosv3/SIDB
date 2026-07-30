@@ -35,10 +35,4 @@ return [
         ],
     ],
 
-    // ── Baileys WhatsApp (Personal - Sin costos Meta) ──────────────────────────
-    'baileys' => [
-        'url'   => env('BAILEYS_URL', 'http://localhost:3333'),
-        'token' => env('BAILEYS_TOKEN'),
-    ],
-
 ];

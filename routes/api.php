@@ -131,26 +131,3 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
-/*
-|--------------------------------------------------------------------------
-| Baileys WhatsApp — Webhook y API
-|--------------------------------------------------------------------------
-*/
-Route::prefix('whatsapp/baileys')->name('baileys.')->group(function () {
-    // Webhook de Baileys (sin autenticación - validar con middleware personalizado si es necesario)
-    Route::post('/webhook', 'App\Http\Controllers\BaileysWebhookController@receive')
-        ->name('webhook')
-        ->withoutMiddleware('api'); // Sin protección CSRF si viene de Baileys
-
-    // Sesión propia del vendedor/cobrador autenticado (protegidos)
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/connect', 'App\Http\Controllers\BaileysWebhookController@connect')
-            ->name('connect');
-        Route::get('/status', 'App\Http\Controllers\BaileysWebhookController@status')
-            ->name('status');
-        Route::get('/qrcode', 'App\Http\Controllers\BaileysWebhookController@qrcode')
-            ->name('qrcode');
-        Route::get('/info', 'App\Http\Controllers\BaileysWebhookController@info')
-            ->name('info');
-    });
-});

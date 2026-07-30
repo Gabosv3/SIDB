@@ -17,10 +17,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'solo.vendedor' => \App\Http\Middleware\SoloVendedor::class,
             'solo.cobrador' => \App\Http\Middleware\SoloCobrador::class,
         ]);
-        // Excluir del CSRF los endpoints AJAX de Mi WhatsApp (Baileys)
-        $middleware->validateCsrfTokens(except: [
-            'whatsapp-center/api/*',
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

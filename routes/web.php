@@ -182,18 +182,6 @@ Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Baileys WhatsApp - Controlador de Cobro (Sin costos Meta)
-// ─────────────────────────────────────────────────────────────────────────────
-Route::middleware(['web', 'auth'])->prefix('baileys-cobro')->name('baileys.cobro.')->group(function () {
-    Route::get('status', 'App\Http\Controllers\BaileysCobroController@status')
-        ->name('status');
-    Route::post('recordatorio/{cliente}', 'App\Http\Controllers\BaileysCobroController@enviarRecordatorio')
-        ->name('recordatorio');
-    Route::post('mensaje/{cliente}', 'App\Http\Controllers\BaileysCobroController@enviarMensajePersonalizado')
-        ->name('mensaje');
-});
-
 // Mapa de ruta de cobro (vista interna, requiere autenticación)
 Route::get('/ruta-mapa/{ruta}', function (RutaCobro $ruta) {
     return view('ruta-mapa-public', ['record' => $ruta]);
@@ -206,23 +194,6 @@ Route::get('/administrativo/backups/download/{path}', function (string $path) {
     abort_unless(Storage::disk('local')->exists($filePath), 404);
     return Storage::disk('local')->download($filePath);
 })->middleware(['web', 'auth'])->name('filament.administrativo.pages.backups.download');
-
-// ── Mi WhatsApp (Baileys, sesión propia de cada vendedor/cobrador) ──
-Route::middleware(['web', 'auth', 'can:View:MiWhatsApp'])->prefix('whatsapp-center')->name('whatsapp-center.')->group(function () {
-    Route::get('/', 'App\Http\Controllers\WhatsAppCenterController@index')->name('dashboard');
-
-    // API Endpoints para las llamadas AJAX del dashboard (mantienen el middleware
-    // 'web' para que la sesión reconozca al usuario; el CSRF de estos POST se excluye
-    // en bootstrap/app.php vía validateCsrfTokens(except: ['whatsapp-center/api/*']))
-    Route::post('/api/connect', 'App\Http\Controllers\WhatsAppCenterController@connect')->name('connect');
-    Route::post('/api/send', 'App\Http\Controllers\WhatsAppCenterController@sendMessage')->name('send');
-    Route::get('/api/status', 'App\Http\Controllers\WhatsAppCenterController@status')->name('status');
-    Route::get('/api/stats', 'App\Http\Controllers\WhatsAppCenterController@stats')->name('stats');
-    Route::get('/api/info', 'App\Http\Controllers\WhatsAppCenterController@info')->name('info');
-    Route::post('/api/disconnect', 'App\Http\Controllers\WhatsAppCenterController@disconnect')->name('disconnect');
-    Route::post('/api/reconnect', 'App\Http\Controllers\WhatsAppCenterController@reconnect')->name('reconnect');
-    Route::get('/api/qrcode', 'App\Http\Controllers\WhatsAppCenterController@qrcode')->name('qrcode');
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Publicar actualizaciones de la app móvil (APK)

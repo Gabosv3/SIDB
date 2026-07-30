@@ -550,13 +550,22 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->falseLabel('Solo inactivos'),
             ])
             ->actions([
-                // Botón WhatsApp — abre Mi WhatsApp con el número del cliente precargado
+                // Botón WhatsApp — enlace directo a wa.me con el número del cliente.
+                // Provisional: sin integración propia (Baileys se descontinuó), en
+                // espera de reconstruir con WhatsApp Coexistence.
                 Action::make('whatsapp')
                     ->label('💬 WhatsApp')
                     ->icon('heroicon-m-chat-bubble-left')
                     ->color('success')
                     ->visible(fn (Cliente $record) => filled($record->telefono_whatsapp))
-                    ->url(fn (Cliente $record) => route('whatsapp-center.dashboard', ['to' => $record->telefono_whatsapp]))
+                    ->url(function (Cliente $record) {
+                        $numero = preg_replace('/\D/', '', $record->telefono_whatsapp);
+                        if (strlen($numero) === 8) {
+                            $numero = '503'.$numero;
+                        }
+
+                        return "https://wa.me/{$numero}";
+                    })
                     ->openUrlInNewTab(),
                 // Acciones estándar
                 Actions\ViewAction::make(),

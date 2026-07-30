@@ -84,11 +84,6 @@ class AdministrativoPanelProvider extends PanelProvider
                     ? view('filament.clientes-ruta-sidebar-button')->render()
                     : '',
             )
-            // ── Botón WhatsApp en el sidebar ─────────────────────────────────────
-            ->renderHook(
-                'panels::sidebar.nav.end',
-                fn (): string => view('filament.whatsapp-sidebar-button')->render(),
-            )
             // ── Autenticación de Dos Factores (2FA) ───────────────────────────
             ->multiFactorAuthentication([
                 AppAuthentication::make()
