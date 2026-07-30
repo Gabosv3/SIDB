@@ -44,6 +44,7 @@ class ResumenCobrosDiaService
         foreach ($cobradores as $cobrador) {
             $pagosTodos = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fechaCarbon)
+                ->whereNull('anulado_en')
                 ->with('cliente:id,nombre,apellido,codigo_anterior,ruta_cobro_id', 'venta:id,numero_venta,saldo_pendiente')
                 ->orderBy('created_at')
                 ->get();
@@ -166,6 +167,7 @@ class ResumenCobrosDiaService
     public static function ligero(string $fecha): Collection
     {
         return PagoVenta::whereDate('fecha_pago', Carbon::parse($fecha))
+            ->whereNull('anulado_en')
             ->selectRaw('user_id, COUNT(*) AS pagos, COUNT(DISTINCT cliente_id) AS clientes, SUM(monto) AS cobrado')
             ->groupBy('user_id')
             ->get()
@@ -212,6 +214,7 @@ class ResumenCobrosDiaService
 
         $pagos = PagoVenta::whereDate('fecha_pago', $fechaCarbon)
             ->whereIn('user_id', $userIds)
+            ->whereNull('anulado_en')
             ->selectRaw('SUM(monto) AS total_cobrado, COUNT(DISTINCT CONCAT(cliente_id, "-", venta_id)) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_visitados')
             ->first();
 
@@ -245,7 +248,7 @@ class ResumenCobrosDiaService
 
         $totalCobradores = Cobrador::where('activo', true)->where('excluir_reportes', false)->count();
 
-        $userIdsConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->whereIn('user_id', $userIds)->distinct()->pluck('user_id');
+        $userIdsConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->whereIn('user_id', $userIds)->whereNull('anulado_en')->distinct()->pluck('user_id');
         $userIdsConVisita = VisitaCobro::whereDate('created_at', $fechaCarbon)->whereIn('user_id', $userIds)->distinct()->pluck('user_id');
         $cobradoresActivos = $userIdsConPago->merge($userIdsConVisita)->unique()->count();
 
@@ -256,6 +259,7 @@ class ResumenCobrosDiaService
 
         $pagos = PagoVenta::whereDate('fecha_pago', $fechaCarbon)
             ->whereIn('user_id', $userIds)
+            ->whereNull('anulado_en')
             ->selectRaw('SUM(monto) AS total_cobrado, COUNT(DISTINCT CONCAT(cliente_id, "-", venta_id)) AS total_pagos, COUNT(DISTINCT cliente_id) AS clientes_con_pago')
             ->first();
 
@@ -325,10 +329,12 @@ class ResumenCobrosDiaService
 
         $totalEstaSemana = (float) PagoVenta::whereBetween('fecha_pago', [$inicioSemana->toDateString(), $fechaCarbon->toDateString()])
             ->whereIn('user_id', $userIds)
+            ->whereNull('anulado_en')
             ->sum('monto');
 
         $totalSemanaPasada = (float) PagoVenta::whereBetween('fecha_pago', [$inicioSemanaPasada->toDateString(), $finSemanaPasada->toDateString()])
             ->whereIn('user_id', $userIds)
+            ->whereNull('anulado_en')
             ->sum('monto');
 
         return [
@@ -353,6 +359,7 @@ class ResumenCobrosDiaService
 
         $porDia = PagoVenta::whereBetween('fecha_pago', [$fechaInicio->toDateString(), $fechaFin->toDateString()])
             ->whereIn('user_id', self::userIdsParaReportes($cobradorIds))
+            ->whereNull('anulado_en')
             ->selectRaw('fecha_pago, SUM(monto) AS total')
             ->groupBy('fecha_pago')
             ->pluck('total', 'fecha_pago');
@@ -380,6 +387,7 @@ class ResumenCobrosDiaService
         $fechaCarbon = Carbon::parse($fecha);
 
         $porUser = PagoVenta::whereDate('fecha_pago', $fechaCarbon)
+            ->whereNull('anulado_en')
             ->selectRaw('user_id, SUM(monto) AS total')
             ->groupBy('user_id')
             ->pluck('total', 'user_id');
@@ -408,6 +416,7 @@ class ResumenCobrosDiaService
 
         return PagoVenta::whereDate('fecha_pago', $fechaCarbon)
             ->whereIn('user_id', self::userIdsParaReportes($cobradorIds))
+            ->whereNull('anulado_en')
             ->selectRaw('metodo_pago, SUM(monto) AS total')
             ->groupBy('metodo_pago')
             ->pluck('total', 'metodo_pago')
@@ -472,7 +481,7 @@ class ResumenCobrosDiaService
             ))
             ->pluck('id');
 
-        $clientesConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->pluck('cliente_id');
+        $clientesConPago = PagoVenta::whereDate('fecha_pago', $fechaCarbon)->whereNull('anulado_en')->pluck('cliente_id');
         $clientesConVisita = VisitaCobro::whereDate('created_at', $fechaCarbon)->pluck('cliente_id');
         $clientesAtendidos = $clientesConPago->merge($clientesConVisita)->unique();
 
