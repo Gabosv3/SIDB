@@ -251,7 +251,7 @@
         return html;
     }
 
-    function ventaCardHtml(v) {
+    function ventaCardHtml(v, nombreCliente) {
         var colores = estadoColores[v.estado] || ['#f1f5f9', '#475569'];
         var pct = v.total > 0 ? Math.min(100, Math.round((v.monto_pagado / v.total) * 100)) : 0;
 
@@ -313,7 +313,7 @@
                 }
 
                 var anularBtn = (esSuperAdmin && p.numero_recibo)
-                    ? '<button type="button" class="cr-abono-edit cp-anular-recibo" data-numero-recibo="' + p.numero_recibo + '" data-nombre-cliente="' + c.nombre.replace(/"/g, '&quot;') + '" title="Anular este recibo" style="color:#dc2626;">' +
+                    ? '<button type="button" class="cr-abono-edit cp-anular-recibo" data-numero-recibo="' + p.numero_recibo + '" data-nombre-cliente="' + (nombreCliente || '').replace(/"/g, '&quot;') + '" title="Anular este recibo" style="color:#dc2626;">' +
                         '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>' +
                       '</button>'
                     : '';
@@ -393,10 +393,10 @@
             if (ventasDelDia.length > 1) {
                 html += '<div class="cr-venta-fecha-group">' +
                     '<div class="cr-venta-fecha-group-label">🔗 ' + ventasDelDia.length + ' ventas del ' + fecha + '</div>' +
-                    ventasDelDia.map(ventaCardHtml).join('') +
+                    ventasDelDia.map(function (v) { return ventaCardHtml(v, c.nombre); }).join('') +
                 '</div>';
             } else {
-                html += ventaCardHtml(ventasDelDia[0]);
+                html += ventaCardHtml(ventasDelDia[0], c.nombre);
             }
         });
 
