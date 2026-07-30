@@ -346,11 +346,12 @@
                     <th>Precio</th>
                     <th>Abono inicial</th>
                     <th class="cr-th-sort" data-sort="ventas_pendientes">Ventas<span class="cr-sort-arrow"></span></th>
+                    <th class="cr-th-sort" data-sort="ultima_visita" title="Fecha del último pago o visita registrada">Última visita<span class="cr-sort-arrow"></span></th>
                     <th class="cr-th-sort" data-sort="ruta_nombre">Ruta asignada<span class="cr-sort-arrow"></span></th>
                 </tr>
             </thead>
             <tbody id="cr-tbody">
-                <tr><td class="pm-td" colspan="11">Cargando...</td></tr>
+                <tr><td class="pm-td" colspan="12">Cargando...</td></tr>
             </tbody>
         </table>
     </div>
@@ -637,7 +638,7 @@
 
         if (clientesFiltrados.length === 0) {
             var msg = data.clientes.length === 0 ? 'No hay clientes en esta selección.' : 'Todos los clientes de esta lista ya están marcados como revisados. 🎉';
-            tbody.innerHTML = '<tr><td class="pm-td" colspan="11">' + msg + '</td></tr>';
+            tbody.innerHTML = '<tr><td class="pm-td" colspan="12">' + msg + '</td></tr>';
             return;
         }
 
@@ -706,6 +707,7 @@
                     '<td class="pm-td">' + precioHtml + '</td>' +
                     '<td class="pm-td">' + abonoHtml + '</td>' +
                     '<td class="pm-td"><span class="' + ventasClass + '">' + c.ventas_pendientes + '</span></td>' +
+                    '<td class="pm-td">' + (c.ultima_visita || '<span style="color:var(--muted-2);">—</span>') + '</td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><select class="cr-ruta-select" data-id="' + c.id + '">' + rutaOptionsHtml(c.ruta_cobro_id, c.cobrador_id_ruta) + '</select>' + cambiarCobradorBtnHtml(c.id, c.nombre) + '</div>' + rutaActualHtml + '</td>' +
                 '</tr>';
         }).join('');
