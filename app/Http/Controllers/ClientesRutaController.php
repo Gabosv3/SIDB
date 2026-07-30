@@ -388,7 +388,9 @@ class ClientesRutaController extends Controller
             'rutaCobro:id,nombre,dia_semana',
             'ventas' => fn ($q) => $q->orderBy('fecha_venta')
                 ->with([
-                    'pagos' => fn ($p) => $p->orderBy('fecha_pago'),
+                    // Más reciente primero — el detalle de la venta muestra solo los
+                    // últimos pagos con un "ver más" para el resto.
+                    'pagos' => fn ($p) => $p->orderByDesc('fecha_pago')->orderByDesc('id'),
                     'pagos.anuladoPor:id,name',
                     'gestionesCobro' => fn ($g) => $g->orderBy('numero_cuota'),
                     'detalles.producto:id,nombre',
@@ -483,6 +485,9 @@ class ClientesRutaController extends Controller
                 'usuario' => $v->user?->name ?? 'Sistema',
                 'observaciones' => $v->observaciones,
                 'promesa_fecha' => $v->promesa_fecha?->format('d/m/Y'),
+                'foto_hogar_url' => $v->foto_hogar ? Storage::url($v->foto_hogar) : null,
+                'latitud' => $v->latitud,
+                'longitud' => $v->longitud,
             ])
             ->values();
 

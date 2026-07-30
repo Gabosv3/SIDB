@@ -303,13 +303,34 @@
         html += '<div class="pm-card" style="padding:0 1.1rem;">';
         visitas.forEach(function (v) {
             var colores = resultadoColores[v.resultado] || ['#f1f5f9', '#475569'];
-            html += '<div class="cp-historial-item">' +
-                '<div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;">' +
-                    '<span class="cp-visita-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (resultadoLabels[v.resultado] || v.resultado) + '</span>' +
-                    '<span style="color:var(--muted-2); font-size:.72rem;">' + v.fecha + ' — ' + v.usuario + '</span>' +
+            var tieneUbicacion = !!(v.latitud && v.longitud);
+
+            var fotoHtml = v.foto_hogar_url
+                ? '<a href="' + v.foto_hogar_url + '" target="_blank" rel="noopener" title="Ver foto de la visita"><img src="' + v.foto_hogar_url + '" loading="lazy" style="width:44px; height:44px; object-fit:cover; border-radius:.5rem; border:1px solid var(--border); flex-shrink:0;"></a>'
+                : '';
+
+            var ubicacionHtml = tieneUbicacion
+                ? '<span style="display:inline-flex; gap:.4rem;">' +
+                    '<a href="https://www.google.com/maps?q=' + v.latitud + ',' + v.longitud + '" target="_blank" rel="noopener" class="cr-abono-edit" title="Abrir en Google Maps">' +
+                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' +
+                    '</a>' +
+                    '<a href="https://waze.com/ul?ll=' + v.latitud + ',' + v.longitud + '&navigate=yes" target="_blank" rel="noopener" class="cr-abono-edit" title="Abrir en Waze">' +
+                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                    '</a>' +
+                '</span>'
+                : '';
+
+            html += '<div class="cp-historial-item" style="display:flex; gap:.75rem; align-items:flex-start;">' +
+                fotoHtml +
+                '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:.15rem;">' +
+                    '<div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;">' +
+                        '<span class="cp-visita-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (resultadoLabels[v.resultado] || v.resultado) + '</span>' +
+                        '<span style="color:var(--muted-2); font-size:.72rem;">' + v.fecha + ' — ' + v.usuario + '</span>' +
+                        ubicacionHtml +
+                    '</div>' +
+                    (v.observaciones ? '<span style="font-size:.78rem; color:var(--text-2);">' + v.observaciones + '</span>' : '') +
+                    (v.promesa_fecha ? '<span style="font-size:.72rem; color:var(--muted-2);">Promesa de pago: ' + v.promesa_fecha + '</span>' : '') +
                 '</div>' +
-                (v.observaciones ? '<span style="font-size:.78rem; color:var(--text-2); margin-top:.15rem;">' + v.observaciones + '</span>' : '') +
-                (v.promesa_fecha ? '<span style="font-size:.72rem; color:var(--muted-2);">Promesa de pago: ' + v.promesa_fecha + '</span>' : '') +
             '</div>';
         });
         html += '</div>';
@@ -351,54 +372,65 @@
         }
 
         if (v.pagos.length > 0) {
+            var visibles = v.pagos.slice(0, 5);
+            var restantes = v.pagos.slice(5);
+
             card += '<div class="cr-venta-pagos-list">';
-            v.pagos.forEach(function (p) {
-                var cantidadNota = p.cantidad > 1 ? ' <span style="color:var(--muted-2);">(' + p.cantidad + ' pagos)</span>' : '';
-                var reciboNota = p.numero_recibo ? ' <span style="color:var(--muted-2); font-size:.68rem;">· ' + p.numero_recibo + '</span>' : '';
-                var reciboBtn = p.numero_recibo
-                    ? '<a class="cr-abono-edit" href="' + baseUrl + '/recibo/' + p.numero_recibo + '" target="_blank" rel="noopener" title="Generar recibo">' +
-                        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>' +
-                      '</a>'
-                    : '';
+            visibles.forEach(function (p) { card += pagoRowHtml(p, v, nombreCliente); });
 
-                if (p.anulado) {
-                    var motivoTxt = p.motivo_anulacion ? ' — ' + p.motivo_anulacion : '';
-                    card += '<div class="cr-venta-pago-row" style="flex-direction:column; align-items:flex-start; gap:.15rem;">' +
-                        '<div style="display:flex; justify-content:space-between; width:100%; align-items:center;">' +
-                            '<span style="text-decoration:line-through; color:var(--muted-2);">' + p.fecha + ' — ' + p.metodo_pago + cantidadNota + reciboNota + '</span>' +
-                            '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
-                                '<strong style="text-decoration:line-through; color:var(--muted-2);">' + money(p.monto) + '</strong>' +
-                                '<span class="cr-venta-badge" style="background:#fee2e2; color:#dc2626;">ANULADO</span>' +
-                                reciboBtn +
-                            '</span>' +
-                        '</div>' +
-                        '<span style="color:#dc2626; font-size:.7rem;">Anulado ' + p.anulado_en + (p.anulado_por ? ' por ' + p.anulado_por : '') + motivoTxt + '</span>' +
-                    '</div>';
-                    return;
-                }
+            if (restantes.length > 0) {
+                var idMas = 'cp-pagos-mas-' + v.id;
+                card += '<div id="' + idMas + '" style="display:none;">' + restantes.map(function (p) { return pagoRowHtml(p, v, nombreCliente); }).join('') + '</div>';
+                card += '<button type="button" class="cr-abono-edit cp-ver-mas-pagos" data-target="' + idMas + '" style="width:100%; justify-content:center; font-size:.74rem; font-weight:600; padding:.4rem; margin-top:.2rem;">Ver ' + restantes.length + ' pago(s) más</button>';
+            }
 
-                var anularBtn = (esSuperAdmin && p.numero_recibo)
-                    ? '<button type="button" class="cr-abono-edit cp-anular-recibo" data-numero-recibo="' + p.numero_recibo + '" data-nombre-cliente="' + (nombreCliente || '').replace(/"/g, '&quot;') + '" title="Anular este recibo" style="color:#dc2626;">' +
-                        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>' +
-                      '</button>'
-                    : '';
-
-                card += '<div class="cr-venta-pago-row">' +
-                    '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + reciboNota + '</span>' +
-                    '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
-                        '<strong style="color:#16a34a;">' + money(p.monto) + '</strong>' +
-                        reciboBtn +
-                        '<button type="button" class="cr-abono-edit cp-pago-fecha-edit" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" data-numero-recibo="' + (p.numero_recibo || '') + '" title="Corregir este pago">' +
-                            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
-                        '</button>' +
-                        anularBtn +
-                    '</span>' +
-                '</div>';
-            });
             card += '</div>';
         }
 
         return card + '</div>';
+    }
+
+    function pagoRowHtml(p, v, nombreCliente) {
+        var cantidadNota = p.cantidad > 1 ? ' <span style="color:var(--muted-2);">(' + p.cantidad + ' pagos)</span>' : '';
+        var reciboNota = p.numero_recibo ? ' <span style="color:var(--muted-2); font-size:.68rem;">· ' + p.numero_recibo + '</span>' : '';
+        var reciboBtn = p.numero_recibo
+            ? '<a class="cr-abono-edit" href="' + baseUrl + '/recibo/' + p.numero_recibo + '" target="_blank" rel="noopener" title="Generar recibo">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>' +
+              '</a>'
+            : '';
+
+        if (p.anulado) {
+            var motivoTxt = p.motivo_anulacion ? ' — ' + p.motivo_anulacion : '';
+            return '<div class="cr-venta-pago-row" style="flex-direction:column; align-items:flex-start; gap:.15rem;">' +
+                '<div style="display:flex; justify-content:space-between; width:100%; align-items:center;">' +
+                    '<span style="text-decoration:line-through; color:var(--muted-2);">' + p.fecha + ' — ' + p.metodo_pago + cantidadNota + reciboNota + '</span>' +
+                    '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
+                        '<strong style="text-decoration:line-through; color:var(--muted-2);">' + money(p.monto) + '</strong>' +
+                        '<span class="cr-venta-badge" style="background:#fee2e2; color:#dc2626;">ANULADO</span>' +
+                        reciboBtn +
+                    '</span>' +
+                '</div>' +
+                '<span style="color:#dc2626; font-size:.7rem;">Anulado ' + p.anulado_en + (p.anulado_por ? ' por ' + p.anulado_por : '') + motivoTxt + '</span>' +
+            '</div>';
+        }
+
+        var anularBtn = (esSuperAdmin && p.numero_recibo)
+            ? '<button type="button" class="cr-abono-edit cp-anular-recibo" data-numero-recibo="' + p.numero_recibo + '" data-nombre-cliente="' + (nombreCliente || '').replace(/"/g, '&quot;') + '" title="Anular este recibo" style="color:#dc2626;">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" y1="4.9" x2="19.1" y2="19.1"/></svg>' +
+              '</button>'
+            : '';
+
+        return '<div class="cr-venta-pago-row">' +
+            '<span>' + p.fecha + ' — ' + p.metodo_pago + (p.observaciones ? ' (' + p.observaciones + ')' : '') + cantidadNota + reciboNota + '</span>' +
+            '<span style="display:inline-flex; align-items:center; gap:.3rem;">' +
+                '<strong style="color:#16a34a;">' + money(p.monto) + '</strong>' +
+                reciboBtn +
+                '<button type="button" class="cr-abono-edit cp-pago-fecha-edit" data-venta="' + v.id + '" data-fecha-iso="' + p.fecha_iso + '" data-fecha="' + p.fecha + '" data-monto="' + p.monto + '" data-numero-recibo="' + (p.numero_recibo || '') + '" title="Corregir este pago">' +
+                    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>' +
+                '</button>' +
+                anularBtn +
+            '</span>' +
+        '</div>';
     }
 
     function render(data) {
@@ -514,6 +546,14 @@
                 });
             });
         }
+
+        body.querySelectorAll('.cp-ver-mas-pagos').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var target = document.getElementById(this.dataset.target);
+                if (target) target.style.display = '';
+                this.remove();
+            });
+        });
 
         body.querySelectorAll('.cp-pago-fecha-edit').forEach(function (btn) {
             btn.addEventListener('click', function () {
