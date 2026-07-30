@@ -354,7 +354,7 @@
             @if($r['detalle']->isNotEmpty())
                 @php
                     $filas = $r['detalle']
-                        ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id)
+                        ->groupBy(fn($p) => $p->cliente_id . '_' . $p->venta_id . '_' . ($p->anulado_en ? 'anulado' : 'valido'))
                         ->map(fn($grupo) => [
                             'codigo'        => $grupo->first()->cliente?->codigo_anterior ?? '—',
                             'cliente'       => $grupo->first()->cliente?->nombre_completo ?? '—',
@@ -365,6 +365,7 @@
                             'hora'       => $grupo->first()->created_at->format('H:i'),
                             'total'      => $grupo->sum('monto'),
                             'saldo'      => $grupo->first()->venta?->saldo_pendiente,
+                            'anulado'    => (bool) $grupo->first()->anulado_en,
                         ]);
                 @endphp
                 <div class="rd-subhead">Pagos registrados ({{ $filas->count() }})</div>
@@ -375,11 +376,16 @@
                         </thead>
                         <tbody>
                         @foreach($filas as $fila)
-                            <tr class="rd-pago-tr">
+                            <tr class="rd-pago-tr" style="{{ $fila['anulado'] ? 'opacity:.6;' : '' }}">
                                 <td style="font-variant-numeric:tabular-nums;color:#9ca3af;">{{ $fila['hora'] }}</td>
                                 <td style="font-variant-numeric:tabular-nums;color:var(--muted);">{{ $fila['codigo'] }}</td>
-                                <td style="font-weight:500;">{{ $fila['cliente'] }}</td>
-                                <td style="color:var(--muted);">{{ $fila['venta'] }}</td>
+                                <td style="font-weight:500;{{ $fila['anulado'] ? 'text-decoration:line-through;' : '' }}">
+                                    {{ $fila['cliente'] }}
+                                    @if($fila['anulado'])
+                                        <span style="display:inline-block;margin-left:.35rem;padding:.05rem .4rem;border-radius:999px;background:#fee2e2;color:#dc2626;font-size:.65rem;font-weight:700;text-decoration:none;vertical-align:middle;">ANULADO</span>
+                                    @endif
+                                </td>
+                                <td style="color:var(--muted);{{ $fila['anulado'] ? 'text-decoration:line-through;' : '' }}">{{ $fila['venta'] }}</td>
                                 <td style="color:var(--muted);font-size:.74rem;font-variant-numeric:tabular-nums;">{{ $fila['numero_recibo'] }}</td>
                                 <td>
                                     <span style="display:inline-flex;align-items:center;gap:.3rem;font-size:.74rem;font-weight:500;color:{{ $metodoColor[$fila['metodo']] ?? '#6b7280' }};">
@@ -388,7 +394,7 @@
                                     </span>
                                 </td>
                                 <td style="color:#9ca3af;font-size:.74rem;">{{ $fila['referencia'] ?? '—' }}</td>
-                                <td>${{ number_format($fila['total'], 2) }}</td>
+                                <td style="{{ $fila['anulado'] ? 'text-decoration:line-through;color:#9ca3af;' : '' }}">${{ number_format($fila['total'], 2) }}</td>
                                 <td style="font-weight:600;color:{{ (float) $fila['saldo'] > 0 ? '#dc2626' : '#16a34a' }};">
                                     {{ $fila['saldo'] === null ? '—' : '$'.number_format((float) $fila['saldo'], 2) }}
                                 </td>

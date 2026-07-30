@@ -42,9 +42,10 @@ class ResumenCobrosDiaService
         $resumen = collect();
 
         foreach ($cobradores as $cobrador) {
+            // Incluye pagos anulados: deben seguir apareciendo en el detalle (marcados
+            // como anulados), solo se excluyen de los totales/montos más abajo.
             $pagosTodos = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fechaCarbon)
-                ->whereNull('anulado_en')
                 ->with('cliente:id,nombre,apellido,codigo_anterior,ruta_cobro_id', 'venta:id,numero_venta,saldo_pendiente')
                 ->orderBy('created_at')
                 ->get();
@@ -94,7 +95,11 @@ class ResumenCobrosDiaService
                 $pagos = $pagosTodos->filter(fn ($p) => $p->cliente?->ruta_cobro_id === $rutaId)->values();
                 $visitas = $visitasTodas->filter(fn ($v) => $v->cliente?->ruta_cobro_id === $rutaId)->values();
 
-                $porMetodo = $pagos->groupBy('metodo_pago')->map(fn ($grupo, $metodo) => (object) [
+                // Los pagos anulados se muestran en "detalle" (marcados como anulados)
+                // pero no cuentan en ningún total/monto/gráfica.
+                $pagosValidos = $pagos->whereNull('anulado_en')->values();
+
+                $porMetodo = $pagosValidos->groupBy('metodo_pago')->map(fn ($grupo, $metodo) => (object) [
                     'metodo_pago' => $metodo,
                     'cantidad' => $grupo->count(),
                     'monto' => (float) $grupo->sum('monto'),
@@ -127,9 +132,9 @@ class ResumenCobrosDiaService
                 $resumen->push([
                     'cobrador' => $cobrador,
                     'ruta' => $rutas->get($rutaId),
-                    'total_cobrado' => (float) $pagos->sum('monto'),
-                    'total_pagos' => $pagos->pluck('cliente_id')->unique()->count(),
-                    'clientes_visitados' => $pagos->pluck('cliente_id')->unique()->count(),
+                    'total_cobrado' => (float) $pagosValidos->sum('monto'),
+                    'total_pagos' => $pagosValidos->pluck('cliente_id')->unique()->count(),
+                    'clientes_visitados' => $pagosValidos->pluck('cliente_id')->unique()->count(),
                     'por_metodo' => $porMetodo,
                     'detalle' => $pagos,
                     'visitas_sin_cobro' => $visitas,
@@ -142,7 +147,7 @@ class ResumenCobrosDiaService
         }
 
         return $resumen
-            ->filter(fn ($r) => $r['total_pagos'] > 0 || $r['visitas_sin_cobro']->isNotEmpty() || $r['no_visitados']->isNotEmpty() || ! empty($cobradorIds))
+            ->filter(fn ($r) => $r['total_pagos'] > 0 || $r['detalle']->isNotEmpty() || $r['visitas_sin_cobro']->isNotEmpty() || $r['no_visitados']->isNotEmpty() || ! empty($cobradorIds))
             ->values()
             ->all();
     }
