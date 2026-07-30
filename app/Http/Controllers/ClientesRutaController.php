@@ -389,7 +389,7 @@ class ClientesRutaController extends Controller
             'ventas' => fn ($q) => $q->orderBy('fecha_venta')
                 ->with([
                     // Más reciente primero — el detalle de la venta muestra solo los
-                    // últimos pagos con un "ver más" para el resto.
+                    // últimos movimientos con un "ver más" para el resto.
                     'pagos' => fn ($p) => $p->orderByDesc('fecha_pago')->orderByDesc('id'),
                     'pagos.anuladoPor:id,name',
                     'gestionesCobro' => fn ($g) => $g->orderBy('numero_cuota'),
@@ -398,7 +398,27 @@ class ClientesRutaController extends Controller
                 ]),
         ]);
 
-        $ventas = $cliente->ventas->map(function (Venta $v) {
+        // Las visitas sin cobro se mezclan con los pagos de la venta a la que
+        // pertenecen (misma cuota) para verse como un solo historial cronológico
+        // por venta, no dos listas separadas. Si la visita no quedó ligada a una
+        // cuota (dato viejo o registrada sin gestión puntual), se le asigna a la
+        // única venta del cliente, o si tiene varias, a la más reciente — mejor
+        // aproximación posible sin ese dato.
+        $visitasCliente = VisitaCobro::where('cliente_id', $cliente->id)
+            ->with(['user:id,name', 'gestionCobro:id,venta_id'])
+            ->latest('created_at')
+            ->limit(60)
+            ->get();
+
+        $ventaFallbackId = $cliente->ventas->count() === 1
+            ? $cliente->ventas->first()->id
+            : $cliente->ventas->sortByDesc('fecha_venta')->first()?->id;
+
+        $visitasPorVenta = $visitasCliente->groupBy(
+            fn (VisitaCobro $v) => $v->gestionCobro?->venta_id ?? $ventaFallbackId
+        );
+
+        $ventas = $cliente->ventas->map(function (Venta $v) use ($visitasPorVenta) {
             $cuotas = $v->gestionesCobro;
             $hoy = now()->startOfDay();
 
@@ -425,12 +445,16 @@ class ClientesRutaController extends Controller
                 // se vean como un solo movimiento — mismo criterio que /cobros/historial en
                 // la API móvil. Los pagos antiguos, sin recibo asignado, quedan cada uno como
                 // su propio grupo (no se mezclan entre sí ni con los que sí tienen recibo).
-                'pagos' => $v->pagos
+                // Luego se mezclan (revueltos) con las visitas sin cobro de esta venta, en
+                // un solo historial ordenado del evento más reciente al más antiguo.
+                'eventos' => $v->pagos
                     ->groupBy(fn ($p) => $p->numero_recibo ?? 'sin_recibo_' . $p->id)
                     ->map(function ($grupo) {
                         $primero = $grupo->first();
 
                         return [
+                            'tipo' => 'pago',
+                            'sort_key' => $primero->created_at?->timestamp ?? 0,
                             'numero_recibo' => $primero->numero_recibo,
                             'fecha' => $primero->fecha_pago?->format('d/m/Y'),
                             'fecha_iso' => $primero->fecha_pago?->toDateString(),
@@ -446,6 +470,21 @@ class ClientesRutaController extends Controller
                             'motivo_anulacion' => $primero->motivo_anulacion,
                         ];
                     })
+                    ->concat(
+                        $visitasPorVenta->get($v->id, collect())->map(fn (VisitaCobro $vis) => [
+                            'tipo' => 'visita',
+                            'sort_key' => $vis->created_at->timestamp,
+                            'fecha' => $vis->created_at->format('d/m/Y H:i'),
+                            'resultado' => $vis->resultado,
+                            'usuario' => $vis->user?->name ?? 'Sistema',
+                            'observaciones' => $vis->observaciones,
+                            'promesa_fecha' => $vis->promesa_fecha?->format('d/m/Y'),
+                            'foto_hogar_url' => $vis->foto_hogar ? Storage::url($vis->foto_hogar) : null,
+                            'latitud' => $vis->latitud,
+                            'longitud' => $vis->longitud,
+                        ])
+                    )
+                    ->sortByDesc('sort_key')
                     ->values(),
                 'cuotas_resumen' => $cuotas->isEmpty() ? null : [
                     'total' => $cuotas->count(),
@@ -474,12 +513,10 @@ class ClientesRutaController extends Controller
             ])
             ->values();
 
-        $visitasSinCobro = VisitaCobro::where('cliente_id', $cliente->id)
-            ->with('user:id,name')
-            ->latest('created_at')
-            ->limit(30)
-            ->get()
-            ->map(fn (VisitaCobro $v) => [
+        // Si el cliente no tiene ninguna venta no hay dónde mezclar las visitas —
+        // se listan aparte para que no se pierdan.
+        $visitasSinCobro = $cliente->ventas->isEmpty()
+            ? $visitasCliente->map(fn (VisitaCobro $v) => [
                 'fecha' => $v->created_at->format('d/m/Y H:i'),
                 'resultado' => $v->resultado,
                 'usuario' => $v->user?->name ?? 'Sistema',
@@ -488,8 +525,8 @@ class ClientesRutaController extends Controller
                 'foto_hogar_url' => $v->foto_hogar ? Storage::url($v->foto_hogar) : null,
                 'latitud' => $v->latitud,
                 'longitud' => $v->longitud,
-            ])
-            ->values();
+            ])->values()
+            : collect();
 
         return response()->json([
             'cliente' => [

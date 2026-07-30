@@ -293,6 +293,39 @@
         return html;
     }
 
+    function visitaItemHtml(v) {
+        var colores = resultadoColores[v.resultado] || ['#f1f5f9', '#475569'];
+        var tieneUbicacion = !!(v.latitud && v.longitud);
+
+        var fotoHtml = v.foto_hogar_url
+            ? '<a href="' + v.foto_hogar_url + '" target="_blank" rel="noopener" title="Ver foto de la visita"><img src="' + v.foto_hogar_url + '" loading="lazy" style="width:44px; height:44px; object-fit:cover; border-radius:.5rem; border:1px solid var(--border); flex-shrink:0;"></a>'
+            : '';
+
+        var ubicacionHtml = tieneUbicacion
+            ? '<span style="display:inline-flex; gap:.4rem;">' +
+                '<a href="https://www.google.com/maps?q=' + v.latitud + ',' + v.longitud + '" target="_blank" rel="noopener" class="cr-abono-edit" title="Abrir en Google Maps">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' +
+                '</a>' +
+                '<a href="https://waze.com/ul?ll=' + v.latitud + ',' + v.longitud + '&navigate=yes" target="_blank" rel="noopener" class="cr-abono-edit" title="Abrir en Waze">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                '</a>' +
+            '</span>'
+            : '';
+
+        return '<div class="cp-historial-item" style="display:flex; gap:.75rem; align-items:flex-start;">' +
+            fotoHtml +
+            '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:.15rem;">' +
+                '<div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;">' +
+                    '<span class="cp-visita-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (resultadoLabels[v.resultado] || v.resultado) + '</span>' +
+                    '<span style="color:var(--muted-2); font-size:.72rem;">' + v.fecha + ' — ' + v.usuario + '</span>' +
+                    ubicacionHtml +
+                '</div>' +
+                (v.observaciones ? '<span style="font-size:.78rem; color:var(--text-2);">' + v.observaciones + '</span>' : '') +
+                (v.promesa_fecha ? '<span style="font-size:.72rem; color:var(--muted-2);">Promesa de pago: ' + v.promesa_fecha + '</span>' : '') +
+            '</div>' +
+        '</div>';
+    }
+
     function visitasSinCobroHtml(visitas) {
         var html = '<div class="cp-section-title">🚪 Visitas sin cobro</div>';
 
@@ -301,38 +334,7 @@
         }
 
         html += '<div class="pm-card" style="padding:0 1.1rem;">';
-        visitas.forEach(function (v) {
-            var colores = resultadoColores[v.resultado] || ['#f1f5f9', '#475569'];
-            var tieneUbicacion = !!(v.latitud && v.longitud);
-
-            var fotoHtml = v.foto_hogar_url
-                ? '<a href="' + v.foto_hogar_url + '" target="_blank" rel="noopener" title="Ver foto de la visita"><img src="' + v.foto_hogar_url + '" loading="lazy" style="width:44px; height:44px; object-fit:cover; border-radius:.5rem; border:1px solid var(--border); flex-shrink:0;"></a>'
-                : '';
-
-            var ubicacionHtml = tieneUbicacion
-                ? '<span style="display:inline-flex; gap:.4rem;">' +
-                    '<a href="https://www.google.com/maps?q=' + v.latitud + ',' + v.longitud + '" target="_blank" rel="noopener" class="cr-abono-edit" title="Abrir en Google Maps">' +
-                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>' +
-                    '</a>' +
-                    '<a href="https://waze.com/ul?ll=' + v.latitud + ',' + v.longitud + '&navigate=yes" target="_blank" rel="noopener" class="cr-abono-edit" title="Abrir en Waze">' +
-                        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
-                    '</a>' +
-                '</span>'
-                : '';
-
-            html += '<div class="cp-historial-item" style="display:flex; gap:.75rem; align-items:flex-start;">' +
-                fotoHtml +
-                '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:.15rem;">' +
-                    '<div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;">' +
-                        '<span class="cp-visita-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (resultadoLabels[v.resultado] || v.resultado) + '</span>' +
-                        '<span style="color:var(--muted-2); font-size:.72rem;">' + v.fecha + ' — ' + v.usuario + '</span>' +
-                        ubicacionHtml +
-                    '</div>' +
-                    (v.observaciones ? '<span style="font-size:.78rem; color:var(--text-2);">' + v.observaciones + '</span>' : '') +
-                    (v.promesa_fecha ? '<span style="font-size:.72rem; color:var(--muted-2);">Promesa de pago: ' + v.promesa_fecha + '</span>' : '') +
-                '</div>' +
-            '</div>';
-        });
+        visitas.forEach(function (v) { html += visitaItemHtml(v); });
         html += '</div>';
         return html;
     }
@@ -371,23 +373,27 @@
             card += '<div style="font-size:.74rem; color:var(--muted-2); margin-top:.2rem;">Próxima cuota: #' + v.proxima_cuota.numero_cuota + '/' + v.proxima_cuota.total_cuotas + ' — vence ' + v.proxima_cuota.fecha_vencimiento.substring(8,10) + '/' + v.proxima_cuota.fecha_vencimiento.substring(5,7) + '/' + v.proxima_cuota.fecha_vencimiento.substring(0,4) + '</div>';
         }
 
-        if (v.pagos.length > 0) {
-            var visibles = v.pagos.slice(0, 5);
-            var restantes = v.pagos.slice(5);
+        if (v.eventos.length > 0) {
+            var visibles = v.eventos.slice(0, 5);
+            var restantes = v.eventos.slice(5);
 
             card += '<div class="cr-venta-pagos-list">';
-            visibles.forEach(function (p) { card += pagoRowHtml(p, v, nombreCliente); });
+            visibles.forEach(function (e) { card += eventoRowHtml(e, v, nombreCliente); });
 
             if (restantes.length > 0) {
                 var idMas = 'cp-pagos-mas-' + v.id;
-                card += '<div id="' + idMas + '" style="display:none;">' + restantes.map(function (p) { return pagoRowHtml(p, v, nombreCliente); }).join('') + '</div>';
-                card += '<button type="button" class="cr-abono-edit cp-ver-mas-pagos" data-target="' + idMas + '" style="width:100%; justify-content:center; font-size:.74rem; font-weight:600; padding:.4rem; margin-top:.2rem;">Ver ' + restantes.length + ' pago(s) más</button>';
+                card += '<div id="' + idMas + '" style="display:none;">' + restantes.map(function (e) { return eventoRowHtml(e, v, nombreCliente); }).join('') + '</div>';
+                card += '<button type="button" class="cr-abono-edit cp-ver-mas-pagos" data-target="' + idMas + '" style="width:100%; justify-content:center; font-size:.74rem; font-weight:600; padding:.4rem; margin-top:.2rem;">Ver ' + restantes.length + ' movimiento(s) más</button>';
             }
 
             card += '</div>';
         }
 
         return card + '</div>';
+    }
+
+    function eventoRowHtml(e, v, nombreCliente) {
+        return e.tipo === 'visita' ? visitaItemHtml(e) : pagoRowHtml(e, v, nombreCliente);
     }
 
     function pagoRowHtml(p, v, nombreCliente) {
@@ -497,7 +503,12 @@
             }
         });
 
-        html += visitasSinCobroHtml(data.visitas_sin_cobro);
+        // Las visitas normalmente ya quedaron mezcladas dentro de su venta — esta
+        // sección solo aparece cuando el cliente no tiene ninguna venta registrada
+        // (no hay dónde mezclarlas) y aun así tiene visitas.
+        if (data.visitas_sin_cobro && data.visitas_sin_cobro.length > 0) {
+            html += visitasSinCobroHtml(data.visitas_sin_cobro);
+        }
         html += historialHtml(data.historial_ruta);
 
         html += '</div><div class="cp-sidebar">' +
