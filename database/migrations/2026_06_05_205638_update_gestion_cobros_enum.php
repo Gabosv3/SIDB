@@ -12,6 +12,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // MODIFY ... ENUM es sintaxis exclusiva de MySQL. En SQLite (tests en
+        // memoria) el enum ya se crea como varchar sin restricción, así que no
+        // hay nada que alterar.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE gestion_cobros MODIFY estado ENUM('pendiente', 'parcialmente_cobrado', 'cobrado', 'vencido') DEFAULT 'pendiente'");
     }
 
@@ -20,6 +27,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE gestion_cobros MODIFY estado ENUM('pendiente', 'cobrado', 'vencido') DEFAULT 'pendiente'");
     }
 };

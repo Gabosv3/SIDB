@@ -918,9 +918,11 @@ class CobroController extends Controller
             ->get();
 
         $resumen = $cobradores->map(function ($cobrador) use ($fecha) {
-            // Pagos del día registrados por el user de este cobrador
+            // Pagos del día registrados por el user de este cobrador — los
+            // recibos anulados no cuentan en ningún total.
             $pagos = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fecha)
+                ->whereNull('anulado_en')
                 ->selectRaw('
                     COUNT(DISTINCT cliente_id)  AS total_pagos,
                     COUNT(DISTINCT cliente_id)  AS clientes_visitados,
@@ -931,6 +933,7 @@ class CobroController extends Controller
             // Desglose por método de pago
             $porMetodo = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fecha)
+                ->whereNull('anulado_en')
                 ->selectRaw('metodo_pago, COUNT(*) AS cantidad, SUM(monto) AS monto')
                 ->groupBy('metodo_pago')
                 ->get()
@@ -944,6 +947,7 @@ class CobroController extends Controller
             // Detalle de cada pago
             $detalle = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereDate('fecha_pago', $fecha)
+                ->whereNull('anulado_en')
                 ->with('cliente:id,nombre,apellido', 'venta:id,numero_venta')
                 ->orderBy('created_at')
                 ->get()
@@ -1038,6 +1042,7 @@ class CobroController extends Controller
         // cada uno como su propio grupo (no se mezclan entre sí).
         $pagos = PagoVenta::where('user_id', $cobrador->user_id)
             ->whereDate('fecha_pago', $fecha)
+            ->whereNull('anulado_en')
             ->with(['cliente:id,nombre,apellido,codigo_anterior,telefono_whatsapp', 'venta:id,numero_venta', 'venta.detalles.producto:id,nombre,codigo'])
             ->orderBy('created_at')
             ->get()

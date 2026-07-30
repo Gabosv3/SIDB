@@ -76,14 +76,17 @@ class LiquidacionSemanal extends Page
             ->get();
 
         return $cobradores->map(function ($cobrador) use ($inicio, $fin) {
-            // Total cobrado en la semana
+            // Total cobrado en la semana — los recibos anulados no cuentan
+            // (ni para el total ni para la comisión del 8%).
             $totalCobrado = (float) PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereBetween('fecha_pago', [$inicio->toDateString(), $fin->toDateString()])
+                ->whereNull('anulado_en')
                 ->sum('monto');
 
             // Cobros por día
             $porDia = PagoVenta::where('user_id', $cobrador->user_id)
                 ->whereBetween('fecha_pago', [$inicio->toDateString(), $fin->toDateString()])
+                ->whereNull('anulado_en')
                 ->selectRaw('DATE(fecha_pago) as dia, SUM(monto) as total, COUNT(DISTINCT cliente_id) as clientes')
                 ->groupBy('dia')
                 ->orderBy('dia')

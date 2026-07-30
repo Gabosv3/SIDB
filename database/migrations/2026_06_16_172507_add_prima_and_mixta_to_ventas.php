@@ -16,8 +16,11 @@ return new class extends Migration
             $table->decimal('prima', 12, 2)->default(0)->after('total');
         });
 
-        // Cambiar enum tipo_pago en ventas para incluir mixta
-        DB::statement("ALTER TABLE ventas MODIFY tipo_pago ENUM('contado','credito','mixta') NOT NULL DEFAULT 'contado'");
+        // Cambiar enum tipo_pago en ventas para incluir mixta — MODIFY ... ENUM
+        // es sintaxis exclusiva de MySQL; en SQLite (tests) el enum es varchar.
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE ventas MODIFY tipo_pago ENUM('contado','credito','mixta') NOT NULL DEFAULT 'contado'");
+        }
 
         // Agregar tipo_pago por línea en detalle_ventas
         Schema::table('detalle_ventas', function (Blueprint $table) {
@@ -35,6 +38,8 @@ return new class extends Migration
             $table->dropColumn('prima');
         });
 
-        DB::statement("ALTER TABLE ventas MODIFY tipo_pago ENUM('contado','credito') NOT NULL DEFAULT 'contado'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE ventas MODIFY tipo_pago ENUM('contado','credito') NOT NULL DEFAULT 'contado'");
+        }
     }
 };

@@ -28,10 +28,10 @@ class PosMonitorController extends Controller
             $d->clientes_hoy = (int) ($datos->clientes ?? 0);
         }
 
-        $ventasHoy = (float) PagoVenta::whereDate('fecha_pago', today())->sum('monto');
-        $ventasAyer = (float) PagoVenta::whereDate('fecha_pago', today()->subDay())->sum('monto');
-        $cobrosDia = PagoVenta::whereDate('fecha_pago', today())->distinct('cliente_id')->count('cliente_id');
-        $cobrosAyer = PagoVenta::whereDate('fecha_pago', today()->subDay())->distinct('cliente_id')->count('cliente_id');
+        $ventasHoy = (float) PagoVenta::whereDate('fecha_pago', today())->whereNull('anulado_en')->sum('monto');
+        $ventasAyer = (float) PagoVenta::whereDate('fecha_pago', today()->subDay())->whereNull('anulado_en')->sum('monto');
+        $cobrosDia = PagoVenta::whereDate('fecha_pago', today())->whereNull('anulado_en')->distinct('cliente_id')->count('cliente_id');
+        $cobrosAyer = PagoVenta::whereDate('fecha_pago', today()->subDay())->whereNull('anulado_en')->distinct('cliente_id')->count('cliente_id');
 
         $conexionesPorHora = array_fill(0, 24, 0);
         foreach ($devices as $d) {
@@ -79,10 +79,10 @@ class PosMonitorController extends Controller
         $devices = PosDevice::with(['cobrador', 'user'])->where('activo', true)->orderBy('nombre')->get();
         $ligeroHoy = ResumenCobrosDiaService::ligero(today()->toDateString());
 
-        $ventasHoy = (float) PagoVenta::whereDate('fecha_pago', today())->sum('monto');
-        $ventasAyer = (float) PagoVenta::whereDate('fecha_pago', today()->subDay())->sum('monto');
-        $cobrosDia = PagoVenta::whereDate('fecha_pago', today())->distinct('cliente_id')->count('cliente_id');
-        $cobrosAyer = PagoVenta::whereDate('fecha_pago', today()->subDay())->distinct('cliente_id')->count('cliente_id');
+        $ventasHoy = (float) PagoVenta::whereDate('fecha_pago', today())->whereNull('anulado_en')->sum('monto');
+        $ventasAyer = (float) PagoVenta::whereDate('fecha_pago', today()->subDay())->whereNull('anulado_en')->sum('monto');
+        $cobrosDia = PagoVenta::whereDate('fecha_pago', today())->whereNull('anulado_en')->distinct('cliente_id')->count('cliente_id');
+        $cobrosAyer = PagoVenta::whereDate('fecha_pago', today()->subDay())->whereNull('anulado_en')->distinct('cliente_id')->count('cliente_id');
 
         $conexionesPorHora = array_fill(0, 24, 0);
         foreach ($devices as $d) {
@@ -179,6 +179,7 @@ class PosMonitorController extends Controller
         $fechaCarbon = Carbon::parse($fecha);
 
         $pagos = PagoVenta::whereDate('fecha_pago', $fechaCarbon)
+            ->whereNull('anulado_en')
             ->with('user:id,name')
             ->orderByDesc('created_at')
             ->limit($limit)

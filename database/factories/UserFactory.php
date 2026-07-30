@@ -29,6 +29,10 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // El default 'activa' vive en la BD, pero actingAs() usa la instancia
+            // en memoria sin refrescar — sin esto, estaBloqueado() da true y toda
+            // la API POS devuelve 403 en los tests.
+            'account_status' => 'activa',
         ];
     }
 

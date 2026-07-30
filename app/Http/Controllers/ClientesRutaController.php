@@ -229,6 +229,7 @@ class ClientesRutaController extends Controller
                 ->addSelect([
                     'abono_inicial' => PagoVenta::selectRaw('monto')
                         ->whereColumn('venta_id', 'ventas.id')
+                        ->whereNull('anulado_en')
                         ->oldest('fecha_pago')
                         ->limit(1),
                 ])])
@@ -239,7 +240,8 @@ class ClientesRutaController extends Controller
             // NULL da NULL en MySQL y se perdería el otro dato.
             ->addSelect([
                 'ultimo_pago_fecha' => PagoVenta::selectRaw('MAX(fecha_pago)')
-                    ->whereColumn('cliente_id', 'clientes.id'),
+                    ->whereColumn('cliente_id', 'clientes.id')
+                    ->whereNull('anulado_en'),
                 'ultima_visita_fecha' => VisitaCobro::selectRaw('MAX(created_at)')
                     ->whereColumn('cliente_id', 'clientes.id'),
                 // Resultado de la visita más reciente (no_encontrado, rechazo, etc.) —

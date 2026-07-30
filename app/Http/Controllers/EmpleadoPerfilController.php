@@ -50,7 +50,7 @@ class EmpleadoPerfilController extends Controller
         $ventasSemana = $this->serieUltimosDias(fn ($dia) => $empleado->vendedor
             ? (float) Venta::where('vendedor_id', $empleado->vendedor->id)->whereDate('fecha_venta', $dia)->sum('total')
             : 0.0);
-        $cobrosSemana = $this->serieUltimosDias(fn ($dia) => (float) PagoVenta::where('user_id', $empleado->id)->whereDate('fecha_pago', $dia)->sum('monto'));
+        $cobrosSemana = $this->serieUltimosDias(fn ($dia) => (float) PagoVenta::where('user_id', $empleado->id)->whereDate('fecha_pago', $dia)->whereNull('anulado_en')->sum('monto'));
 
         return view('empleados.perfil', compact(
             'tenant', 'empleado', 'perfilLaboral', 'employeeProfile', 'tipoPerfil', 'posDevice',
@@ -260,6 +260,7 @@ class EmpleadoPerfilController extends Controller
         return (float) PagoVenta::where('user_id', $empleado->id)
             ->whereMonth('fecha_pago', now()->month)
             ->whereYear('fecha_pago', now()->year)
+            ->whereNull('anulado_en')
             ->sum('monto');
     }
 
