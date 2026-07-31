@@ -585,6 +585,12 @@
     };
     var sortable = null;
     var arrastrando = false;
+    // Cambios de "revisado" que ya se aplicaron en pantalla pero todavía no se
+    // confirman con el servidor — si la auto-actualización (cada 12s) trae una
+    // respuesta más vieja que este cambio, se pisaría el checkbox de vuelta a
+    // como estaba antes. Mientras un cliente esté acá, se respeta el valor
+    // local por encima de lo que traiga el servidor.
+    var revisionesPendientes = {};
     var buscarTimeout = null;
     var soloSinRevisarInput = document.getElementById('cr-solo-sin-revisar');
     var paginaActual = 1;
@@ -759,6 +765,7 @@
                     if (marcado && !yaEstaba) ultimoData.total_revisados++;
                     else if (!marcado && yaEstaba) ultimoData.total_revisados--;
                 }
+                revisionesPendientes[clienteId] = marcado;
                 render(ultimoData);
 
                 fetch(baseUrl + '/clientes/' + clienteId + '/revisado', {
@@ -768,7 +775,13 @@
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     },
                     body: JSON.stringify({ revisado: marcado }),
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('respuesta no ok');
+                    // Ya quedó guardado en el servidor — a partir de acá la
+                    // auto-actualización puede volver a mandar este campo sin riesgo.
+                    delete revisionesPendientes[clienteId];
                 }).catch(function () {
+                    delete revisionesPendientes[clienteId];
                     showToast('No se pudo guardar la revisión, intenta de nuevo.');
                 });
             });
@@ -953,6 +966,20 @@
         fetch(url)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                // Reaplica los cambios de "revisado" que aún no confirma el servidor,
+                // para que un fetch en curso (auto-actualización) no los pise. También
+                // ajusta el contador para que la tarjeta de arriba no quede desfasada
+                // mientras el cambio termina de guardarse.
+                Object.keys(revisionesPendientes).forEach(function (id) {
+                    var cliente = data.clientes.find(function (c) { return c.id === Number(id); });
+                    if (!cliente) return;
+                    var valorPendiente = revisionesPendientes[id];
+                    if (!!cliente.revisado !== valorPendiente) {
+                        data.total_revisados += valorPendiente ? 1 : -1;
+                    }
+                    cliente.revisado = valorPendiente;
+                });
+
                 ultimoData = data;
                 ordenColActual = data.orden_col || null;
                 ordenDirActual = data.orden_dir || 'asc';
