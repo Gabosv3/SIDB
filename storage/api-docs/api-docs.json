@@ -824,6 +824,40 @@
                 ]
             }
         },
+        "/cobros/clientes": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Directorio de TODOS los clientes del cobrador, agrupados por ruta",
+                "description": "A diferencia de /cobros/rutas/{ruta_id}/clientes (una sola ruta) y /cobros/ruta-hoy (solo las rutas de hoy), este endpoint devuelve TODAS las rutas del cobrador con sus clientes, cada grupo ordenado por el orden manual de la ruta — pensado como directorio/consulta rápida, no para el cobro del día.",
+                "operationId": "ee36b3052446f645b8dd908ab1672b1c",
+                "parameters": [
+                    {
+                        "name": "buscar",
+                        "in": "query",
+                        "description": "Filtra por nombre, apellido, código anterior o teléfono",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Rutas del cobrador con sus clientes"
+                    },
+                    "403": {
+                        "description": "No se encontró perfil de cobrador"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/cobros/rutas/{ruta_id}/clientes": {
             "get": {
                 "tags": [

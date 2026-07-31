@@ -181,6 +181,75 @@ class CobroController extends Controller
         ]);
     }
 
+    // ── GET /cobros/clientes ──────────────────────────────────────────────────
+
+    #[OA\Get(
+        path: '/cobros/clientes',
+        summary: 'Directorio de TODOS los clientes del cobrador, agrupados por ruta',
+        description: 'A diferencia de /cobros/rutas/{ruta_id}/clientes (una sola ruta) y /cobros/ruta-hoy (solo las rutas de hoy), este endpoint devuelve TODAS las rutas del cobrador con sus clientes, cada grupo ordenado por el orden manual de la ruta — pensado como directorio/consulta rápida, no para el cobro del día.',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(
+                name: 'buscar',
+                in: 'query',
+                description: 'Filtra por nombre, apellido, código anterior o teléfono',
+                required: false,
+                schema: new OA\Schema(type: 'string')
+            ),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Rutas del cobrador con sus clientes'),
+            new OA\Response(response: 403, description: 'No se encontró perfil de cobrador'),
+        ],
+    )]
+    public function todosLosClientes(Request $request): JsonResponse
+    {
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $buscar = trim((string) $request->get('buscar', ''));
+
+        $rutas = $cobrador->rutasCobro()
+            ->where('activa', true)
+            ->orderBy('nombre')
+            ->with(['clientes' => function ($q) use ($buscar) {
+                $q->where('activo', true)
+                    ->select('id', 'nombre', 'apellido', 'codigo_anterior', 'telefono_normal', 'telefono_whatsapp', 'saldo', 'direccion', 'ruta_cobro_id', 'orden')
+                    ->when($buscar !== '', fn ($qb) => $qb->where(function ($sub) use ($buscar) {
+                        $sub->where('nombre', 'like', "%{$buscar}%")
+                            ->orWhere('apellido', 'like', "%{$buscar}%")
+                            ->orWhere('codigo_anterior', 'like', "%{$buscar}%")
+                            ->orWhere('telefono_normal', 'like', "%{$buscar}%");
+                    }))
+                    ->orderByRaw('orden IS NULL, orden');
+            }])
+            ->get()
+            ->map(fn ($ruta) => [
+                'ruta' => ['id' => $ruta->id, 'nombre' => $ruta->nombre, 'dia_semana' => $ruta->dia_semana],
+                'total_clientes' => $ruta->clientes->count(),
+                'clientes' => $ruta->clientes->map(fn ($c) => [
+                    'id' => $c->id,
+                    'nombre' => $c->nombre_completo,
+                    'codigo_anterior' => $c->codigo_anterior,
+                    'telefono' => $c->telefono_normal,
+                    'whatsapp' => $c->telefono_whatsapp,
+                    'saldo_total' => (float) $c->saldo,
+                    'direccion' => $c->direccion,
+                ])->values(),
+            ])
+            ->filter(fn ($grupo) => $buscar === '' || $grupo['total_clientes'] > 0)
+            ->values();
+
+        return response()->json([
+            'total_rutas' => $rutas->count(),
+            'total_clientes' => $rutas->sum('total_clientes'),
+            'rutas' => $rutas,
+        ]);
+    }
+
     // ── GET /cobros/rutas/{ruta_id}/clientes ─────────────────────────────────
 
     #[OA\Get(

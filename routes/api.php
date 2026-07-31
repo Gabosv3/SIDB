@@ -105,6 +105,9 @@ Route::middleware('auth:sanctum')->group(function () {
             // Historial de cobros por día (propio) — ?fecha=YYYY-MM-DD, mes en curso
             Route::get('/historial', [CobroController::class, 'historial']);
 
+            // Directorio de TODOS los clientes del cobrador, agrupados por ruta
+            Route::get('/clientes', [CobroController::class, 'todosLosClientes']);
+
             // Clientes por ruta
             Route::get('/rutas/{ruta_id}/clientes', [CobroController::class, 'clientesPorRuta']);
 
