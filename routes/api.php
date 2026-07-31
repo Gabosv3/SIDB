@@ -119,6 +119,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/clientes/{id}', [CobroController::class, 'detalleCliente']);
             Route::get('/clientes/{id}/gestiones-pendientes', [CobroController::class, 'gestionesPendientes']);
 
+            // Perfil completo de solo lectura (mismo detalle que ve el admin en el
+            // panel web) — cubre todas las rutas del cobrador, no solo la de hoy.
+            Route::get('/clientes/{id}/perfil', [CobroController::class, 'perfilCliente']);
+
             // Registrar pago: directo al cliente (aplica a cuota más antigua)
             Route::post('/clientes/{id}/pagar', [CobroController::class, 'pagarCliente']);
 

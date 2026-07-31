@@ -16,6 +16,21 @@
         }
     ],
     "paths": {
+        "/version": {
+            "get": {
+                "tags": [
+                    "App"
+                ],
+                "summary": "Última versión publicada del APK del POS móvil",
+                "description": "Endpoint público (sin autenticación) para que la app consulte al abrir si hay una actualización disponible. Lee primero public/update/version.json (lo publica /admin/update); si no existe todavía, cae de vuelta a los campos de Personalización del Sistema.",
+                "operationId": "f98d35afafb5d18045980c5754c7cdc6",
+                "responses": {
+                    "200": {
+                        "description": "Datos de la última versión publicada"
+                    }
+                }
+            }
+        },
         "/login": {
             "post": {
                 "tags": [
@@ -284,14 +299,6 @@
                         }
                     },
                     {
-                        "name": "sucursal_id",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
                         "name": "per_page",
                         "in": "query",
                         "required": false,
@@ -485,6 +492,9 @@
                     "200": {
                         "description": "Ubicación actualizada"
                     },
+                    "403": {
+                        "description": "Este cliente no te pertenece"
+                    },
                     "404": {
                         "description": "Cliente no encontrado"
                     },
@@ -540,6 +550,69 @@
                     "200": {
                         "description": "Teléfonos actualizados"
                     },
+                    "403": {
+                        "description": "Este cliente no te pertenece"
+                    },
+                    "404": {
+                        "description": "Cliente no encontrado"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/clientes/{id}/nombre": {
+            "patch": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Actualizar nombre y/o apellido de un cliente",
+                "operationId": "c3e14b63d605487bbea94cc26de6d05b",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "nombre": {
+                                        "description": "Nuevo nombre (opcional)",
+                                        "type": "string",
+                                        "example": "Maria"
+                                    },
+                                    "apellido": {
+                                        "description": "Nuevo apellido (opcional)",
+                                        "type": "string",
+                                        "example": "Hernandez"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Nombre actualizado"
+                    },
+                    "403": {
+                        "description": "Este cliente no te pertenece"
+                    },
                     "404": {
                         "description": "Cliente no encontrado"
                     },
@@ -584,6 +657,139 @@
                     },
                     "401": {
                         "description": "No autenticado"
+                    },
+                    "403": {
+                        "description": "Este cliente no te pertenece"
+                    },
+                    "404": {
+                        "description": "No encontrado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/clientes/{id}/vincular": {
+            "post": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Vincular dos clientes al mismo grupo familiar",
+                "description": "Si ninguno tiene grupo, crea uno nuevo usando el ID de {id}. Si uno ya tiene grupo, el otro lo adopta. Si ambos tienen grupos distintos, se fusionan bajo el grupo de {id}.",
+                "operationId": "476d09cd8389f9c2465cc06bebe1ed55",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "cliente_id_vincular"
+                                ],
+                                "properties": {
+                                    "cliente_id_vincular": {
+                                        "type": "integer",
+                                        "example": 88
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Clientes vinculados"
+                    },
+                    "403": {
+                        "description": "Alguno de los dos clientes no te pertenece"
+                    },
+                    "404": {
+                        "description": "No encontrado"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/clientes/{id}/grupo": {
+            "get": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Ver las cuentas de todo el grupo familiar del cliente",
+                "description": "Devuelve al cliente y a sus vinculados con el saldo de cada cuenta a crédito. Si el cliente no tiene grupo, devuelve solo a sí mismo.",
+                "operationId": "fc7628e4a3cb7f3783511e04a2fdb249",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cuentas del grupo"
+                    },
+                    "403": {
+                        "description": "Este cliente no te pertenece"
+                    },
+                    "404": {
+                        "description": "No encontrado"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/clientes/{id}/desvincular": {
+            "post": {
+                "tags": [
+                    "Clientes"
+                ],
+                "summary": "Quitar a un cliente de su grupo familiar",
+                "description": "Si el grupo queda con un solo integrante, también se le quita el grupo a ese último.",
+                "operationId": "39e13e37b154d4553cbfcab89d7f3337",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cliente desvinculado"
+                    },
+                    "403": {
+                        "description": "Este cliente no te pertenece"
                     },
                     "404": {
                         "description": "No encontrado"
@@ -653,6 +859,137 @@
                 ]
             }
         },
+        "/cobros/rutas/{ruta_id}/orden": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Orden guardado de los clientes de una ruta",
+                "description": "Devuelve los IDs de cliente en el orden en que el cobrador los dejó la última vez (persistido en el servidor, sobrevive reinstalaciones de la app).",
+                "operationId": "8c7fefcbbbb287875ddd4726c8681fb3",
+                "parameters": [
+                    {
+                        "name": "ruta_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "IDs de cliente en orden"
+                    },
+                    "403": {
+                        "description": "Ruta no encontrada o no te pertenece"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Guardar el orden de visita de los clientes de una ruta",
+                "description": "El cobrador reordena su ruta en la app y ese orden queda guardado en el servidor (columna clientes.orden, la misma que usa el panel administrativo).",
+                "operationId": "9fed9edd6750084ade9e1c056d24c682",
+                "parameters": [
+                    {
+                        "name": "ruta_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "ids"
+                                ],
+                                "properties": {
+                                    "ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer"
+                                        },
+                                        "example": [
+                                            3,
+                                            1,
+                                            7,
+                                            2
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Orden guardado"
+                    },
+                    "403": {
+                        "description": "Ruta no encontrada o no te pertenece"
+                    },
+                    "422": {
+                        "description": "Alguno de los IDs no pertenece a esta ruta"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/clientes/buscar": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Buscar un cliente por código, entre todos los clientes del cobrador",
+                "description": "Busca por código (código anterior) entre TODOS los clientes de las rutas del cobrador, sin importar si la ruta es la de hoy o de otro día. Útil cuando un cliente paga fuera de su día habitual de visita.",
+                "operationId": "b35061df3206be6b4c1be7d8556c3178",
+                "parameters": [
+                    {
+                        "name": "codigo",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "7304"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Clientes encontrados"
+                    },
+                    "403": {
+                        "description": "No se encontró perfil de cobrador"
+                    },
+                    "422": {
+                        "description": "Falta el parámetro codigo"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/cobros/clientes/{id}": {
             "get": {
                 "tags": [
@@ -673,6 +1010,39 @@
                 "responses": {
                     "200": {
                         "description": "Detalle del cliente"
+                    },
+                    "403": {
+                        "description": "Cliente no pertenece a tus rutas"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/clientes/{id}/perfil": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Perfil completo del cliente (solo lectura)",
+                "description": "Misma información que ve el administrador en el panel web: datos personales, referencias, documentos, historial de pagos y visitas por venta, e historial de cambios de ruta. Cubre TODAS las rutas del cobrador (no solo la de hoy) — pensado como un directorio de consulta, no para registrar cobros desde acá.",
+                "operationId": "8bbcbc716a46470f68c53383197bcc9a",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Perfil completo del cliente"
                     },
                     "403": {
                         "description": "Cliente no pertenece a tus rutas"
@@ -917,6 +1287,146 @@
                 ]
             }
         },
+        "/cobros/historial": {
+            "get": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Historial de cobros, visitas y gastos aprobados de un día del cobrador autenticado",
+                "description": "Lista, del más reciente al más antiguo, cada pago, cada visita sin pago y cada vale (gasto) ya aprobado que el cobrador autenticado registró en la fecha indicada (campo \"tipo\": \"pago\", \"visita\" o \"gasto\"). Los vales pendientes o rechazados no aparecen aquí — para verlos todos, usar GET /vales. Sin el parámetro \"fecha\" devuelve el día de hoy. Solo se permite consultar días del mes en curso (hasta hoy), para que el selector de fecha de la app muestre un mes a la vez.",
+                "operationId": "504d8ff4907afcefba4e1864e93f009c",
+                "parameters": [
+                    {
+                        "name": "fecha",
+                        "in": "query",
+                        "description": "Día a consultar (YYYY-MM-DD). Por defecto, hoy.",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Historial del día"
+                    },
+                    "403": {
+                        "description": "Sin perfil de cobrador"
+                    },
+                    "422": {
+                        "description": "La fecha está fuera del mes en curso",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/cobros/clientes/{id}/visita": {
+            "post": {
+                "tags": [
+                    "Cobros"
+                ],
+                "summary": "Registrar visita sin cobro a un cliente",
+                "description": "Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante. Si resultado=abono_previo (el cliente ya pagó su mensualidad por otro medio), no se requiere foto ni coordenadas GPS y no se genera ningún cobro nuevo, solo queda constancia de la visita.",
+                "operationId": "b9ecfbcd4e5d0c12c894db5837718294",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del cliente",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "resultado"
+                                ],
+                                "properties": {
+                                    "resultado": {
+                                        "type": "string",
+                                        "example": "sin_pago",
+                                        "enum": [
+                                            "sin_pago",
+                                            "promesa_pago",
+                                            "no_encontrado",
+                                            "rechazo",
+                                            "abono_previo"
+                                        ]
+                                    },
+                                    "gestion_cobro_id": {
+                                        "description": "Cuota específica relacionada (opcional)",
+                                        "type": "integer",
+                                        "nullable": true
+                                    },
+                                    "observaciones": {
+                                        "type": "string",
+                                        "example": "El cliente dijo que paga el viernes",
+                                        "nullable": true
+                                    },
+                                    "promesa_fecha": {
+                                        "description": "Requerido si resultado=promesa_pago",
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    },
+                                    "foto_hogar": {
+                                        "description": "Foto del hogar como comprobante (jpg/png, max 5MB)",
+                                        "type": "string",
+                                        "format": "binary",
+                                        "nullable": true
+                                    },
+                                    "latitud": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "nullable": true
+                                    },
+                                    "longitud": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Visita registrada"
+                    },
+                    "403": {
+                        "description": "Cliente no pertenece a tus rutas"
+                    },
+                    "422": {
+                        "description": "Validación fallida"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/ventas/{venta}/pagos": {
             "get": {
                 "tags": [
@@ -952,6 +1462,9 @@
                     "401": {
                         "description": "No autenticado"
                     },
+                    "403": {
+                        "description": "Esta venta no te pertenece"
+                    },
                     "404": {
                         "description": "Venta no encontrada"
                     }
@@ -967,6 +1480,7 @@
                     "Pagos"
                 ],
                 "summary": "Registrar un pago sobre una venta",
+                "description": "El monto se reparte automáticamente entre las cuotas pendientes más antiguas de la venta, igual que el cobro por cliente.",
                 "operationId": "87903839d26c336b6cefeef217eb1850",
                 "parameters": [
                     {
@@ -1029,9 +1543,6 @@
                             "application/json": {
                                 "schema": {
                                     "properties": {
-                                        "pago": {
-                                            "$ref": "#/components/schemas/PagoVenta"
-                                        },
                                         "saldo_pendiente": {
                                             "type": "number",
                                             "format": "float"
@@ -1048,12 +1559,130 @@
                     "401": {
                         "description": "No autenticado"
                     },
+                    "403": {
+                        "description": "Esta venta no te pertenece"
+                    },
                     "422": {
                         "description": "Venta ya pagada o validación fallida",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/preventas": {
+            "get": {
+                "tags": [
+                    "Preventas"
+                ],
+                "summary": "Listar preventas",
+                "description": "Un cobrador ve las preventas que él registró. Un vendedor ve las que un administrador le asignó.",
+                "operationId": "4a883624ec6a9a09e17d4acf8b845249",
+                "parameters": [
+                    {
+                        "name": "estado",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pendiente",
+                                "convertida",
+                                "rechazada"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista paginada de preventas"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Preventas"
+                ],
+                "summary": "Registrar una preventa",
+                "description": "El cobrador registra el interés de un cliente en comprar (productos y cantidades del catálogo). Queda pendiente de que un administrador la asigne a un vendedor, que la visitará para cerrar la venta real.",
+                "operationId": "5f1186de3a722dc032fac98496e36145",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "cliente_id",
+                                    "detalles"
+                                ],
+                                "properties": {
+                                    "cliente_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    },
+                                    "observaciones": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "detalles": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "producto_id": {
+                                                    "type": "integer"
+                                                },
+                                                "cantidad": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Preventa registrada"
+                    },
+                    "403": {
+                        "description": "Sin perfil de cobrador"
+                    },
+                    "422": {
+                        "description": "Validación fallida",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Errores422"
                                 }
                             }
                         }
@@ -1668,6 +2297,161 @@
                 ]
             }
         },
+        "/vales": {
+            "get": {
+                "tags": [
+                    "Vales"
+                ],
+                "summary": "Listar los vales propios",
+                "description": "Historial de vales (consumo y vehículo) enviados por el usuario autenticado, del más reciente al más antiguo.",
+                "operationId": "9cbf794ac1ff9d5c97392579abc1b844",
+                "parameters": [
+                    {
+                        "name": "estado",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pendiente",
+                                "aprobado",
+                                "rechazado"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "tipo",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "consumo",
+                                "vehiculo"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de vales"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Vales"
+                ],
+                "summary": "Enviar un vale (consumo o vehículo)",
+                "description": "Vale de consumo: solo requiere monto y comprobante. Vale de vehículo: requiere además vehiculo_id y categoria_vehiculo (gasolina o imprevisto — mantenimiento es de uso administrativo). Queda en estado \"pendiente\" hasta que un administrador lo apruebe o rechace.",
+                "operationId": "3efe60ca253ada60acce22addb58273e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "tipo",
+                                    "monto",
+                                    "comprobante"
+                                ],
+                                "properties": {
+                                    "tipo": {
+                                        "type": "string",
+                                        "enum": [
+                                            "consumo",
+                                            "vehiculo"
+                                        ]
+                                    },
+                                    "monto": {
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 5
+                                    },
+                                    "comprobante": {
+                                        "description": "Foto del comprobante (jpg/png, max 5MB)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "descripcion": {
+                                        "type": "string",
+                                        "nullable": true
+                                    },
+                                    "fecha_gasto": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "nullable": true
+                                    },
+                                    "vehiculo_id": {
+                                        "description": "Requerido si tipo=vehiculo",
+                                        "type": "integer",
+                                        "nullable": true
+                                    },
+                                    "categoria_vehiculo": {
+                                        "description": "Requerido si tipo=vehiculo",
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "gasolina",
+                                            "imprevisto"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Vale enviado"
+                    },
+                    "403": {
+                        "description": "El vehículo no te pertenece ni es de reserva"
+                    },
+                    "422": {
+                        "description": "Validación fallida",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/vehiculos/disponibles": {
+            "get": {
+                "tags": [
+                    "Vehículos"
+                ],
+                "summary": "Vehículos que el usuario autenticado puede usar para un vale",
+                "description": "Incluye el/los vehículo(s) asignados de forma fija al usuario, más los vehículos de reserva disponibles (para cuando la moto/carro asignado se avería).",
+                "operationId": "ae73e0d83d6874dd2e041daeb8a94a14",
+                "responses": {
+                    "200": {
+                        "description": "Lista de vehículos disponibles"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/ventas": {
             "get": {
                 "tags": [
@@ -1880,6 +2664,68 @@
                     },
                     "404": {
                         "description": "No encontrada"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/ventas/{id}/anular": {
+            "post": {
+                "tags": [
+                    "Ventas"
+                ],
+                "summary": "Anular una venta propia",
+                "description": "Cancela una venta que todavía no tiene pagos registrados. Si la venta es de hoy y la asignación diaria del vendedor sigue activa, la cantidad se resta de \"vendido\" en la asignación para que pueda revenderse el mismo día. El cliente sale de su ruta de cobro si esta era su única cuenta activa (mismo efecto que cancelar desde el panel).",
+                "operationId": "8c3a0a184215cbd1073cb51643b88c16",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "motivo"
+                                ],
+                                "properties": {
+                                    "motivo": {
+                                        "type": "string",
+                                        "example": "El cliente se arrepintió"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Venta anulada"
+                    },
+                    "404": {
+                        "description": "Venta no encontrada"
+                    },
+                    "422": {
+                        "description": "Ya está anulada o ya tiene pagos registrados",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -2223,6 +3069,10 @@
     },
     "tags": [
         {
+            "name": "App",
+            "description": "App"
+        },
+        {
             "name": "Auth",
             "description": "Auth"
         },
@@ -2243,12 +3093,24 @@
             "description": "Pagos"
         },
         {
+            "name": "Preventas",
+            "description": "Preventas"
+        },
+        {
             "name": "Productos",
             "description": "Productos"
         },
         {
             "name": "Reintegros",
             "description": "Reintegros"
+        },
+        {
+            "name": "Vales",
+            "description": "Vales"
+        },
+        {
+            "name": "Vehículos",
+            "description": "Vehículos"
         },
         {
             "name": "Ventas",

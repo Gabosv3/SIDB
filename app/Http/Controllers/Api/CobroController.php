@@ -10,6 +10,7 @@ use App\Models\ConfiguracionSistema;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\Vale;
+use App\Models\Venta;
 use App\Models\VisitaCobro;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
+use Spatie\Activitylog\Models\Activity;
 
 class CobroController extends Controller
 {
@@ -525,6 +527,192 @@ class CobroController extends Controller
                 'cuotas_vencidas'   => $totalVencidas,
             ],
             'ventas' => $ventas,
+        ]);
+    }
+
+    // ── GET /cobros/clientes/{id}/perfil ──────────────────────────────────────
+
+    #[OA\Get(
+        path: '/cobros/clientes/{id}/perfil',
+        summary: 'Perfil completo del cliente (solo lectura)',
+        description: 'Misma información que ve el administrador en el panel web: datos personales, referencias, documentos, historial de pagos y visitas por venta, e historial de cambios de ruta. Cubre TODAS las rutas del cobrador (no solo la de hoy) — pensado como un directorio de consulta, no para registrar cobros desde acá.',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Perfil completo del cliente'),
+            new OA\Response(response: 403, description: 'Cliente no pertenece a tus rutas'),
+        ],
+    )]
+    public function perfilCliente(Request $request, int $id): JsonResponse
+    {
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $cliente = $this->clienteDeRuta($id, $cobrador);
+        if (! $cliente) {
+            return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
+        }
+
+        $cliente->load([
+            'rutaCobro:id,nombre,dia_semana',
+            'ventas' => fn ($q) => $q->orderBy('fecha_venta')
+                ->with([
+                    'pagos' => fn ($p) => $p->orderByDesc('fecha_pago')->orderByDesc('id'),
+                    'pagos.anuladoPor:id,name',
+                    'gestionesCobro' => fn ($g) => $g->orderBy('numero_cuota'),
+                    'detalles.producto:id,nombre',
+                    'vendedor:id,nombre,apellido',
+                ]),
+        ]);
+
+        $visitasCliente = VisitaCobro::where('cliente_id', $cliente->id)
+            ->with(['user:id,name', 'gestionCobro:id,venta_id'])
+            ->latest('created_at')
+            ->limit(60)
+            ->get();
+
+        $ventaFallbackId = $cliente->ventas->count() === 1
+            ? $cliente->ventas->first()->id
+            : $cliente->ventas->sortByDesc('fecha_venta')->first()?->id;
+
+        $visitasPorVenta = $visitasCliente->groupBy(
+            fn (VisitaCobro $v) => $v->gestionCobro?->venta_id ?? $ventaFallbackId
+        );
+
+        $ventas = $cliente->ventas->map(function (Venta $v) use ($visitasPorVenta) {
+            $cuotas = $v->gestionesCobro;
+            $hoy = now()->startOfDay();
+
+            return [
+                'id' => $v->id,
+                'numero_venta' => $v->numero_venta,
+                'fecha_venta' => $v->fecha_venta?->format('d/m/Y'),
+                'tipo_pago' => $v->tipo_pago,
+                'estado' => $v->estado,
+                'total' => (float) $v->total,
+                'monto_pagado' => (float) $v->monto_pagado,
+                'saldo_pendiente' => (float) $v->saldo_pendiente,
+                'dias_credito' => $v->dias_credito,
+                'vendedor_nombre' => $v->vendedor ? trim($v->vendedor->nombre.' '.$v->vendedor->apellido) : null,
+                'productos' => $v->detalles->map(fn ($d) => [
+                    'nombre' => $d->producto?->nombre ?? 'Producto eliminado',
+                    'cantidad' => (int) $d->cantidad,
+                    'precio_unitario' => (float) $d->precio_unitario,
+                    'subtotal' => (float) $d->subtotal,
+                ])->values(),
+                'observaciones' => $v->observaciones,
+                'eventos' => $v->pagos
+                    ->groupBy(fn ($p) => $p->numero_recibo ?? 'sin_recibo_'.$p->id)
+                    ->map(function ($grupo) {
+                        $primero = $grupo->first();
+
+                        return [
+                            'tipo' => 'pago',
+                            'sort_key' => $primero->created_at?->timestamp ?? 0,
+                            'numero_recibo' => $primero->numero_recibo,
+                            'fecha' => $primero->fecha_pago?->format('d/m/Y'),
+                            'monto' => round((float) $grupo->sum('monto'), 2),
+                            'metodo_pago' => $grupo->pluck('metodo_pago')->unique()->count() === 1
+                                ? $primero->metodo_pago
+                                : 'mixto',
+                            'observaciones' => $primero->observaciones,
+                            'anulado' => $primero->anulado_en !== null,
+                            'anulado_en' => $primero->anulado_en?->format('d/m/Y H:i'),
+                            'anulado_por' => $primero->anuladoPor?->name,
+                            'motivo_anulacion' => $primero->motivo_anulacion,
+                        ];
+                    })
+                    ->concat(
+                        $visitasPorVenta->get($v->id, collect())->map(fn (VisitaCobro $vis) => [
+                            'tipo' => 'visita',
+                            'sort_key' => $vis->created_at->timestamp,
+                            'fecha' => $vis->created_at->format('d/m/Y H:i'),
+                            'resultado' => $vis->resultado,
+                            'usuario' => $vis->user?->name ?? 'Sistema',
+                            'observaciones' => $vis->observaciones,
+                            'foto_hogar_url' => $vis->foto_hogar ? Storage::url($vis->foto_hogar) : null,
+                        ])
+                    )
+                    ->sortByDesc('sort_key')
+                    ->values(),
+                'cuotas_resumen' => $cuotas->isEmpty() ? null : [
+                    'total' => $cuotas->count(),
+                    'cobradas' => $cuotas->where('estado', 'cobrado')->count(),
+                    'pendientes' => $cuotas->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count(),
+                    'vencidas' => $cuotas->filter(fn ($g) => $g->estado !== 'cobrado' && $g->fecha_vencimiento->lt($hoy))->count(),
+                ],
+                'proxima_cuota' => $cuotas->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->sortBy('fecha_vencimiento')->first()?->only(['numero_cuota', 'total_cuotas', 'monto_cuota', 'monto_pagado', 'fecha_vencimiento']),
+            ];
+        })->values();
+
+        $historialRuta = Activity::where('log_name', 'cliente_ruta_cambio')
+            ->where('subject_type', Cliente::class)
+            ->where('subject_id', $cliente->id)
+            ->with('causer:id,name')
+            ->latest()
+            ->limit(30)
+            ->get()
+            ->map(fn (Activity $a) => [
+                'fecha' => $a->created_at->format('d/m/Y H:i'),
+                'usuario' => $a->causer?->name ?? 'Sistema',
+                'ruta_anterior' => $a->properties->get('ruta_anterior_nombre'),
+                'ruta_nueva' => $a->properties->get('ruta_nueva_nombre'),
+            ])
+            ->values();
+
+        $visitasSinCobro = $cliente->ventas->isEmpty()
+            ? $visitasCliente->map(fn (VisitaCobro $v) => [
+                'fecha' => $v->created_at->format('d/m/Y H:i'),
+                'resultado' => $v->resultado,
+                'usuario' => $v->user?->name ?? 'Sistema',
+                'observaciones' => $v->observaciones,
+                'foto_hogar_url' => $v->foto_hogar ? Storage::url($v->foto_hogar) : null,
+            ])->values()
+            : collect();
+
+        return response()->json([
+            'cliente' => [
+                'id' => $cliente->id,
+                'codigo_anterior' => $cliente->codigo_anterior,
+                'nombre' => $cliente->nombre_completo,
+                'dui' => $cliente->dui,
+                'nit' => $cliente->nit,
+                'email' => $cliente->email,
+                'telefono' => $cliente->telefono_normal,
+                'whatsapp' => $cliente->telefono_whatsapp,
+                'direccion' => $cliente->direccion,
+                'departamento' => $cliente->departamento,
+                'municipio' => $cliente->municipio,
+                'latitud' => $cliente->latitud,
+                'longitud' => $cliente->longitud,
+                'saldo' => (float) $cliente->saldo,
+                'limite_credito' => $cliente->limite_credito !== null ? (float) $cliente->limite_credito : null,
+                'ruta_nombre' => $cliente->rutaCobro?->nombre,
+                'ruta_dia' => $cliente->rutaCobro?->dia_semana,
+                'foto_casa' => $cliente->foto_casa ? asset('storage/'.$cliente->foto_casa) : null,
+                'referencias_familiares' => collect([
+                    ['nombre' => $cliente->ref_fam1_nombre, 'telefono' => $cliente->ref_fam1_telefono, 'parentesco' => $cliente->ref_fam1_parentesco],
+                    ['nombre' => $cliente->ref_fam2_nombre, 'telefono' => $cliente->ref_fam2_telefono, 'parentesco' => $cliente->ref_fam2_parentesco],
+                ])->filter(fn ($r) => filled($r['nombre']))->values(),
+                'referencias_conocidas' => collect([
+                    ['nombre' => $cliente->ref_con1_nombre, 'telefono' => $cliente->ref_con1_telefono, 'trabajo' => $cliente->ref_con1_trabajo],
+                    ['nombre' => $cliente->ref_con2_nombre, 'telefono' => $cliente->ref_con2_telefono, 'trabajo' => $cliente->ref_con2_trabajo],
+                ])->filter(fn ($r) => filled($r['nombre']))->values(),
+            ],
+            'ventas' => $ventas,
+            'resumen' => [
+                'total_ventas' => $ventas->count(),
+                'total_comprado' => round($ventas->sum('total'), 2),
+                'total_pagado' => round($ventas->sum('monto_pagado'), 2),
+                'total_pendiente' => round($ventas->sum('saldo_pendiente'), 2),
+            ],
+            'historial_ruta' => $historialRuta,
+            'visitas_sin_cobro' => $visitasSinCobro,
         ]);
     }
 
