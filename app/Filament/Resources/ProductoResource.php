@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProductoResource\Pages;
+use App\Filament\Resources\ProductoResource\RelationManagers;
 use App\Models\Producto;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Illuminate\Support\Str;
@@ -387,6 +388,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->toggle(),
             ])
             ->actions([
+                Actions\ViewAction::make(),
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make(),
             ])
@@ -405,7 +407,15 @@ class ProductoResource extends Resource implements HasShieldPermissions
         return [
             'index'  => Pages\ListProductos::route('/'),
             'create' => Pages\CreateProducto::route('/create'),
+            'view'   => Pages\ViewProducto::route('/{record}'),
             'edit'   => Pages\EditProducto::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\VentasRelationManager::class,
         ];
     }
 }
