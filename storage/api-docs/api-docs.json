@@ -11,6 +11,10 @@
     },
     "servers": [
         {
+            "url": "https://panel.distribuidorabriancescomenjivar.com/api",
+            "description": "Producción"
+        },
+        {
             "url": "http://localhost/SIDB/public/api",
             "description": "Laragon local"
         }

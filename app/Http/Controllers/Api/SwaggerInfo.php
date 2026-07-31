@@ -14,6 +14,10 @@ use OpenApi\Attributes as OA;
     contact: new OA\Contact(name: 'Soporte SIDB', email: 'soporte@sidb.local'),
 )]
 #[OA\Server(
+    url: 'https://panel.distribuidorabriancescomenjivar.com/api',
+    description: 'Producción',
+)]
+#[OA\Server(
     url: 'http://localhost/SIDB/public/api',
     description: 'Laragon local',
 )]
