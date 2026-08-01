@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Cobrador;
-use App\Models\CobradorRecibosContador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\Venta;
@@ -41,12 +39,6 @@ class RegistrarCobroManualService
                 ->orderBy('numero_cuota')
                 ->get();
 
-            // Igual que en el POS móvil: un solo cobro puede repartirse en varias
-            // cuotas, pero todas comparten el mismo número de recibo. Antes, un
-            // cobro registrado desde acá (el panel) nunca generaba correlativo.
-            $cobrador = Cobrador::where('user_id', $data['user_id'])->first();
-            $numeroRecibo = $cobrador ? CobradorRecibosContador::siguienteNumeroRecibo($cobrador->id) : null;
-
             $restante = $monto;
             $cuotasAplicadas = 0;
 
@@ -61,7 +53,6 @@ class RegistrarCobroManualService
                 PagoVenta::create([
                     'venta_id' => $venta->id,
                     'cliente_id' => $venta->cliente_id,
-                    'numero_recibo' => $numeroRecibo,
                     'monto' => $aplicar,
                     'fecha_pago' => $data['fecha_pago'],
                     'metodo_pago' => $data['metodo_pago'],
