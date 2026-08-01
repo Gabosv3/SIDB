@@ -74,7 +74,13 @@ class ResumenCobrosDiaService
                 ))
                 ->pluck('id');
 
-            $rutaIdsConActividad = $pagosTodos->pluck('cliente.ruta_cobro_id')
+            // La ruta de un pago es la que quedó congelada en pago_ventas.ruta_cobro_id
+            // al momento del cobro (con fallback a la ruta actual del cliente para
+            // filas antiguas sin ese dato) — NUNCA la ruta actual del cliente en vivo.
+            // Si se usara la ruta actual, un cliente que sale de su ruta el mismo día
+            // (ej. reintegro justo después de cobrarle) haría que el pago no calce con
+            // ninguna ruta y desaparezca del reporte, dejando un hueco para ocultar cobros.
+            $rutaIdsConActividad = $pagosTodos->map(fn ($p) => $p->ruta_cobro_id ?? $p->cliente?->ruta_cobro_id)
                 ->merge($visitasTodas->pluck('cliente.ruta_cobro_id'))
                 ->merge($rutasHoyIds)
                 ->filter()
@@ -92,7 +98,7 @@ class ResumenCobrosDiaService
                 ->unique();
 
             foreach ($rutaIdsConActividad as $rutaId) {
-                $pagos = $pagosTodos->filter(fn ($p) => $p->cliente?->ruta_cobro_id === $rutaId)->values();
+                $pagos = $pagosTodos->filter(fn ($p) => ($p->ruta_cobro_id ?? $p->cliente?->ruta_cobro_id) === $rutaId)->values();
                 $visitas = $visitasTodas->filter(fn ($v) => $v->cliente?->ruta_cobro_id === $rutaId)->values();
 
                 // Los pagos anulados se muestran en "detalle" (marcados como anulados)

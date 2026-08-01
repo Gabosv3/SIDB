@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\VentaResource\Pages;
 use App\Filament\Resources\VentaResource\RelationManagers\PagosRelationManager;
 use App\Models\Cliente;
+use App\Models\Cobrador;
+use App\Models\CobradorRecibosContador;
 use App\Models\PagoVenta;
 use App\Models\Producto;
 use App\Models\Venta;
@@ -557,10 +559,16 @@ class VentaResource extends Resource implements HasShieldPermissions
                             ->placeholder('Número de comprobante...'),
                     ])
                     ->action(function (Venta $record, array $data): void {
+                        // Si quien registra el pago desde el panel tiene perfil de
+                        // cobrador, se le genera correlativo igual que en el POS móvil
+                        // — antes solo los cobros hechos desde la app tenían recibo.
+                        $cobrador = Cobrador::where('user_id', auth()->id())->first();
+
                         PagoVenta::create([
                             'venta_id'    => $record->id,
                             'cliente_id'  => $record->cliente_id,
                             'user_id'     => auth()->id(),
+                            'numero_recibo' => $cobrador ? CobradorRecibosContador::siguienteNumeroRecibo($cobrador->id) : null,
                             'monto'       => $data['monto'],
                             'fecha_pago'  => $data['fecha_pago'],
                             'metodo_pago' => $data['metodo_pago'],

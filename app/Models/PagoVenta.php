@@ -15,6 +15,7 @@ class PagoVenta extends Model
     protected $fillable = [
         'venta_id',
         'cliente_id',
+        'ruta_cobro_id',
         'user_id',
         'numero_recibo',
         'monto',
@@ -38,6 +39,17 @@ class PagoVenta extends Model
     protected static function boot(): void
     {
         parent::boot();
+
+        static::creating(function (PagoVenta $pago): void {
+            // Congela la ruta del cliente en el momento del cobro. Si después el
+            // cliente sale de su ruta el mismo día (ej. reintegro), el Resumen
+            // del Día igual sabe en qué ruta se cobró — ver migración
+            // add_ruta_cobro_id_to_pago_ventas_table para el detalle del bug
+            // que esto corrige.
+            if ($pago->ruta_cobro_id === null && $pago->cliente_id) {
+                $pago->ruta_cobro_id = Cliente::where('id', $pago->cliente_id)->value('ruta_cobro_id');
+            }
+        });
 
         static::created(function (PagoVenta $pago): void {
             $venta = $pago->venta;
@@ -88,6 +100,11 @@ class PagoVenta extends Model
     public function cliente(): BelongsTo
     {
         return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function rutaCobro(): BelongsTo
+    {
+        return $this->belongsTo(RutaCobro::class, 'ruta_cobro_id');
     }
 
     public function user(): BelongsTo
