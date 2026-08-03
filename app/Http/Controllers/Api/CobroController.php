@@ -579,6 +579,8 @@ class CobroController extends Controller
                 'direccion'      => $cliente->direccion,
                 'saldo_total'    => (float) $cliente->saldo,
                 'ruta'           => $cliente->rutaCobro?->nombre,
+                'latitud'        => $cliente->latitud !== null ? (float) $cliente->latitud : null,
+                'longitud'       => $cliente->longitud !== null ? (float) $cliente->longitud : null,
             ],
             'resumen' => [
                 'total_ventas'   => $ventas->count(),
