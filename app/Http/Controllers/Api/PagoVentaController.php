@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Cobrador;
-use App\Models\CobradorRecibosContador;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
 use App\Models\Venta;
@@ -108,13 +106,6 @@ class PagoVentaController extends Controller
                 return ['error' => "El monto \${$monto} supera el saldo pendiente de esta venta (\${$saldoVenta})."];
             }
 
-            // Un solo abono puede repartirse en varios PagoVenta (uno por cuota que
-            // cubre) — todos comparten el mismo número de recibo, igual que
-            // CobroController::pagarCliente, para que se vean como un solo
-            // movimiento en el historial.
-            $cobrador = Cobrador::where('user_id', $request->user()->id)->first();
-            $numeroRecibo = $cobrador ? CobradorRecibosContador::siguienteNumeroRecibo($cobrador->id) : null;
-
             // El pago se reparte entre las cuotas pendientes más antiguas, igual
             // que CobroController::pagarCliente — para no dejar los pagos
             // desincronizados del plan de cuotas de la venta.
@@ -139,7 +130,6 @@ class PagoVentaController extends Controller
                     'venta_id'      => $ventaLock->id,
                     'cliente_id'    => $ventaLock->cliente_id,
                     'user_id'       => $request->user()->id,
-                    'numero_recibo' => $numeroRecibo,
                     'monto'         => $aplicar,
                     'fecha_pago'    => $data['fecha_pago'] ?? now()->toDateString(),
                     'metodo_pago'   => $data['metodo_pago'],
@@ -163,7 +153,6 @@ class PagoVentaController extends Controller
                     'venta_id'      => $ventaLock->id,
                     'cliente_id'    => $ventaLock->cliente_id,
                     'user_id'       => $request->user()->id,
-                    'numero_recibo' => $numeroRecibo,
                     'monto'         => $restante,
                     'fecha_pago'    => $data['fecha_pago'] ?? now()->toDateString(),
                     'metodo_pago'   => $data['metodo_pago'],

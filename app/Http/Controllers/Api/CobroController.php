@@ -62,12 +62,22 @@ class CobroController extends Controller
     }
 
     /**
-     * @deprecated Usa CobradorRecibosContador::siguienteNumeroRecibo() directo.
-     * Se deja este wrapper para no tocar los call sites existentes.
+     * Genera el siguiente número de recibo correlativo del cobrador de forma
+     * atómica (autoritativo en el servidor, no en el dispositivo). Debe
+     * llamarse dentro de una transacción de BD ya abierta.
      */
     private function siguienteNumeroRecibo(int $cobradorId): string
     {
-        return CobradorRecibosContador::siguienteNumeroRecibo($cobradorId);
+        $contador = CobradorRecibosContador::where('cobrador_id', $cobradorId)->lockForUpdate()->first();
+        if (! $contador) {
+            CobradorRecibosContador::create(['cobrador_id' => $cobradorId, 'ultimo_numero' => 0]);
+            $contador = CobradorRecibosContador::where('cobrador_id', $cobradorId)->lockForUpdate()->first();
+        }
+
+        $siguiente = $contador->ultimo_numero + 1;
+        $contador->update(['ultimo_numero' => $siguiente]);
+
+        return sprintf('REC-%d-%06d', $cobradorId, $siguiente);
     }
 
     // ── GET /cobros/ruta-hoy ────────────────────────────────────────────────
@@ -888,10 +898,8 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'Esta venta no pertenece al cliente.'], 403);
         }
 
-        $result = DB::transaction(function () use ($id, $monto, $data, $ventaId, $cobrador) {
-            // OJO: cobradores.id != users.id — antes acá se pasaba auth()->id()
-            // (el user), generando el correlativo con el id equivocado.
-            $numeroRecibo = CobradorRecibosContador::siguienteNumeroRecibo($cobrador->id);
+        $result = DB::transaction(function () use ($id, $monto, $data, $ventaId) {
+            $numeroRecibo = $this->siguienteNumeroRecibo(auth()->id());
 
             // Se bloquea la fila de la venta y se revalida el saldo DENTRO de la
             // transacción (no antes), para que dos pagos casi simultáneos sobre
@@ -1050,7 +1058,7 @@ class CobroController extends Controller
 
         $monto = (float) $data['monto'];
 
-        $result = DB::transaction(function () use ($id, $monto, $data, $cobrador) {
+        $result = DB::transaction(function () use ($id, $monto, $data) {
             // Se vuelve a leer la gestión con lock dentro de la transacción (no la
             // ya cargada antes) para revalidar los saldos con datos frescos y
             // evitar que dos pagos casi simultáneos sobre-cobren la misma cuota.
@@ -1081,7 +1089,6 @@ class CobroController extends Controller
             PagoVenta::create([
                 'venta_id' => $gestion->venta_id,
                 'cliente_id' => $gestion->cliente_id,
-                'numero_recibo' => CobradorRecibosContador::siguienteNumeroRecibo($cobrador->id),
                 'monto' => $monto,
                 'fecha_pago' => today(),
                 'metodo_pago' => $data['metodo_pago'],
