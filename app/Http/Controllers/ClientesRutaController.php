@@ -193,6 +193,8 @@ class ClientesRutaController extends Controller
         $pagina = max(1, $request->integer('page', 1));
         $ordenCol = $request->get('orden_col');
         $ordenDir = $request->get('orden_dir') === 'desc' ? 'desc' : 'asc';
+        $saldoDesde = $request->get('saldo_desde');
+        $saldoHasta = $request->get('saldo_hasta');
 
         $query = Cliente::where('activo', true);
 
@@ -208,6 +210,14 @@ class ClientesRutaController extends Controller
                     ->orWhere('nombre', 'like', "%{$buscar}%")
                     ->orWhere('apellido', 'like', "%{$buscar}%");
             });
+        }
+
+        if ($saldoDesde !== null && $saldoDesde !== '') {
+            $query->where('saldo', '>=', (float) $saldoDesde);
+        }
+
+        if ($saldoHasta !== null && $saldoHasta !== '') {
+            $query->where('saldo', '<=', (float) $saldoHasta);
         }
 
         // Totales del set completo que calza con el filtro — no solo lo que se
@@ -357,6 +367,8 @@ class ClientesRutaController extends Controller
         $rutaId = $request->get('ruta_cobro_id');
         $buscar = trim((string) $request->get('buscar', ''));
         $esTodos = $rutaId === 'todos';
+        $saldoDesde = $request->get('saldo_desde');
+        $saldoHasta = $request->get('saldo_hasta');
 
         $query = Cliente::where('activo', true);
 
@@ -372,6 +384,14 @@ class ClientesRutaController extends Controller
                     ->orWhere('nombre', 'like', "%{$buscar}%")
                     ->orWhere('apellido', 'like', "%{$buscar}%");
             });
+        }
+
+        if ($saldoDesde !== null && $saldoDesde !== '') {
+            $query->where('saldo', '>=', (float) $saldoDesde);
+        }
+
+        if ($saldoHasta !== null && $saldoHasta !== '') {
+            $query->where('saldo', '<=', (float) $saldoHasta);
         }
 
         return $query->select('id', 'codigo_anterior', 'nombre', 'apellido', 'orden')

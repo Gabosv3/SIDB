@@ -246,6 +246,14 @@
         </span>
         <input type="text" id="cr-buscar" class="cr-filter-input" placeholder="Ej. 7304 o nombre del cliente...">
     </div>
+    <div class="cr-filter-group">
+        <label class="cr-filter-label">Saldo desde</label>
+        <input type="number" id="cr-saldo-desde" class="cr-filter-input" style="min-width:110px;" placeholder="Ej. 500" min="0" step="0.01">
+    </div>
+    <div class="cr-filter-group">
+        <label class="cr-filter-label">Saldo hasta</label>
+        <input type="number" id="cr-saldo-hasta" class="cr-filter-input" style="min-width:110px;" placeholder="Ej. 700" min="0" step="0.01">
+    </div>
     <div class="cr-filter-group" style="justify-content:flex-end;">
         <label class="cr-filter-label">&nbsp;</label>
         <label class="cr-toggle-wrap">
@@ -572,16 +580,19 @@
     var cobradorSelect = document.getElementById('cr-cobrador-filter');
     var semanaSelect = document.getElementById('cr-semana-filter');
     var buscarInput = document.getElementById('cr-buscar');
+    var saldoDesdeInput = document.getElementById('cr-saldo-desde');
+    var saldoHastaInput = document.getElementById('cr-saldo-hasta');
     var tbody = document.getElementById('cr-tbody');
     var toast = document.getElementById('cr-toast');
     var rutasDisponibles = @json($rutasParaJs);
-    var resultadoLabels = {sin_pago: 'Sin pago', promesa_pago: 'Promesa de pago', no_encontrado: 'No encontrado', rechazo: 'Rechazo', abono_previo: 'Abono previo'};
+    var resultadoLabels = {sin_pago: 'Sin pago', promesa_pago: 'Promesa de pago', no_encontrado: 'No encontrado', rechazo: 'Rechazo', abono_previo: 'Abono previo', sin_saldo: 'Cuenta al día (sin saldo)'};
     var resultadoColores = {
         sin_pago: ['#fef9c3', '#854d0e'],
         promesa_pago: ['#e0f2fe', '#0369a1'],
         no_encontrado: ['#f1f5f9', '#475569'],
         rechazo: ['#ffe4e6', '#9f1239'],
         abono_previo: ['#dcfce7', '#166534'],
+        sin_saldo: ['#dcfce7', '#166534'],
     };
     var sortable = null;
     var arrastrando = false;
@@ -953,13 +964,20 @@
     function cargar() {
         var rutaId = rutaSelect.value;
         var buscar = buscarInput.value.trim();
+        var saldoDesde = saldoDesdeInput.value.trim();
+        var saldoHasta = saldoHastaInput.value.trim();
         var url = baseUrl + '/data?ruta_cobro_id=' + encodeURIComponent(rutaId) + '&page=' + paginaActual + '&por_pagina=' + porPaginaSelect.value;
         if (buscar !== '') url += '&buscar=' + encodeURIComponent(buscar);
+        if (saldoDesde !== '') url += '&saldo_desde=' + encodeURIComponent(saldoDesde);
+        if (saldoHasta !== '') url += '&saldo_hasta=' + encodeURIComponent(saldoHasta);
         if (ordenColActual) url += '&orden_col=' + encodeURIComponent(ordenColActual) + '&orden_dir=' + encodeURIComponent(ordenDirActual);
 
-        // Los links de exportar siempre reflejan la ruta/búsqueda actual — no la
-        // página ni el orden manual, ya que la exportación trae la lista completa.
-        var paramsExport = 'ruta_cobro_id=' + encodeURIComponent(rutaId) + (buscar !== '' ? '&buscar=' + encodeURIComponent(buscar) : '');
+        // Los links de exportar siempre reflejan la ruta/búsqueda/saldo actual —
+        // no la página ni el orden manual, ya que la exportación trae la lista completa.
+        var paramsExport = 'ruta_cobro_id=' + encodeURIComponent(rutaId)
+            + (buscar !== '' ? '&buscar=' + encodeURIComponent(buscar) : '')
+            + (saldoDesde !== '' ? '&saldo_desde=' + encodeURIComponent(saldoDesde) : '')
+            + (saldoHasta !== '' ? '&saldo_hasta=' + encodeURIComponent(saldoHasta) : '');
         document.getElementById('cr-exportar-excel').href = baseUrl + '/exportar/excel?' + paramsExport;
         document.getElementById('cr-exportar-word').href = baseUrl + '/exportar/word?' + paramsExport;
 
@@ -1052,6 +1070,14 @@
         clearTimeout(buscarTimeout);
         paginaActual = 1;
         buscarTimeout = setTimeout(cargar, 300);
+    });
+
+    [saldoDesdeInput, saldoHastaInput].forEach(function (input) {
+        input.addEventListener('input', function () {
+            clearTimeout(buscarTimeout);
+            paginaActual = 1;
+            buscarTimeout = setTimeout(cargar, 400);
+        });
     });
 
     document.getElementById('cr-refresh-link').addEventListener('click', cargar);
