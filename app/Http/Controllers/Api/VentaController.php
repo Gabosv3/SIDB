@@ -114,24 +114,39 @@ class VentaController extends Controller
     #[OA\Post(
         path: '/ventas',
         summary: 'Crear una venta con sus líneas de detalle',
+        description: 'Solo vendedores con una asignación diaria activa para hoy. El tipo de pago de la venta '
+            .'(contado/crédito/mixta) se calcula automáticamente a partir del `tipo_pago` de cada línea de '
+            .'`detalles`, no se envía a nivel de venta. Cada línea de producto debe estar dentro de la '
+            .'asignación diaria del vendedor y no superar la cantidad asignada (sumando lo ya vendido hoy).',
         security: [['sanctum' => []]],
         tags: ['Ventas'],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['cliente_id', 'sucursal_id', 'tipo_pago', 'detalles'],
+                required: ['cliente_id', 'sucursal_id', 'detalles'],
                 properties: [
                     new OA\Property(property: 'cliente_id', type: 'integer', example: 1),
                     new OA\Property(property: 'sucursal_id', type: 'integer', example: 1),
-                    new OA\Property(property: 'tipo_pago', type: 'string', enum: ['contado', 'credito'], example: 'contado'),
-                    new OA\Property(property: 'dias_credito', type: 'integer', nullable: true, example: 30, description: 'Requerido si tipo_pago=credito'),
-                    new OA\Property(property: 'descuento_porcentaje', type: 'number', format: 'float', example: 0),
-                    new OA\Property(property: 'observaciones', type: 'string', nullable: true),
+                    new OA\Property(property: 'prima', type: 'number', format: 'float', nullable: true, example: 0, description: 'Solo aplica a las líneas a crédito; se limita automáticamente al total a crédito'),
+                    new OA\Property(property: 'dias_credito', type: 'integer', nullable: true, example: 30, description: 'Días para fecha_pago_limite si hay líneas a crédito (default 30)'),
+                    new OA\Property(property: 'descuento_porcentaje', type: 'number', format: 'float', nullable: true, example: 0),
+                    new OA\Property(property: 'observaciones', type: 'string', nullable: true, maxLength: 500),
                     new OA\Property(
                         property: 'detalles',
                         type: 'array',
                         minItems: 1,
-                        items: new OA\Items(ref: '#/components/schemas/DetalleVenta'),
+                        items: new OA\Items(
+                            required: ['producto_id', 'cantidad', 'precio_unitario'],
+                            properties: [
+                                new OA\Property(property: 'producto_id', type: 'integer', example: 5),
+                                new OA\Property(property: 'cantidad', type: 'integer', minimum: 1, example: 2),
+                                new OA\Property(property: 'precio_unitario', type: 'number', format: 'float', example: 15.0),
+                                new OA\Property(property: 'descuento_porcentaje', type: 'number', format: 'float', nullable: true, example: 0),
+                                new OA\Property(property: 'tipo_pago', type: 'string', enum: ['contado', 'credito'], nullable: true, description: 'Si se omite en TODAS las líneas, la venta es contado por defecto'),
+                                new OA\Property(property: 'cuotas', type: 'integer', minimum: 2, nullable: true, description: 'Solo para líneas a crédito'),
+                                new OA\Property(property: 'precio_cuota', type: 'number', format: 'float', nullable: true, description: 'Si se omite y hay cuotas, se calcula como subtotal de la línea / cuotas'),
+                            ],
+                        ),
                     ),
                 ],
             ),
@@ -139,7 +154,8 @@ class VentaController extends Controller
         responses: [
             new OA\Response(response: 201, description: 'Venta creada', content: new OA\JsonContent(ref: '#/components/schemas/Venta')),
             new OA\Response(response: 401, description: 'No autenticado'),
-            new OA\Response(response: 422, description: 'Validación fallida', content: new OA\JsonContent(ref: '#/components/schemas/Errores422')),
+            new OA\Response(response: 403, description: 'El usuario no tiene perfil de vendedor'),
+            new OA\Response(response: 422, description: 'Validación fallida, sin asignación diaria activa, producto fuera de asignación, cantidad excedida, o cliente supera su límite de crédito', content: new OA\JsonContent(ref: '#/components/schemas/Errores422')),
         ],
     )]
     public function store(Request $request): JsonResponse

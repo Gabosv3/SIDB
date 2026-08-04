@@ -1376,7 +1376,7 @@
                     "Cobros"
                 ],
                 "summary": "Registrar visita sin cobro a un cliente",
-                "description": "Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante. Si resultado=abono_previo (el cliente ya pagó su mensualidad por otro medio), no se requiere foto ni coordenadas GPS y no se genera ningún cobro nuevo, solo queda constancia de la visita.",
+                "description": "Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante. Si resultado=abono_previo (el cliente ya pagó su mensualidad por otro medio) o resultado=sin_saldo (cuenta vinculada que ya está en $0), no se requiere foto ni coordenadas GPS y no se genera ningún cobro nuevo, solo queda constancia de la visita.",
                 "operationId": "b9ecfbcd4e5d0c12c894db5837718294",
                 "parameters": [
                     {
@@ -1406,7 +1406,8 @@
                                             "promesa_pago",
                                             "no_encontrado",
                                             "rechazo",
-                                            "abono_previo"
+                                            "abono_previo",
+                                            "sin_saldo"
                                         ]
                                     },
                                     "gestion_cobro_id": {
@@ -2579,7 +2580,7 @@
                     "Ventas"
                 ],
                 "summary": "Crear una venta con sus líneas de detalle",
-                "description": "Crear una venta con sus detalles.\r\n\r\nBody JSON:\r\n{\r\n  \"cliente_id\"           : 1,           // requerido\r\n  \"sucursal_id\"          : 1,           // requerido\r\n  \"tipo_pago\"            : \"contado\",   // contado|credito\r\n  \"dias_credito\"         : 30,          // solo si tipo_pago=credito\r\n  \"descuento_porcentaje\" : 0,\r\n  \"observaciones\"        : \"\",\r\n  \"detalles\": [\r\n    {\r\n      \"producto_id\"         : 5,\r\n      \"cantidad\"            : 2,\r\n      \"precio_unitario\"     : 15.00,\r\n      \"descuento_porcentaje\": 0\r\n    }\r\n  ]\r\n}",
+                "description": "Solo vendedores con una asignación diaria activa para hoy. El tipo de pago de la venta (contado/crédito/mixta) se calcula automáticamente a partir del `tipo_pago` de cada línea de `detalles`, no se envía a nivel de venta. Cada línea de producto debe estar dentro de la asignación diaria del vendedor y no superar la cantidad asignada (sumando lo ya vendido hoy).",
                 "operationId": "7a926f6262af9bda6082ea3c4bef0ade",
                 "requestBody": {
                     "required": true,
@@ -2589,7 +2590,6 @@
                                 "required": [
                                     "cliente_id",
                                     "sucursal_id",
-                                    "tipo_pago",
                                     "detalles"
                                 ],
                                 "properties": {
@@ -2601,16 +2601,15 @@
                                         "type": "integer",
                                         "example": 1
                                     },
-                                    "tipo_pago": {
-                                        "type": "string",
-                                        "example": "contado",
-                                        "enum": [
-                                            "contado",
-                                            "credito"
-                                        ]
+                                    "prima": {
+                                        "description": "Solo aplica a las líneas a crédito; se limita automáticamente al total a crédito",
+                                        "type": "number",
+                                        "format": "float",
+                                        "example": 0,
+                                        "nullable": true
                                     },
                                     "dias_credito": {
-                                        "description": "Requerido si tipo_pago=credito",
+                                        "description": "Días para fecha_pago_limite si hay líneas a crédito (default 30)",
                                         "type": "integer",
                                         "example": 30,
                                         "nullable": true
@@ -2618,16 +2617,66 @@
                                     "descuento_porcentaje": {
                                         "type": "number",
                                         "format": "float",
-                                        "example": 0
+                                        "example": 0,
+                                        "nullable": true
                                     },
                                     "observaciones": {
                                         "type": "string",
-                                        "nullable": true
+                                        "nullable": true,
+                                        "maxLength": 500
                                     },
                                     "detalles": {
                                         "type": "array",
                                         "items": {
-                                            "$ref": "#/components/schemas/DetalleVenta"
+                                            "required": [
+                                                "producto_id",
+                                                "cantidad",
+                                                "precio_unitario"
+                                            ],
+                                            "properties": {
+                                                "producto_id": {
+                                                    "type": "integer",
+                                                    "example": 5
+                                                },
+                                                "cantidad": {
+                                                    "type": "integer",
+                                                    "example": 2,
+                                                    "minimum": 1
+                                                },
+                                                "precio_unitario": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": 15
+                                                },
+                                                "descuento_porcentaje": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": 0,
+                                                    "nullable": true
+                                                },
+                                                "tipo_pago": {
+                                                    "description": "Si se omite en TODAS las líneas, la venta es contado por defecto",
+                                                    "type": "string",
+                                                    "nullable": true,
+                                                    "enum": [
+                                                        "contado",
+                                                        "credito"
+                                                    ]
+                                                },
+                                                "cuotas": {
+                                                    "description": "Solo para líneas a crédito",
+                                                    "type": "integer",
+                                                    "nullable": true,
+                                                    "minimum": 2
+                                                },
+                                                "precio_cuota": {
+                                                    "description": "Si se omite y hay cuotas, se calcula como subtotal de la línea / cuotas",
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
                                         },
                                         "minItems": 1
                                     }
@@ -2651,8 +2700,11 @@
                     "401": {
                         "description": "No autenticado"
                     },
+                    "403": {
+                        "description": "El usuario no tiene perfil de vendedor"
+                    },
                     "422": {
-                        "description": "Validación fallida",
+                        "description": "Validación fallida, sin asignación diaria activa, producto fuera de asignación, cantidad excedida, o cliente supera su límite de crédito",
                         "content": {
                             "application/json": {
                                 "schema": {
