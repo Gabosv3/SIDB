@@ -1401,7 +1401,7 @@ class CobroController extends Controller
         path: '/cobros/clientes/{id}/visita',
         summary: 'Registrar visita sin cobro a un cliente',
         description: 'Permite al cobrador registrar que visitó al cliente aunque no haya recibido pago. Se puede adjuntar foto del hogar como comprobante. '
-            .'Si resultado=abono_previo (el cliente ya pagó su mensualidad por otro medio), no se requiere foto ni coordenadas GPS y no se genera ningún cobro nuevo, solo queda constancia de la visita.',
+            .'Si resultado=abono_previo (el cliente ya pagó su mensualidad por otro medio) o resultado=sin_saldo (cuenta vinculada que ya está en $0), no se requiere foto ni coordenadas GPS y no se genera ningún cobro nuevo, solo queda constancia de la visita.',
         security: [['sanctum' => []]],
         tags: ['Cobros'],
         parameters: [
@@ -1414,7 +1414,7 @@ class CobroController extends Controller
                 schema: new OA\Schema(
                     required: ['resultado'],
                     properties: [
-                        new OA\Property(property: 'resultado', type: 'string', enum: ['sin_pago', 'promesa_pago', 'no_encontrado', 'rechazo', 'abono_previo'], example: 'sin_pago'),
+                        new OA\Property(property: 'resultado', type: 'string', enum: ['sin_pago', 'promesa_pago', 'no_encontrado', 'rechazo', 'abono_previo', 'sin_saldo'], example: 'sin_pago'),
                         new OA\Property(property: 'gestion_cobro_id', type: 'integer', nullable: true, description: 'Cuota específica relacionada (opcional)'),
                         new OA\Property(property: 'observaciones', type: 'string', nullable: true, example: 'El cliente dijo que paga el viernes'),
                         new OA\Property(property: 'promesa_fecha', type: 'string', format: 'date', nullable: true, description: 'Requerido si resultado=promesa_pago'),
@@ -1434,7 +1434,7 @@ class CobroController extends Controller
     public function registrarVisita(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'resultado'       => 'required|in:sin_pago,promesa_pago,no_encontrado,rechazo,abono_previo',
+            'resultado'       => 'required|in:sin_pago,promesa_pago,no_encontrado,rechazo,abono_previo,sin_saldo',
             'gestion_cobro_id'=> 'nullable|integer|exists:gestion_cobros,id',
             'observaciones'   => 'nullable|string|max:500',
             'promesa_fecha'   => 'required_if:resultado,promesa_pago|nullable|date|after:today',
@@ -1455,11 +1455,13 @@ class CobroController extends Controller
 
         // abono_previo: el cliente ya pagó su mensualidad por otro medio. No genera
         // cobro nuevo, solo deja constancia de la visita — no requiere foto ni GPS.
+        // sin_saldo: la cuenta (vinculada a otra con saldo pendiente) ya está en $0 —
+        // se visitó la casa pero no corresponde cobrar nada, mismo tratamiento sin evidencia.
         $fotoPath = null;
         $latitud = null;
         $longitud = null;
 
-        if ($request->resultado !== 'abono_previo') {
+        if (! in_array($request->resultado, ['abono_previo', 'sin_saldo'], true)) {
             if ($request->hasFile('foto_hogar')) {
                 $fotoPath = $request->file('foto_hogar')
                     ->store("visitas/{$id}", 'public');

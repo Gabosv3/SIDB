@@ -133,11 +133,11 @@
         cancelada: ['#fee2e2', '#dc2626'], devuelta: ['#e0f2fe', '#0369a1'],
     };
 
-    var resultadoLabels = { sin_pago: 'Sin pago', promesa_pago: 'Promesa de pago', no_encontrado: 'No encontrado', rechazo: 'Rechazo', abono_previo: 'Abono previo' };
+    var resultadoLabels = { sin_pago: 'Sin pago', promesa_pago: 'Promesa de pago', no_encontrado: 'No encontrado', rechazo: 'Rechazo', abono_previo: 'Abono previo', sin_saldo: 'Cuenta al día (sin saldo)' };
     var resultadoColores = {
         sin_pago: ['#fef9c3', '#854d0e'], promesa_pago: ['#e0f2fe', '#0369a1'],
         no_encontrado: ['#f1f5f9', '#475569'], rechazo: ['#ffe4e6', '#9f1239'],
-        abono_previo: ['#dcfce7', '#166534'],
+        abono_previo: ['#dcfce7', '#166534'], sin_saldo: ['#dcfce7', '#166534'],
     };
 
     function cargar() {
