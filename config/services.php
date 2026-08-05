@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'ycloud' => [
+        'api_key' => env('YCLOUD_API_KEY'),
+        'webhook_secret' => env('YCLOUD_WEBHOOK_SECRET'),
+    ],
+
+    'meta_whatsapp' => [
+        'app_id' => env('META_WHATSAPP_APP_ID'),
+        'app_secret' => env('META_WHATSAPP_APP_SECRET'),
+        'verify_token' => env('META_WHATSAPP_VERIFY_TOKEN'),
+        'system_user_token' => env('META_WHATSAPP_SYSTEM_USER_TOKEN'),
+        'config_id' => env('META_WHATSAPP_CONFIG_ID'),
+    ],
+
 ];

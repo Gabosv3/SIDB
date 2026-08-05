@@ -263,7 +263,7 @@ saldo_pendiente= total_credito - prima = 150.00
 
 ## 5. Reglas de negocio
 
-- La `prima` no puede superar el `total_credito`. Si se envía un valor mayor, se recorta automáticamente.
+- La `prima` puede superar el `total_credito` sin problema — se registra tal cual la envía el vendedor (ej. el cliente adelanta más de lo que debía en ese momento). El `saldo_pendiente` nunca queda negativo: se detiene en 0 aunque la prima sea mayor al total a crédito.
 - Las gestiones de cobro solo se crean para las líneas marcadas como `credito` y solo sobre el `saldo_pendiente` (después de descontar la prima).
 - Si el vendedor tiene una **asignación diaria activa**, el sistema valida que los productos vendidos estén en la asignación y que no se supere la cantidad asignada.
 - Si una venta queda con `saldo_pendiente = 0`, su estado es `completada` automáticamente.

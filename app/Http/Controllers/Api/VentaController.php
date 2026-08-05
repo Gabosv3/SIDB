@@ -127,7 +127,7 @@ class VentaController extends Controller
                 properties: [
                     new OA\Property(property: 'cliente_id', type: 'integer', example: 1),
                     new OA\Property(property: 'sucursal_id', type: 'integer', example: 1),
-                    new OA\Property(property: 'prima', type: 'number', format: 'float', nullable: true, example: 0, description: 'Solo aplica a las líneas a crédito; se limita automáticamente al total a crédito'),
+                    new OA\Property(property: 'prima', type: 'number', format: 'float', nullable: true, example: 0, description: 'Abono inicial en ventas a crédito. Puede superar el total a crédito (queda registrada tal cual); el saldo_pendiente nunca baja de 0'),
                     new OA\Property(property: 'dias_credito', type: 'integer', nullable: true, example: 30, description: 'Días para fecha_pago_limite si hay líneas a crédito (default 30)'),
                     new OA\Property(property: 'descuento_porcentaje', type: 'number', format: 'float', nullable: true, example: 0),
                     new OA\Property(property: 'observaciones', type: 'string', nullable: true, maxLength: 500),
@@ -295,11 +295,12 @@ class VentaController extends Controller
                 ->where('tipo_pago', 'credito')
                 ->sum('subtotal');
 
-            // Prima solo aplica al crédito; no puede ser mayor que el total crédito
-            $prima = min($prima, $totalCredito);
-
+            // La prima ya no se recorta al total a crédito — el cliente puede dar
+            // más de lo que debía y queda registrado tal cual (ej. adelanta parte
+            // de cuotas futuras). El saldo pendiente sí se detiene en 0, nunca
+            // queda negativo aunque la prima supere el total a crédito.
             $montoPagado    = round($totalContado + $prima, 2);
-            $saldoPendiente = round($totalCredito - $prima, 2);
+            $saldoPendiente = max(0, round($totalCredito - $prima, 2));
 
             // ── Límite de crédito del cliente ─────────────────────────────────────
             // Si tiene un límite configurado (>0), esta venta no puede dejarlo con

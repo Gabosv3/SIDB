@@ -99,6 +99,12 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return $this->hasOne(Cobrador::class, 'user_id');
     }
 
+    /** Tokens de push notification (uno por dispositivo donde inició sesión) */
+    public function pushTokens(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PushToken::class);
+    }
+
     /** Perfil de empleado (datos personales/laborales, 1:1) */
     public function employeeProfile(): HasOne
     {

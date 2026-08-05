@@ -61,6 +61,32 @@ class CobroController extends Controller
             ->first();
     }
 
+    // Como clienteDeRuta(), pero también acepta un cliente que NO tiene ruta
+    // propia (típico de una cuenta vinculada sin ventas activas: nunca se le
+    // asignó ruta_cobro_id) siempre que comparta grupo_id con algún cliente
+    // que sí está en las rutas del cobrador — así se puede dejar constancia
+    // de una visita a esa cuenta (ej. "sin_saldo") aunque nunca haya tenido
+    // una venta que la pusiera en una ruta.
+    private function clienteDeRutaOGrupo(int $clienteId, $cobrador): ?\App\Models\Cliente
+    {
+        $cliente = $this->clienteDeRuta($clienteId, $cobrador);
+        if ($cliente) {
+            return $cliente;
+        }
+
+        $candidato = \App\Models\Cliente::find($clienteId);
+        if (! $candidato || ! $candidato->grupo_id) {
+            return null;
+        }
+
+        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        $tieneVinculadoEnRuta = \App\Models\Cliente::where('grupo_id', $candidato->grupo_id)
+            ->whereIn('ruta_cobro_id', $rutasIds)
+            ->exists();
+
+        return $tieneVinculadoEnRuta ? $candidato : null;
+    }
+
     /**
      * Genera el siguiente número de recibo correlativo del cobrador de forma
      * atómica (autoritativo en el servidor, no en el dispositivo). Debe
@@ -1448,7 +1474,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $cliente = $this->clienteDeRuta($id, $cobrador);
+        $cliente = $this->clienteDeRutaOGrupo($id, $cobrador);
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
         }
@@ -1508,5 +1534,68 @@ class CobroController extends Controller
                 'observaciones' => $visita->observaciones,
             ],
         ], 201);
+    }
+
+    #[OA\Get(
+        path: '/cobros/desempeno',
+        summary: 'Desempeño del propio cobrador',
+        description: 'Cobrado en efectivo/otros esta semana y este mes comparado contra el período anterior, cuántas cuentas de la ruta de hoy ya se gestionaron, y cuántas cuentas bajo su cargo están en mora (al menos una cuota vencida).',
+        security: [['sanctum' => []]],
+        tags: ['Cobros'],
+        responses: [
+            new OA\Response(response: 200, description: 'Resumen de desempeño'),
+            new OA\Response(response: 403, description: 'Sin perfil de cobrador'),
+        ],
+    )]
+    public function desempeno(Request $request): JsonResponse
+    {
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $userId = $request->user()->id;
+        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+
+        $hoy = now()->startOfDay();
+        $inicioSemana = now()->startOfWeek();
+        $inicioSemanaPasada = (clone $inicioSemana)->subWeek();
+        $finSemanaPasada = (clone $inicioSemana)->subSecond();
+        $inicioMes = now()->startOfMonth();
+        $inicioMesPasado = (clone $inicioMes)->subMonthNoOverflow();
+        $finMesPasado = (clone $inicioMes)->subSecond();
+
+        $cobradoEntre = fn ($desde, $hasta) => (float) PagoVenta::where('user_id', $userId)
+            ->whereNull('anulado_en')
+            ->whereBetween('fecha_pago', [$desde, $hasta])
+            ->sum('monto');
+
+        $clientesRutaHoy = Cliente::whereIn('ruta_cobro_id', $rutasIds)->count();
+
+        $gestionadosHoy = collect()
+            ->merge(
+                PagoVenta::where('user_id', $userId)->whereNull('anulado_en')
+                    ->whereDate('fecha_pago', $hoy)->pluck('cliente_id')
+            )
+            ->merge(
+                VisitaCobro::where('user_id', $userId)
+                    ->whereDate('created_at', $hoy)->pluck('cliente_id')
+            )
+            ->unique()
+            ->count();
+
+        $cuentasEnMora = Cliente::whereIn('ruta_cobro_id', $rutasIds)
+            ->whereHas('gestionesCobro', fn ($q) => $q->where('estado', 'pendiente')->where('fecha_vencimiento', '<', $hoy))
+            ->count();
+
+        return response()->json([
+            'cobrado_semana_actual'  => $cobradoEntre($inicioSemana, now()),
+            'cobrado_semana_pasada'  => $cobradoEntre($inicioSemanaPasada, $finSemanaPasada),
+            'cobrado_mes_actual'     => $cobradoEntre($inicioMes, now()),
+            'cobrado_mes_pasado'     => $cobradoEntre($inicioMesPasado, $finMesPasado),
+            'clientes_ruta_hoy'      => $clientesRutaHoy,
+            'gestionados_hoy'        => $gestionadosHoy,
+            'cuentas_en_mora'        => $cuentasEnMora,
+        ]);
     }
 }

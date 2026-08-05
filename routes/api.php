@@ -10,10 +10,13 @@ use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PreventaController;
 use App\Http\Controllers\Api\ProductoController;
+use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\ReintegroController;
 use App\Http\Controllers\Api\ValeController;
 use App\Http\Controllers\Api\VehiculoController;
 use App\Http\Controllers\Api\VentaController;
+use App\Http\Controllers\MetaWhatsAppWebhookController;
+use App\Http\Controllers\YCloudWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,6 +26,15 @@ use Illuminate\Support\Facades\Route;
 */
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::get('/version', [AppVersionController::class, 'actual']);
+
+// Webhook de YCloud (WhatsApp Coexistence) — sin auth Sanctum, se verifica
+// por firma HMAC propia (ver YCloudWebhookController::firmaValida).
+Route::post('/webhooks/ycloud/whatsapp', [YCloudWebhookController::class, 'receive']);
+
+// Webhook directo de Meta Cloud API (conexión propia, sin BSP intermediario).
+// GET = verificación única al configurar; POST = eventos reales.
+Route::get('/webhooks/meta/whatsapp', [MetaWhatsAppWebhookController::class, 'verificar']);
+Route::post('/webhooks/meta/whatsapp', [MetaWhatsAppWebhookController::class, 'recibir']);
 
 /*
 |--------------------------------------------------------------------------
@@ -34,6 +46,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Auth ────────────────────────────────────────────────────────────────
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // ── Push notifications ───────────────────────────────────────────────────
+    Route::post('/push-tokens', [PushTokenController::class, 'store']);
+    Route::delete('/push-tokens', [PushTokenController::class, 'destroy']);
 
     // ── Rutas exclusivas para Vendedores y Cobradores activos ───────────────
     Route::middleware('pos.acceso')->group(function () {
@@ -134,6 +150,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // Registrar visita sin pago (con foto opcional)
             Route::post('/clientes/{id}/visita', [CobroController::class, 'registrarVisita']);
+
+            // Desempeño del propio cobrador (cobrado esta semana/mes vs período
+            // anterior, % de ruta gestionada hoy, cuentas en mora bajo su cargo)
+            Route::get('/desempeno', [CobroController::class, 'desempeno']);
         });
     });
 });
