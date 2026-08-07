@@ -186,6 +186,12 @@ class ReintegroResource extends Resource
                     ->sortable()
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('cliente.codigo_anterior')
+                    ->label('Código')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('cliente.nombre')
                     ->label('Cliente')
                     ->formatStateUsing(fn ($record) =>
@@ -199,16 +205,50 @@ class ReintegroResource extends Resource
                         )
                     ),
 
-                Tables\Columns\TextColumn::make('cliente.rutaCobro.nombre')
+                Tables\Columns\TextColumn::make('cliente.telefono_normal')
+                    ->label('Teléfono')
+                    ->placeholder('—')
+                    ->icon('heroicon-m-phone')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('cliente.direccion')
+                    ->label('Dirección')
+                    ->placeholder('—')
+                    ->limit(30)
+                    ->tooltip(fn ($record) => $record->cliente?->direccion)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                // Ruta de la que se sacó al cliente al mandarlo a reintegro — NO la
+                // ruta actual del cliente.rutaCobro, que siempre es null mientras el
+                // reintegro sigue activo (por eso se saca de ahí, no del cliente).
+                Tables\Columns\TextColumn::make('rutaCobroOriginal.nombre')
                     ->label('Ruta')
                     ->placeholder('—')
                     ->badge()
                     ->color('gray')
                     ->searchable(query: fn (Builder $query, string $search) =>
-                        $query->whereHas('cliente.rutaCobro', fn ($q) =>
+                        $query->whereHas('rutaCobroOriginal', fn ($q) =>
                             $q->where('nombre', 'like', "%{$search}%")
                         )
                     ),
+
+                Tables\Columns\TextColumn::make('asignadoPor.name')
+                    ->label('Enviado por')
+                    ->placeholder('—')
+                    ->icon('heroicon-m-user')
+                    ->tooltip('Cobrador (o admin) que registró este reintegro')
+                    ->searchable(query: fn (Builder $query, string $search) =>
+                        $query->whereHas('asignadoPor', fn ($q) =>
+                            $q->where('name', 'like', "%{$search}%")
+                        )
+                    ),
+
+                Tables\Columns\TextColumn::make('motivo')
+                    ->label('Motivo')
+                    ->placeholder('—')
+                    ->limit(25)
+                    ->tooltip(fn ($record) => $record->motivo)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('vendedor.nombre')
                     ->label('Vendedor asignado')
@@ -300,6 +340,18 @@ class ReintegroResource extends Resource
                 Tables\Filters\SelectFilter::make('vendedor_id')
                     ->label('Vendedor')
                     ->relationship('vendedor', 'nombre')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('asignado_por')
+                    ->label('Enviado por')
+                    ->relationship('asignadoPor', 'name')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('ruta_cobro_id_original')
+                    ->label('Ruta de origen')
+                    ->relationship('rutaCobroOriginal', 'nombre')
                     ->searchable()
                     ->preload(),
             ])
