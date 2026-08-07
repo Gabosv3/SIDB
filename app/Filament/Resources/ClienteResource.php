@@ -307,6 +307,27 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                             'max'      => 'La dirección no puede superar los 500 caracteres.',
                                         ]),
 
+                                    Forms\Components\TextInput::make('pegar_ubicacion')
+                                        ->label('Pegar ubicación de WhatsApp')
+                                        ->placeholder('Pega aquí el link o las coordenadas tal como llegaron')
+                                        ->helperText('Detecta las coordenadas automáticamente y llena latitud/longitud — no se guarda como campo aparte.')
+                                        ->dehydrated(false)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(function ($state, callable $set) {
+                                            if (! $state) {
+                                                return;
+                                            }
+                                            if (preg_match('/(-?\d{1,3}\.\d{3,})[,\s]+(-?\d{1,3}\.\d{3,})/', $state, $m)) {
+                                                $lat = (float) $m[1];
+                                                $lng = (float) $m[2];
+                                                if (abs($lat) <= 90 && abs($lng) <= 180) {
+                                                    $set('latitud', number_format($lat, 6, '.', ''));
+                                                    $set('longitud', number_format($lng, 6, '.', ''));
+                                                }
+                                            }
+                                        })
+                                        ->columnSpanFull(),
+
                                     MapPicker::make()
                                         ->columnSpanFull(),
 

@@ -108,6 +108,20 @@
         });
 
         setTimeout(function () { map.invalidateSize(); }, 300);
+
+        /* El campo de "pegar ubicación" llena latitud/longitud por Livewire
+           (morphdom), lo que no dispara eventos "input" en el DOM — se
+           revisa por polling si cambiaron para recentrar el mapa. */
+        var lastLat = initLat, lastLng = initLng;
+        setInterval(function () {
+            var lat = parseFloat(getVal(LAT_PATH));
+            var lng = parseFloat(getVal(LNG_PATH));
+            if (isNaN(lat) || isNaN(lng)) return;
+            if (lat === lastLat && lng === lastLng) return;
+            lastLat = lat; lastLng = lng;
+            marker.setLatLng([lat, lng]);
+            map.setView([lat, lng], Math.max(map.getZoom(), ZOOM));
+        }, 700);
     }
 
     if (document.readyState === 'loading') {
