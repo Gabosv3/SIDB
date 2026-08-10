@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RutaCobro extends Model
@@ -69,5 +70,11 @@ class RutaCobro extends Model
     public function clientes(): HasMany
     {
         return $this->hasMany(Cliente::class, 'ruta_cobro_id');
+    }
+
+    /** Supervisores con acceso a esta ruta (además del cobrador titular). */
+    public function supervisores(): BelongsToMany
+    {
+        return $this->belongsToMany(Supervisor::class, 'supervisor_ruta_cobro', 'ruta_cobro_id', 'supervisor_id');
     }
 }

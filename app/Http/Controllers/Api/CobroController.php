@@ -7,8 +7,11 @@ use App\Models\Cliente;
 use App\Models\Cobrador;
 use App\Models\CobradorRecibosContador;
 use App\Models\ConfiguracionSistema;
+use App\Models\EncuestaCliente;
 use App\Models\GestionCobro;
 use App\Models\PagoVenta;
+use App\Models\RutaCobro;
+use App\Models\Supervision;
 use App\Models\Vale;
 use App\Models\Venta;
 use App\Models\VisitaCobro;
@@ -50,12 +53,48 @@ class CobroController extends Controller
             }
         }
 
+        // Un supervisor no tiene rutas propias, pero siempre puede cobrar en
+        // las que supervisa — se le provisiona un perfil Cobrador propio
+        // (igual que a un vendedor con es_cobrador) para que use exactamente
+        // el mismo flujo de cobro/visita que cualquier otro cobrador. El
+        // acceso a las rutas ajenas se resuelve aparte, en rutasIdsAccesibles().
+        if (! $cobrador) {
+            $supervisor = $user->supervisor;
+            if ($supervisor && $supervisor->activo) {
+                $cobrador = Cobrador::firstOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'sucursal_id' => $supervisor->sucursal_id,
+                        'nombre'      => $supervisor->nombre,
+                        'apellido'    => $supervisor->apellido,
+                        'telefono'    => $supervisor->telefono,
+                        'email'       => $supervisor->email,
+                        'activo'      => true,
+                    ]
+                );
+            }
+        }
+
         return $cobrador;
     }
 
-    private function clienteDeRuta(int $clienteId, $cobrador): ?\App\Models\Cliente
+    // IDs de ruta que este usuario puede operar: las suyas propias (como
+    // cobrador titular) más las que supervisa, si además tiene perfil de
+    // supervisor. Reemplaza el uso directo de $cobrador->rutasCobro() en
+    // todos los endpoints de cobro para que un supervisor tenga el mismo
+    // acceso que el cobrador titular en las rutas que le asignaron.
+    private function rutasIdsAccesibles(Request $request, $cobrador)
     {
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        $ids = $cobrador ? $cobrador->rutasCobro()->pluck('id') : collect();
+        $supervisor = $request->user()->supervisor;
+        if ($supervisor) {
+            $ids = $ids->merge($supervisor->rutasSupervisadas()->pluck('rutas_cobro.id'));
+        }
+        return $ids->unique()->values();
+    }
+
+    private function clienteDeRuta(int $clienteId, $rutasIds): ?\App\Models\Cliente
+    {
         return \App\Models\Cliente::where('id', $clienteId)
             ->whereIn('ruta_cobro_id', $rutasIds)
             ->first();
@@ -64,12 +103,12 @@ class CobroController extends Controller
     // Como clienteDeRuta(), pero también acepta un cliente que NO tiene ruta
     // propia (típico de una cuenta vinculada sin ventas activas: nunca se le
     // asignó ruta_cobro_id) siempre que comparta grupo_id con algún cliente
-    // que sí está en las rutas del cobrador — así se puede dejar constancia
-    // de una visita a esa cuenta (ej. "sin_saldo") aunque nunca haya tenido
-    // una venta que la pusiera en una ruta.
-    private function clienteDeRutaOGrupo(int $clienteId, $cobrador): ?\App\Models\Cliente
+    // que sí está en las rutas accesibles — así se puede dejar constancia de
+    // una visita a esa cuenta (ej. "sin_saldo") aunque nunca haya tenido una
+    // venta que la pusiera en una ruta.
+    private function clienteDeRutaOGrupo(int $clienteId, $rutasIds): ?\App\Models\Cliente
     {
-        $cliente = $this->clienteDeRuta($clienteId, $cobrador);
+        $cliente = $this->clienteDeRuta($clienteId, $rutasIds);
         if ($cliente) {
             return $cliente;
         }
@@ -79,7 +118,6 @@ class CobroController extends Controller
             return null;
         }
 
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
         $tieneVinculadoEnRuta = \App\Models\Cliente::where('grupo_id', $candidato->grupo_id)
             ->whereIn('ruta_cobro_id', $rutasIds)
             ->exists();
@@ -127,7 +165,7 @@ class CobroController extends Controller
         $diaHoy = $this->diaHoy();
         $semanaActual = ConfiguracionSistema::instance()->semanaActual();
 
-        $rutas = $cobrador->rutasCobro()
+        $rutas = RutaCobro::whereIn('id', $this->rutasIdsAccesibles($request, $cobrador))
             ->where('dia_semana', $diaHoy)
             ->where('activa', true)
             ->when($semanaActual !== null, fn ($q) => $q->where(
@@ -238,7 +276,7 @@ class CobroController extends Controller
 
         $buscar = trim((string) $request->get('buscar', ''));
 
-        $rutas = $cobrador->rutasCobro()
+        $rutas = RutaCobro::whereIn('id', $this->rutasIdsAccesibles($request, $cobrador))
             ->where('activa', true)
             ->orderBy('nombre')
             ->with(['clientes' => function ($q) use ($buscar) {
@@ -299,7 +337,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $ruta = $cobrador->rutasCobro()
+        $ruta = RutaCobro::whereIn('id', $this->rutasIdsAccesibles($request, $cobrador))
             ->where('id', $rutaId)
             ->where('activa', true)
             ->first();
@@ -394,7 +432,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $ruta = $cobrador->rutasCobro()->where('id', $rutaId)->first();
+        $ruta = RutaCobro::whereIn('id', $this->rutasIdsAccesibles($request, $cobrador))->where('id', $rutaId)->first();
         if (! $ruta) {
             return response()->json(['mensaje' => 'Ruta no encontrada o no te pertenece.'], 403);
         }
@@ -443,7 +481,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $ruta = $cobrador->rutasCobro()->where('id', $rutaId)->first();
+        $ruta = RutaCobro::whereIn('id', $this->rutasIdsAccesibles($request, $cobrador))->where('id', $rutaId)->first();
         if (! $ruta) {
             return response()->json(['mensaje' => 'Ruta no encontrada o no te pertenece.'], 403);
         }
@@ -497,7 +535,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        $rutasIds = $this->rutasIdsAccesibles($request, $cobrador);
 
         $clientes = Cliente::whereIn('ruta_cobro_id', $rutasIds)
             ->where('activo', true)
@@ -547,7 +585,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $cliente = $this->clienteDeRuta($id, $cobrador);
+        $cliente = $this->clienteDeRuta($id, $this->rutasIdsAccesibles($request, $cobrador));
 
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
@@ -650,7 +688,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $cliente = $this->clienteDeRuta($id, $cobrador);
+        $cliente = $this->clienteDeRuta($id, $this->rutasIdsAccesibles($request, $cobrador));
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
         }
@@ -835,7 +873,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $cliente = $this->clienteDeRuta($id, $cobrador);
+        $cliente = $this->clienteDeRuta($id, $this->rutasIdsAccesibles($request, $cobrador));
 
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
@@ -910,7 +948,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $cliente = $this->clienteDeRuta($id, $cobrador);
+        $cliente = $this->clienteDeRuta($id, $this->rutasIdsAccesibles($request, $cobrador));
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
         }
@@ -1077,7 +1115,7 @@ class CobroController extends Controller
 
         $gestion = GestionCobro::with('venta')->findOrFail($id);
 
-        $cliente = $this->clienteDeRuta($gestion->cliente_id, $cobrador);
+        $cliente = $this->clienteDeRuta($gestion->cliente_id, $this->rutasIdsAccesibles($request, $cobrador));
         if (! $cliente) {
             return response()->json(['mensaje' => 'Esta gestión no pertenece a tus rutas.'], 403);
         }
@@ -1474,7 +1512,7 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
         }
 
-        $cliente = $this->clienteDeRutaOGrupo($id, $cobrador);
+        $cliente = $this->clienteDeRutaOGrupo($id, $this->rutasIdsAccesibles($request, $cobrador));
         if (! $cliente) {
             return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
         }
@@ -1555,7 +1593,7 @@ class CobroController extends Controller
         }
 
         $userId = $request->user()->id;
-        $rutasIds = $cobrador->rutasCobro()->pluck('id');
+        $rutasIds = $this->rutasIdsAccesibles($request, $cobrador);
 
         $hoy = now()->startOfDay();
         $inicioSemana = now()->startOfWeek();
@@ -1597,5 +1635,395 @@ class CobroController extends Controller
             'gestionados_hoy'        => $gestionadosHoy,
             'cuentas_en_mora'        => $cuentasEnMora,
         ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ── Supervisor: rutas asignadas, historial de la ruta, desempeño de sus
+    //    cobradores, y el formulario de evaluación en campo ─────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private function supervisorDe(Request $request): ?\App\Models\Supervisor
+    {
+        $supervisor = $request->user()->supervisor;
+        return ($supervisor && $supervisor->activo) ? $supervisor : null;
+    }
+
+    #[OA\Get(
+        path: '/cobros/supervisor/rutas',
+        summary: 'Rutas asignadas para supervisar',
+        description: 'Las rutas que un administrador le asignó a este supervisor desde el panel, con el nombre del cobrador titular de cada una.',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        responses: [
+            new OA\Response(response: 200, description: 'Rutas supervisadas'),
+            new OA\Response(response: 403, description: 'Sin perfil de supervisor'),
+        ],
+    )]
+    public function misRutasSupervisadas(Request $request): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        $rutas = $supervisor->rutasSupervisadas()
+            ->with('cobrador:id,nombre,apellido')
+            ->withCount('clientes')
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'nombre' => $r->nombre,
+                'dia_semana' => $r->dia_semana,
+                'total_clientes' => $r->clientes_count,
+                'cobrador' => $r->cobrador ? [
+                    'id' => $r->cobrador->id,
+                    'nombre' => $r->cobrador->nombre_completo,
+                ] : null,
+            ]);
+
+        return response()->json(['rutas' => $rutas]);
+    }
+
+    #[OA\Get(
+        path: '/cobros/supervisor/rutas/{ruta_id}/historial',
+        summary: 'Historial de cobros y visitas de una ruta supervisada',
+        description: 'A diferencia de /cobros/historial (solo lo que el usuario autenticado registró), esto trae TODO lo que se registró en la ruta ese día, sin importar quién lo hizo — para que el supervisor pueda auditarla.',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        parameters: [
+            new OA\Parameter(name: 'ruta_id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'), description: 'Default: hoy'),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Cobros y visitas del día en esa ruta'),
+            new OA\Response(response: 403, description: 'Ruta no asignada a este supervisor'),
+        ],
+    )]
+    public function historialRutaSupervisada(Request $request, int $rutaId): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        if (! $supervisor->rutasSupervisadas()->where('rutas_cobro.id', $rutaId)->exists()) {
+            return response()->json(['mensaje' => 'Esta ruta no está asignada a este supervisor.'], 403);
+        }
+
+        $fecha = $request->filled('fecha') ? \Illuminate\Support\Carbon::parse($request->query('fecha')) : today();
+        $clientesIds = Cliente::where('ruta_cobro_id', $rutaId)->pluck('id');
+
+        $pagos = PagoVenta::whereIn('cliente_id', $clientesIds)
+            ->whereDate('fecha_pago', $fecha)
+            ->whereNull('anulado_en')
+            ->with(['cliente:id,nombre,apellido', 'user:id,name'])
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn ($p) => [
+                'tipo' => 'pago',
+                'numero_recibo' => $p->numero_recibo,
+                'cliente' => $p->cliente?->nombre_completo,
+                'monto' => (float) $p->monto,
+                'metodo_pago' => $p->metodo_pago,
+                'cobrador' => $p->user?->name,
+                'hora' => $p->created_at->format('H:i'),
+            ]);
+
+        $visitas = VisitaCobro::whereIn('cliente_id', $clientesIds)
+            ->whereDate('created_at', $fecha)
+            ->with(['cliente:id,nombre,apellido', 'user:id,name'])
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn ($v) => [
+                'tipo' => 'visita',
+                'cliente' => $v->cliente?->nombre_completo,
+                'resultado' => $v->resultado,
+                'cobrador' => $v->user?->name,
+                'hora' => $v->created_at->format('H:i'),
+            ]);
+
+        return response()->json([
+            'fecha' => $fecha->toDateString(),
+            'total_cobrado' => round((float) $pagos->sum('monto'), 2),
+            'pagos' => $pagos->values(),
+            'visitas' => $visitas->values(),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/cobros/supervisor/desempeno-cobradores',
+        summary: 'Desempeño de los cobradores bajo supervisión',
+        description: 'Para cada cobrador titular de una ruta supervisada: lo cobrado hoy y esta semana, y cuántas cuentas de su ruta están en mora.',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        responses: [
+            new OA\Response(response: 200, description: 'Desempeño por cobrador'),
+            new OA\Response(response: 403, description: 'Sin perfil de supervisor'),
+        ],
+    )]
+    public function desempenoCobradores(Request $request): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        $hoy = now()->startOfDay();
+        $inicioSemana = now()->startOfWeek();
+
+        $cobradores = Cobrador::whereHas('rutasCobro', fn ($q) => $q->whereIn(
+            'id',
+            $supervisor->rutasSupervisadas()->pluck('rutas_cobro.id')
+        ))->get();
+
+        $resumen = $cobradores->map(function (Cobrador $c) use ($hoy, $inicioSemana) {
+            $rutasIds = $c->rutasCobro()->pluck('id');
+            $clientesIds = Cliente::whereIn('ruta_cobro_id', $rutasIds)->pluck('id');
+
+            return [
+                'cobrador_id' => $c->id,
+                'nombre' => $c->nombre_completo,
+                'cobrado_hoy' => (float) PagoVenta::where('user_id', $c->user_id)
+                    ->whereNull('anulado_en')->whereDate('fecha_pago', $hoy)->sum('monto'),
+                'cobrado_semana' => (float) PagoVenta::where('user_id', $c->user_id)
+                    ->whereNull('anulado_en')->whereBetween('fecha_pago', [$inicioSemana, now()])->sum('monto'),
+                'cuentas_en_mora' => Cliente::whereIn('id', $clientesIds)
+                    ->whereHas('gestionesCobro', fn ($q) => $q->where('estado', 'pendiente')->where('fecha_vencimiento', '<', $hoy))
+                    ->count(),
+            ];
+        })->values();
+
+        return response()->json(['cobradores' => $resumen]);
+    }
+
+    #[OA\Post(
+        path: '/cobros/supervisiones',
+        summary: 'Registrar la evaluación de una visita de supervisión',
+        description: 'El supervisor evalúa al cobrador titular de la ruta que acaba de visitar: si visitó a los clientes que dice, si el efectivo cuadra, calificación general y observaciones.',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['ruta_cobro_id', 'calificacion'],
+                properties: [
+                    new OA\Property(property: 'ruta_cobro_id', type: 'integer'),
+                    new OA\Property(property: 'visito_clientes_correctos', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'efectivo_cuadrado', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'calificacion', type: 'integer', minimum: 1, maximum: 5),
+                    new OA\Property(property: 'observaciones', type: 'string', nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Supervisión registrada'),
+            new OA\Response(response: 403, description: 'Ruta no asignada a este supervisor'),
+            new OA\Response(response: 422, description: 'Validación fallida'),
+        ],
+    )]
+    public function registrarSupervision(Request $request): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        $data = $request->validate([
+            'ruta_cobro_id' => 'required|integer|exists:rutas_cobro,id',
+            'visito_clientes_correctos' => 'nullable|boolean',
+            'efectivo_cuadrado' => 'nullable|boolean',
+            'calificacion' => 'required|integer|min:1|max:5',
+            'observaciones' => 'nullable|string|max:1000',
+        ]);
+
+        $ruta = $supervisor->rutasSupervisadas()->where('rutas_cobro.id', $data['ruta_cobro_id'])->first();
+        if (! $ruta) {
+            return response()->json(['mensaje' => 'Esta ruta no está asignada a este supervisor.'], 403);
+        }
+        if (! $ruta->cobrador_id) {
+            return response()->json(['mensaje' => 'Esta ruta no tiene un cobrador titular asignado.'], 422);
+        }
+
+        $supervision = Supervision::create([
+            'supervisor_id' => $supervisor->id,
+            'cobrador_id' => $ruta->cobrador_id,
+            'ruta_cobro_id' => $ruta->id,
+            'fecha' => today(),
+            'visito_clientes_correctos' => $data['visito_clientes_correctos'] ?? null,
+            'efectivo_cuadrado' => $data['efectivo_cuadrado'] ?? null,
+            'calificacion' => $data['calificacion'],
+            'observaciones' => $data['observaciones'] ?? null,
+        ]);
+
+        return response()->json([
+            'mensaje' => 'Supervisión registrada.',
+            'supervision' => ['id' => $supervision->id, 'fecha' => $supervision->fecha->toDateString()],
+        ], 201);
+    }
+
+    #[OA\Get(
+        path: '/cobros/supervisiones',
+        summary: 'Listar las supervisiones registradas por este supervisor',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        responses: [new OA\Response(response: 200, description: 'Lista de supervisiones')],
+    )]
+    public function misSupervisiones(Request $request): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        $supervisiones = $supervisor->supervisiones()
+            ->with(['cobrador:id,nombre,apellido', 'rutaCobro:id,nombre'])
+            ->latest('fecha')
+            ->limit(50)
+            ->get()
+            ->map(fn (Supervision $s) => [
+                'id' => $s->id,
+                'fecha' => $s->fecha->format('d/m/Y'),
+                'ruta' => $s->rutaCobro?->nombre,
+                'cobrador' => $s->cobrador?->nombre_completo,
+                'visito_clientes_correctos' => $s->visito_clientes_correctos,
+                'efectivo_cuadrado' => $s->efectivo_cuadrado,
+                'calificacion' => $s->calificacion,
+                'observaciones' => $s->observaciones,
+            ]);
+
+        return response()->json(['supervisiones' => $supervisiones]);
+    }
+
+    #[OA\Post(
+        path: '/cobros/encuestas-cliente',
+        summary: 'Registrar una encuesta de control y verificación al cliente',
+        description: 'El supervisor le pregunta directo al cliente cuánto pagó y a quién, y la app contrasta la respuesta contra lo que el sistema tiene realmente registrado (pago_registrado_bm, saldo_registrado_bm, diferencia se calculan en el servidor, no vienen del cliente).',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['cliente_id', 'resultado'],
+                properties: [
+                    new OA\Property(property: 'cliente_id', type: 'integer'),
+                    new OA\Property(property: 'monto_frecuencia_pago', type: 'string', nullable: true, description: 'Respuesta libre: cuánto paga y cada cuánto'),
+                    new OA\Property(property: 'cobrador_reportado_cliente', type: 'string', nullable: true, description: 'A quién dice el cliente que le entregó el dinero'),
+                    new OA\Property(property: 'recibio_comprobante', type: 'boolean', nullable: true),
+                    new OA\Property(property: 'ultimo_pago_monto_cliente', type: 'number', nullable: true),
+                    new OA\Property(property: 'ultimo_pago_fecha_cliente', type: 'string', format: 'date', nullable: true),
+                    new OA\Property(property: 'saldo_informado_cliente', type: 'number', nullable: true),
+                    new OA\Property(property: 'resultado', type: 'string', enum: ['coincide', 'diferencia_investigar', 'pago_no_registrado', 'comprobante_inconsistente']),
+                    new OA\Property(property: 'observaciones', type: 'string', nullable: true),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Encuesta registrada'),
+            new OA\Response(response: 403, description: 'Cliente fuera de las rutas supervisadas'),
+            new OA\Response(response: 422, description: 'Validación fallida'),
+        ],
+    )]
+    public function registrarEncuestaCliente(Request $request): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        $data = $request->validate([
+            'cliente_id' => 'required|integer|exists:clientes,id',
+            'monto_frecuencia_pago' => 'nullable|string|max:1000',
+            'cobrador_reportado_cliente' => 'nullable|string|max:255',
+            'recibio_comprobante' => 'nullable|boolean',
+            'ultimo_pago_monto_cliente' => 'nullable|numeric|min:0',
+            'ultimo_pago_fecha_cliente' => 'nullable|date',
+            'saldo_informado_cliente' => 'nullable|numeric|min:0',
+            'resultado' => 'required|in:coincide,diferencia_investigar,pago_no_registrado,comprobante_inconsistente',
+            'observaciones' => 'nullable|string|max:1000',
+        ]);
+
+        $rutasIds = $supervisor->rutasSupervisadas()->pluck('rutas_cobro.id');
+        $cliente = Cliente::where('id', $data['cliente_id'])->whereIn('ruta_cobro_id', $rutasIds)->first();
+        if (! $cliente) {
+            return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas supervisadas.'], 403);
+        }
+
+        // "Verificación interna BM" — nunca se confía en lo que mande la app
+        // para estos tres campos, se recalculan siempre desde la fuente real.
+        $ultimoPago = PagoVenta::where('cliente_id', $cliente->id)
+            ->whereNull('anulado_en')
+            ->latest('fecha_pago')
+            ->first();
+        $pagoRegistradoBm = (float) ($ultimoPago->monto ?? 0);
+        $saldoRegistradoBm = (float) $cliente->saldo;
+        // La diferencia que importa para detectar fraude: lo que el cliente
+        // dice haber entregado vs. lo que el sistema realmente tiene
+        // registrado como su último pago.
+        $diferencia = round((float) ($data['ultimo_pago_monto_cliente'] ?? 0) - $pagoRegistradoBm, 2);
+
+        $encuesta = EncuestaCliente::create([
+            'supervisor_id' => $supervisor->id,
+            'cliente_id' => $cliente->id,
+            'cobrador_id' => $cliente->rutaCobro?->cobrador_id,
+            'fecha' => today(),
+            'monto_frecuencia_pago' => $data['monto_frecuencia_pago'] ?? null,
+            'cobrador_reportado_cliente' => $data['cobrador_reportado_cliente'] ?? null,
+            'recibio_comprobante' => $data['recibio_comprobante'] ?? null,
+            'ultimo_pago_monto_cliente' => $data['ultimo_pago_monto_cliente'] ?? null,
+            'ultimo_pago_fecha_cliente' => $data['ultimo_pago_fecha_cliente'] ?? null,
+            'saldo_informado_cliente' => $data['saldo_informado_cliente'] ?? null,
+            'pago_registrado_bm' => $pagoRegistradoBm,
+            'saldo_registrado_bm' => $saldoRegistradoBm,
+            'diferencia' => $diferencia,
+            'resultado' => $data['resultado'],
+            'observaciones' => $data['observaciones'] ?? null,
+        ]);
+
+        return response()->json([
+            'mensaje' => 'Encuesta registrada.',
+            'encuesta' => [
+                'id' => $encuesta->id,
+                'pago_registrado_bm' => $pagoRegistradoBm,
+                'saldo_registrado_bm' => $saldoRegistradoBm,
+                'diferencia' => $diferencia,
+            ],
+        ], 201);
+    }
+
+    #[OA\Get(
+        path: '/cobros/encuestas-cliente',
+        summary: 'Listar las encuestas de cliente registradas por este supervisor',
+        security: [['sanctum' => []]],
+        tags: ['Supervisor'],
+        responses: [new OA\Response(response: 200, description: 'Lista de encuestas')],
+    )]
+    public function misEncuestasCliente(Request $request): JsonResponse
+    {
+        $supervisor = $this->supervisorDe($request);
+        if (! $supervisor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de supervisor.'], 403);
+        }
+
+        $encuestas = $supervisor->encuestasCliente()
+            ->with(['cliente:id,nombre,apellido,codigo_anterior', 'cobrador:id,nombre,apellido'])
+            ->latest('fecha')
+            ->limit(50)
+            ->get()
+            ->map(fn (EncuestaCliente $e) => [
+                'id' => $e->id,
+                'fecha' => $e->fecha->format('d/m/Y'),
+                'cliente' => $e->cliente?->nombre_completo,
+                'codigo_cliente' => $e->cliente?->codigo_anterior,
+                'cobrador' => $e->cobrador?->nombre_completo,
+                'cobrador_reportado_cliente' => $e->cobrador_reportado_cliente,
+                'ultimo_pago_monto_cliente' => $e->ultimo_pago_monto_cliente,
+                'pago_registrado_bm' => $e->pago_registrado_bm,
+                'saldo_registrado_bm' => $e->saldo_registrado_bm,
+                'diferencia' => $e->diferencia,
+                'resultado' => $e->resultado,
+                'observaciones' => $e->observaciones,
+            ]);
+
+        return response()->json(['encuestas' => $encuestas]);
     }
 }

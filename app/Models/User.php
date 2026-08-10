@@ -99,6 +99,12 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
         return $this->hasOne(Cobrador::class, 'user_id');
     }
 
+    /** Perfil de supervisor vinculado */
+    public function supervisor(): HasOne
+    {
+        return $this->hasOne(Supervisor::class, 'user_id');
+    }
+
     /** Tokens de push notification (uno por dispositivo donde inició sesión) */
     public function pushTokens(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
@@ -142,7 +148,17 @@ class User extends Authenticatable implements FilamentUser, HasTenants, HasAppAu
             return true;
         }
         // Vendedor con flag es_cobrador también cuenta
-        return $this->vendedor()->where('activo', true)->where('es_cobrador', true)->exists();
+        if ($this->vendedor()->where('activo', true)->where('es_cobrador', true)->exists()) {
+            return true;
+        }
+        // El supervisor siempre puede cobrar en las rutas que supervisa.
+        return $this->esSupervisor();
+    }
+
+    /** ¿Este usuario puede operar como supervisor? */
+    public function esSupervisor(): bool
+    {
+        return $this->supervisor()->where('activo', true)->exists();
     }
 
     /** ¿La cuenta está bloqueada o desactivada administrativamente? */

@@ -154,6 +154,21 @@ Route::middleware('auth:sanctum')->group(function () {
             // Desempeño del propio cobrador (cobrado esta semana/mes vs período
             // anterior, % de ruta gestionada hoy, cuentas en mora bajo su cargo)
             Route::get('/desempeno', [CobroController::class, 'desempeno']);
+
+            // ── Supervisor: siempre puede cobrar (rutas mezcladas arriba vía
+            // rutasIdsAccesibles), más lo exclusivo de su rol ──────────────────
+            Route::prefix('supervisor')->group(function () {
+                Route::get('/rutas', [CobroController::class, 'misRutasSupervisadas']);
+                Route::get('/rutas/{ruta_id}/historial', [CobroController::class, 'historialRutaSupervisada']);
+                Route::get('/desempeno-cobradores', [CobroController::class, 'desempenoCobradores']);
+            });
+            Route::post('/supervisiones', [CobroController::class, 'registrarSupervision']);
+            Route::get('/supervisiones', [CobroController::class, 'misSupervisiones']);
+
+            // Encuesta de control y verificación al cliente (contrasta lo que
+            // dice el cliente contra lo que el sistema tiene registrado)
+            Route::post('/encuestas-cliente', [CobroController::class, 'registrarEncuestaCliente']);
+            Route::get('/encuestas-cliente', [CobroController::class, 'misEncuestasCliente']);
         });
     });
 });

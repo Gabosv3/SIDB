@@ -116,7 +116,7 @@ class AuthController extends Controller
     )]
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('sucursales', 'vendedor', 'cobrador');
+        $user = $request->user()->load('sucursales', 'vendedor', 'cobrador', 'supervisor');
 
         return response()->json([
             'id'        => $user->id,
@@ -128,6 +128,7 @@ class AuthController extends Controller
             'perfil'    => [
                 'es_vendedor'  => $user->esVendedor(),
                 'es_cobrador'  => $user->esCobrador(),
+                'es_supervisor'=> $user->esSupervisor(),
                 'vendedor'     => $user->vendedor ? [
                     'id'          => $user->vendedor->id,
                     'codigo'      => $user->vendedor->codigo,
@@ -139,6 +140,11 @@ class AuthController extends Controller
                     'id'          => $user->cobrador->id,
                     'nombre'      => $user->cobrador->nombre_completo,
                     'sucursal_id' => $user->cobrador->sucursal_id,
+                ] : null,
+                'supervisor'   => $user->supervisor ? [
+                    'id'          => $user->supervisor->id,
+                    'nombre'      => $user->supervisor->nombre_completo,
+                    'sucursal_id' => $user->supervisor->sucursal_id,
                 ] : null,
             ],
         ]);
