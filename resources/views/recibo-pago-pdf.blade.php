@@ -94,9 +94,6 @@
 
     <div class="divisor"></div>
 
-    @if($proximaVisita)
-        <div class="center">Próx. visita: {{ $proximaVisita->format('d/m/Y') }}</div>
-    @endif
     <div class="pie">Gracias por su pago</div>
 
 </div>
