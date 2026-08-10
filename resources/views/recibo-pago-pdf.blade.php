@@ -14,7 +14,8 @@
         .titulo-negocio { font-size:14px; font-weight:bold; letter-spacing:.5px; }
         .telefono { font-size:10px; margin-top:1px; }
 
-        .encabezado-recibo { display:flex; justify-content:space-between; font-size:10px; margin-top:6px; }
+        table.encabezado-recibo { width:100%; font-size:10px; margin-top:6px; }
+        table.encabezado-recibo td.fecha { text-align:right; }
 
         .divisor { border-top:1px dashed #333; margin:6px 0; }
 
@@ -43,10 +44,12 @@
         @endif
     </div>
 
-    <div class="encabezado-recibo">
-        <span>{{ $numeroRecibo }}</span>
-        <span>{{ $fecha?->format('d/m/Y') }}</span>
-    </div>
+    <table class="encabezado-recibo">
+        <tr>
+            <td>{{ $numeroRecibo }}</td>
+            <td class="fecha">{{ $fecha?->format('d/m/Y') }}</td>
+        </tr>
+    </table>
 
     @if($anulado)
         <div class="anulado-banner">*** ANULADO ***</div>
