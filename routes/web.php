@@ -73,6 +73,10 @@ Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function 
         ->middleware('can:Gestionar:DispositivosPos')
         ->name('monitor.liberar')
         ->where('tenant', '[0-9]+');
+    Route::post('{tenant}/monitor/dispositivos/{device}/actualizar', 'App\Http\Controllers\PosMonitorController@actualizarDatos')
+        ->middleware('can:Gestionar:DispositivosPos')
+        ->name('monitor.actualizar')
+        ->where('tenant', '[0-9]+');
     Route::get('{tenant}/resumen', 'App\Http\Controllers\PosMonitorController@resumen')
         ->middleware('can:View:ResumenDia')
         ->name('resumen')
@@ -102,10 +106,10 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
     Route::get('{tenant}/recibo/{numeroRecibo}', 'App\Http\Controllers\ClientesRutaController@generarRecibo')
         ->name('recibo')
-        ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-[0-9]+-[0-9]+']);
+        ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-(HIST|[0-9]+)-[0-9]+']);
     Route::post('{tenant}/recibo/{numeroRecibo}/anular', 'App\Http\Controllers\ClientesRutaController@anularRecibo')
         ->name('recibo.anular')
-        ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-[0-9]+-[0-9]+']);
+        ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-(HIST|[0-9]+)-[0-9]+']);
     Route::get('{tenant}/historial', 'App\Http\Controllers\ClientesRutaController@historialGeneral')
         ->name('historial')
         ->where('tenant', '[0-9]+');
