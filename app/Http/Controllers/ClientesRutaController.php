@@ -51,6 +51,7 @@ class ClientesRutaController extends Controller
 
         $sinRuta = Cliente::whereNull('ruta_cobro_id')->where('activo', true)->count();
         $cobradores = Cobrador::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
+        $vendedores = Vendedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
         $camposImportacion = self::CAMPOS_IMPORTACION;
         $esSuperAdmin = auth()->user()?->hasRole('super_admin') ?? false;
 
@@ -65,7 +66,7 @@ class ClientesRutaController extends Controller
             'cobrador_nombre' => $r->cobrador ? trim($r->cobrador->nombre.' '.$r->cobrador->apellido) : null,
         ])->values();
 
-        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'camposImportacion', 'esSuperAdmin', 'rutasParaJs'));
+        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'vendedores', 'camposImportacion', 'esSuperAdmin', 'rutasParaJs'));
     }
 
     /**
@@ -1512,6 +1513,7 @@ class ClientesRutaController extends Controller
             'valor_total' => 'required_if:tiene_venta,1|nullable|numeric|min:0.01',
             'monto_cobrado' => 'nullable|numeric|min:0',
             'fecha_venta' => 'nullable|date',
+            'vendedor_id' => 'nullable|integer|exists:vendedores,id',
         ]);
 
         $partes = preg_split('/\s+/', trim($data['nombre']), 2);
@@ -1547,7 +1549,7 @@ class ClientesRutaController extends Controller
 
                 $resultadoVenta = $this->crearVentaCredito(
                     $cliente, $valorTotal, $montoCobrado, $saldo, $fechaVenta,
-                    $data['producto'] ?: 'Producto', null,
+                    $data['producto'] ?: 'Producto', $data['vendedor_id'] ?? null,
                     $data['codigo_anterior'] ?? '—', $productoCache,
                 );
                 $ventaInfo = $resultadoVenta['venta'];

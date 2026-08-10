@@ -522,6 +522,15 @@
                     <label>Fecha de venta</label>
                     <input type="date" id="cr-nuevo-fecha" class="cr-filter-input">
                 </div>
+                <div class="cr-import-field">
+                    <label>Vendedor</label>
+                    <select id="cr-nuevo-vendedor" class="cr-filter-input">
+                        <option value="">Sin asignar</option>
+                        @foreach($vendedores as $v)
+                            <option value="{{ $v->id }}">{{ $v->nombre }} {{ $v->apellido }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <p class="cr-import-error" id="cr-nuevo-error"></p>
@@ -1209,7 +1218,7 @@
     var nuevoVentaForm = document.getElementById('cr-nuevo-venta-form');
 
     function abrirNuevoModal() {
-        ['nombre', 'codigo', 'telefono', 'direccion', 'producto', 'valor', 'cobrado', 'fecha'].forEach(function (campo) {
+        ['nombre', 'codigo', 'telefono', 'direccion', 'producto', 'valor', 'cobrado', 'fecha', 'vendedor'].forEach(function (campo) {
             document.getElementById('cr-nuevo-' + campo).value = '';
         });
         document.getElementById('cr-nuevo-error').textContent = '';
@@ -1261,6 +1270,7 @@
             valor_total: tieneVenta ? Number(valor) : null,
             monto_cobrado: tieneVenta ? Number(document.getElementById('cr-nuevo-cobrado').value || 0) : null,
             fecha_venta: document.getElementById('cr-nuevo-fecha').value || null,
+            vendedor_id: tieneVenta ? (document.getElementById('cr-nuevo-vendedor').value || null) : null,
         };
 
         var btn = this;
