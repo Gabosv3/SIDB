@@ -77,8 +77,9 @@ class ClientesRutaController extends Controller
     public function perfilCliente(Request $request, $tenant, Cliente $cliente)
     {
         $esSuperAdmin = auth()->user()?->hasRole('super_admin') ?? false;
+        $vendedores = Vendedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
 
-        return view('pos.cliente-perfil', compact('tenant', 'cliente', 'esSuperAdmin'));
+        return view('pos.cliente-perfil', compact('tenant', 'cliente', 'esSuperAdmin', 'vendedores'));
     }
 
     /**
@@ -539,12 +540,14 @@ class ClientesRutaController extends Controller
                 'id' => $v->id,
                 'numero_venta' => $v->numero_venta,
                 'fecha_venta' => $v->fecha_venta?->format('d/m/Y'),
+                'fecha_venta_iso' => $v->fecha_venta?->toDateString(),
                 'tipo_pago' => $v->tipo_pago,
                 'estado' => $v->estado,
                 'total' => (float) $v->total,
                 'monto_pagado' => (float) $v->monto_pagado,
                 'saldo_pendiente' => (float) $v->saldo_pendiente,
                 'dias_credito' => $v->dias_credito,
+                'vendedor_id' => $v->vendedor_id,
                 'vendedor_nombre' => $v->vendedor ? trim($v->vendedor->nombre.' '.$v->vendedor->apellido) : null,
                 'productos' => $v->detalles->map(fn ($d) => [
                     'nombre' => $d->producto?->nombre ?? 'Producto eliminado',
@@ -1149,6 +1152,41 @@ class ClientesRutaController extends Controller
         });
 
         return response()->json(['mensaje' => 'Precio de la venta actualizado.']);
+    }
+
+    /**
+     * Corrige el vendedor y/o la fecha de una venta desde el perfil del
+     * cliente — pensado para arreglar datos mal capturados (ej. ventas
+     * importadas sin vendedor, o con la fecha equivocada), sin necesidad de
+     * entrar al panel principal de Filament.
+     */
+    public function actualizarVentaVendedorFecha(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        if (! (auth()->user()?->hasRole('super_admin') ?? false)) {
+            return response()->json(['mensaje' => 'No tenés permiso para hacer este cambio.'], 403);
+        }
+
+        $data = $request->validate([
+            'venta_id' => 'required|integer',
+            'vendedor_id' => 'nullable|integer|exists:vendedores,id',
+            'fecha_venta' => 'nullable|date',
+        ]);
+
+        $venta = $cliente->ventas()->where('id', $data['venta_id'])->first();
+
+        if (! $venta) {
+            return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
+        }
+
+        $venta->vendedor_id = $data['vendedor_id'] ?? null;
+
+        if (! empty($data['fecha_venta'])) {
+            $venta->fecha_venta = $data['fecha_venta'];
+        }
+
+        $venta->save();
+
+        return response()->json(['mensaje' => 'Venta actualizada.']);
     }
 
     /**

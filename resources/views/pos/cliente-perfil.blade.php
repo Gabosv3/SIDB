@@ -108,6 +108,7 @@
     var tenant = {{ (int) $tenant }};
     var clienteId = {{ (int) $cliente->id }};
     var esSuperAdmin = @json($esSuperAdmin);
+    var vendedoresDisponibles = @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => trim($v->nombre.' '.$v->apellido)]));
     var baseUrl = '/clientes-ruta/' + tenant;
     var body = document.getElementById('cp-body');
     var toast = document.getElementById('cp-toast');
@@ -349,9 +350,13 @@
             }).join('') + '</div>'
             : '';
 
+        var editarVentaBtn = esSuperAdmin
+            ? '<button type="button" class="cr-abono-edit cp-venta-vendedor-fecha-edit" data-venta="' + v.id + '" data-vendedor-id="' + (v.vendedor_id || '') + '" data-fecha-iso="' + (v.fecha_venta_iso || '') + '" title="Corregir vendedor / fecha de esta venta">✏️</button>'
+            : '';
+
         var card = '<div class="cr-venta-card">' +
             '<div class="cr-venta-card-header">' +
-                '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')' + (v.vendedor_nombre ? ' · Vendedor: ' + v.vendedor_nombre : '') + '</span></div>' +
+                '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')' + (v.vendedor_nombre ? ' · Vendedor: ' + v.vendedor_nombre : ' · Vendedor: —') + '</span> ' + editarVentaBtn + '</div>' +
                 '<span class="cr-venta-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (estadoLabels[v.estado] || v.estado) + '</span>' +
             '</div>' +
             productosHtml +
@@ -589,6 +594,50 @@
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     },
                     body: JSON.stringify({ venta_id: Number(ventaId), fecha_pago: fechaIso, numero_recibo: numeroRecibo || null, monto: Number(nuevo) }),
+                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                  .then(function (res) {
+                    showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
+                    if (res.ok) cargar();
+                });
+            });
+        });
+
+        body.querySelectorAll('.cp-venta-vendedor-fecha-edit').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var ventaId = this.dataset.venta;
+                var vendedorIdActual = this.dataset.vendedorId;
+                var fechaIsoActual = this.dataset.fechaIso;
+
+                var listaTexto = 'Escribe el número del vendedor (o 0 para dejarlo sin asignar):\n\n0) Sin asignar\n' +
+                    vendedoresDisponibles.map(function (v, i) { return (i + 1) + ') ' + v.nombre; }).join('\n');
+                var seleccion = window.prompt(listaTexto, '');
+                if (seleccion === null) return;
+                seleccion = seleccion.trim();
+                var vendedorId = null;
+                if (seleccion !== '' && seleccion !== '0') {
+                    var idx = parseInt(seleccion, 10) - 1;
+                    if (isNaN(idx) || !vendedoresDisponibles[idx]) {
+                        showToast('Número inválido, no se cambió el vendedor.');
+                        return;
+                    }
+                    vendedorId = vendedoresDisponibles[idx].id;
+                }
+
+                var nuevaFecha = window.prompt('Fecha de la venta (AAAA-MM-DD):', fechaIsoActual || '');
+                if (nuevaFecha === null) return;
+                nuevaFecha = nuevaFecha.trim();
+                if (nuevaFecha !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(nuevaFecha)) {
+                    showToast('Fecha inválida, usa el formato AAAA-MM-DD.');
+                    return;
+                }
+
+                fetch(baseUrl + '/clientes/' + clienteId + '/venta-vendedor-fecha', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ venta_id: Number(ventaId), vendedor_id: vendedorId, fecha_venta: nuevaFecha || null }),
                 }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
                   .then(function (res) {
                     showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
