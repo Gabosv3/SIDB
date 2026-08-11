@@ -797,9 +797,12 @@
                     body: JSON.stringify({ revisado: marcado }),
                 }).then(function (r) {
                     if (!r.ok) throw new Error('respuesta no ok');
-                    // Ya quedó guardado en el servidor — a partir de acá la
-                    // auto-actualización puede volver a mandar este campo sin riesgo.
-                    delete revisionesPendientes[clienteId];
+                    // Ya quedó guardado en el servidor, pero un auto-refresh que ya
+                    // estaba en camino (arrancó antes de que esto terminara de
+                    // guardarse) puede llegar unos instantes después con el dato
+                    // viejo — se mantiene la protección un rato más para absorber
+                    // esa respuesta tardía en vez de dejar que la pise.
+                    setTimeout(function () { delete revisionesPendientes[clienteId]; }, 4000);
                 }).catch(function () {
                     delete revisionesPendientes[clienteId];
                     showToast('No se pudo guardar la revisión, intenta de nuevo.');
