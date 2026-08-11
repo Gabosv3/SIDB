@@ -86,6 +86,25 @@
         transition:all .2s; pointer-events:none; z-index:500; max-width:calc(100vw - 2.5rem);
     }
     .cr-save-toast.show { opacity:1; transform:translateY(0); }
+
+    .cr-import-btn { display:inline-flex; align-items:center; gap:.5rem; background:#10b981; color:#fff; border:none; border-radius:.625rem; padding:.6rem 1.1rem; font-size:.82rem; font-weight:600; cursor:pointer; transition:background .15s; }
+    .cr-import-btn:hover { background:#059669; }
+    .cr-import-btn-secundario { background:var(--subtle); color:var(--text-2); border:1px solid var(--border); border-radius:.625rem; padding:.6rem 1.1rem; font-size:.82rem; font-weight:600; cursor:pointer; }
+    .cr-import-btn-secundario:hover { background:var(--border); }
+
+    /* ── Modal editar venta ── */
+    .cp-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; align-items:center; justify-content:center; padding:1rem; }
+    .cp-modal-overlay.show { display:flex; }
+    .cp-modal { background:var(--card); border-radius:1rem; width:100%; max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+    .cp-modal-header { display:flex; align-items:center; justify-content:space-between; padding:1.1rem 1.4rem; border-bottom:1px solid var(--border); font-weight:700; font-size:.95rem; color:var(--text); }
+    .cp-modal-close { background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:var(--muted); padding:0; }
+    .cp-modal-close:hover { color:var(--text); }
+    .cp-modal-body { padding:1.4rem; display:flex; flex-direction:column; gap:.9rem; }
+    .cp-modal-field label { display:block; font-size:.72rem; font-weight:600; color:var(--muted); margin-bottom:.3rem; }
+    .cp-modal-field select, .cp-modal-field input { width:100%; border:1px solid var(--border); border-radius:.625rem; padding:.55rem .8rem; font-size:.86rem; color:var(--text-2); background:var(--card); outline:none; }
+    .cp-modal-field select:focus, .cp-modal-field input:focus { border-color:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.12); }
+    .cp-modal-error { color:#dc2626; font-size:.78rem; min-height:1em; }
+    .cp-modal-actions { display:flex; justify-content:flex-end; gap:.6rem; margin-top:.2rem; }
 </style>
 @endsection
 
@@ -100,6 +119,35 @@
 </div>
 
 <div class="cr-save-toast" id="cp-toast">Guardado</div>
+
+<div class="cp-modal-overlay" id="cp-venta-modal-overlay">
+    <div class="cp-modal">
+        <div class="cp-modal-header">
+            <span>Corregir venta</span>
+            <button type="button" class="cp-modal-close" id="cp-venta-modal-close">&times;</button>
+        </div>
+        <div class="cp-modal-body">
+            <div class="cp-modal-field">
+                <label>Vendedor</label>
+                <select id="cp-venta-modal-vendedor">
+                    <option value="">Sin asignar</option>
+                    @foreach($vendedores as $v)
+                        <option value="{{ $v->id }}">{{ $v->nombre }} {{ $v->apellido }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="cp-modal-field">
+                <label>Fecha de la venta</label>
+                <input type="date" id="cp-venta-modal-fecha">
+            </div>
+            <p class="cp-modal-error" id="cp-venta-modal-error"></p>
+            <div class="cp-modal-actions">
+                <button type="button" class="cr-import-btn-secundario" id="cp-venta-modal-cancelar">Cancelar</button>
+                <button type="button" class="cr-import-btn" id="cp-venta-modal-guardar">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -108,7 +156,6 @@
     var tenant = {{ (int) $tenant }};
     var clienteId = {{ (int) $cliente->id }};
     var esSuperAdmin = @json($esSuperAdmin);
-    var vendedoresDisponibles = @json($vendedores->map(fn ($v) => ['id' => $v->id, 'nombre' => trim($v->nombre.' '.$v->apellido)]));
     var baseUrl = '/clientes-ruta/' + tenant;
     var body = document.getElementById('cp-body');
     var toast = document.getElementById('cp-toast');
@@ -604,45 +651,7 @@
 
         body.querySelectorAll('.cp-venta-vendedor-fecha-edit').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                var ventaId = this.dataset.venta;
-                var vendedorIdActual = this.dataset.vendedorId;
-                var fechaIsoActual = this.dataset.fechaIso;
-
-                var listaTexto = 'Escribe el número del vendedor (o 0 para dejarlo sin asignar):\n\n0) Sin asignar\n' +
-                    vendedoresDisponibles.map(function (v, i) { return (i + 1) + ') ' + v.nombre; }).join('\n');
-                var seleccion = window.prompt(listaTexto, '');
-                if (seleccion === null) return;
-                seleccion = seleccion.trim();
-                var vendedorId = null;
-                if (seleccion !== '' && seleccion !== '0') {
-                    var idx = parseInt(seleccion, 10) - 1;
-                    if (isNaN(idx) || !vendedoresDisponibles[idx]) {
-                        showToast('Número inválido, no se cambió el vendedor.');
-                        return;
-                    }
-                    vendedorId = vendedoresDisponibles[idx].id;
-                }
-
-                var nuevaFecha = window.prompt('Fecha de la venta (AAAA-MM-DD):', fechaIsoActual || '');
-                if (nuevaFecha === null) return;
-                nuevaFecha = nuevaFecha.trim();
-                if (nuevaFecha !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(nuevaFecha)) {
-                    showToast('Fecha inválida, usa el formato AAAA-MM-DD.');
-                    return;
-                }
-
-                fetch(baseUrl + '/clientes/' + clienteId + '/venta-vendedor-fecha', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    },
-                    body: JSON.stringify({ venta_id: Number(ventaId), vendedor_id: vendedorId, fecha_venta: nuevaFecha || null }),
-                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-                  .then(function (res) {
-                    showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
-                    if (res.ok) cargar();
-                });
+                abrirVentaModal(this.dataset.venta, this.dataset.vendedorId, this.dataset.fechaIso);
             });
         });
 
@@ -691,6 +700,66 @@
             });
         });
     }
+
+    // ── Modal: corregir vendedor / fecha de una venta ────────────────────
+    var ventaModalOverlay = document.getElementById('cp-venta-modal-overlay');
+    var ventaModalVendedor = document.getElementById('cp-venta-modal-vendedor');
+    var ventaModalFecha = document.getElementById('cp-venta-modal-fecha');
+    var ventaModalError = document.getElementById('cp-venta-modal-error');
+    var ventaModalVentaId = null;
+
+    function abrirVentaModal(ventaId, vendedorIdActual, fechaIsoActual) {
+        ventaModalVentaId = ventaId;
+        ventaModalVendedor.value = vendedorIdActual || '';
+        ventaModalFecha.value = fechaIsoActual || '';
+        ventaModalError.textContent = '';
+        ventaModalOverlay.classList.add('show');
+    }
+
+    function cerrarVentaModal() {
+        ventaModalOverlay.classList.remove('show');
+        ventaModalVentaId = null;
+    }
+
+    document.getElementById('cp-venta-modal-close').addEventListener('click', cerrarVentaModal);
+    document.getElementById('cp-venta-modal-cancelar').addEventListener('click', cerrarVentaModal);
+    ventaModalOverlay.addEventListener('click', function (e) { if (e.target === ventaModalOverlay) cerrarVentaModal(); });
+
+    document.getElementById('cp-venta-modal-guardar').addEventListener('click', function () {
+        if (! ventaModalVentaId) return;
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+
+        fetch(baseUrl + '/clientes/' + clienteId + '/venta-vendedor-fecha', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({
+                venta_id: Number(ventaModalVentaId),
+                vendedor_id: ventaModalVendedor.value || null,
+                fecha_venta: ventaModalFecha.value || null,
+            }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
+            if (res.ok) {
+                cerrarVentaModal();
+                showToast(res.body.mensaje || 'Actualizado.');
+                cargar();
+            } else {
+                ventaModalError.textContent = res.body.mensaje || 'No se pudo guardar.';
+            }
+        }).catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
+            ventaModalError.textContent = 'No se pudo guardar, intenta de nuevo.';
+        });
+    });
 
     cargar();
 })();
