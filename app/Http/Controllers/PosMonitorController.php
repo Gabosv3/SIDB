@@ -63,6 +63,13 @@ class PosMonitorController extends Controller
      */
     public function liberarDispositivo(Request $request, $tenant, PosDevice $device)
     {
+        // Revocar los tokens de sesión del usuario que tenía este POS — si el
+        // motivo de liberar es un teléfono perdido/robado, desvincularlo del
+        // registro no servía de nada si el token seguía siendo válido en el
+        // teléfono. Ahora "Liberar dispositivo" también corta el acceso a la
+        // API de inmediato, sin esperar a que el token expire por sí solo.
+        $device->user?->tokens()->delete();
+
         $device->update([
             'user_id' => null,
             'cobrador_id' => null,
@@ -71,6 +78,28 @@ class PosMonitorController extends Controller
         return response()->json([
             'ok' => true,
             'mensaje' => "Dispositivo \"{$device->nombre}\" liberado.",
+        ]);
+    }
+
+    /**
+     * Permite al admin editar el nombre, número de inventario y notas de un
+     * dispositivo desde el panel. No toca nada relacionado a la app POS: el
+     * heartbeat solo setea "nombre" una vez al crear el registro y nunca
+     * vuelve a tocarlo, así que estos valores quedan seguros aquí.
+     */
+    public function actualizarDatos(Request $request, $tenant, PosDevice $device)
+    {
+        $data = $request->validate([
+            'nombre' => ['required', 'string', 'max:100'],
+            'numero_inventario' => ['nullable', 'string', 'max:100'],
+            'notas' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $device->update($data);
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => 'Dispositivo actualizado.',
         ]);
     }
 
@@ -113,6 +142,8 @@ class PosMonitorController extends Controller
             return [
                 'id' => $d->id,
                 'nombre' => $d->nombre,
+                'numero_inventario' => $d->numero_inventario,
+                'notas' => $d->notas,
                 'serial' => $d->serial,
                 'estado' => $estado,
                 'ultimo_ping' => $d->ultimo_ping?->diffForHumans() ?? 'Nunca',

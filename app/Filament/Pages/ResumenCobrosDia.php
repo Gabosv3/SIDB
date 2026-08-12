@@ -38,6 +38,11 @@ class ResumenCobrosDia extends Page
         return 'Cobros';
     }
 
+    public static function getNavigationSort(): ?int
+    {
+        return 1;
+    }
+
     public function mount(): void
     {
         $this->fecha = today()->toDateString();

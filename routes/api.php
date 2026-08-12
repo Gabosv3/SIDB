@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CobroController;
+use App\Http\Controllers\Api\PagareController;
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PreventaController;
@@ -82,6 +83,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('solo.vendedor')->group(function () {
             Route::post('/ventas', [VentaController::class, 'store']);
             Route::post('/ventas/{id}/anular', [VentaController::class, 'anular']);
+            Route::post('/pagares', [PagareController::class, 'store']);
+            Route::patch('/pagares/{id}/venta', [PagareController::class, 'vincularVenta']);
 
             // Consulta de asignación del día (solo lectura, el admin la crea en Filament)
             Route::get('/asignacion/hoy', [AsignacionController::class, 'hoy']);

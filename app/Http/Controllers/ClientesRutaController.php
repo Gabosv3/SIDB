@@ -49,7 +49,12 @@ class ClientesRutaController extends Controller
             $rutaId = $rutas->first()->id;
         }
 
-        $sinRuta = Cliente::whereNull('ruta_cobro_id')->where('activo', true)->count();
+        // "Sin ruta asignada" ahora es solo lo que de verdad necesita atención
+        // (nunca se le asignó ruta, o quedó suelto por algún otro motivo) — un
+        // cliente que ya pagó todo y por eso salió de su ruta no es un pendiente,
+        // así que se cuenta aparte en "Cuentas cerradas" para no mezclarlos.
+        $sinRuta = Cliente::whereNull('ruta_cobro_id')->where('activo', true)->where('saldo', '>', 0)->count();
+        $cuentasCerradas = Cliente::whereNull('ruta_cobro_id')->where('activo', true)->where('saldo', '<=', 0)->count();
         $cobradores = Cobrador::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
         $vendedores = Vendedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
         $camposImportacion = self::CAMPOS_IMPORTACION;
@@ -66,7 +71,7 @@ class ClientesRutaController extends Controller
             'cobrador_nombre' => $r->cobrador ? trim($r->cobrador->nombre.' '.$r->cobrador->apellido) : null,
         ])->values();
 
-        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cobradores', 'vendedores', 'camposImportacion', 'esSuperAdmin', 'rutasParaJs'));
+        return view('pos.clientes-ruta', compact('tenant', 'rutas', 'rutaId', 'sinRuta', 'cuentasCerradas', 'cobradores', 'vendedores', 'camposImportacion', 'esSuperAdmin', 'rutasParaJs'));
     }
 
     /**
@@ -201,7 +206,9 @@ class ClientesRutaController extends Controller
         $query = Cliente::where('activo', true);
 
         if ($rutaId === 'sin_ruta') {
-            $query->whereNull('ruta_cobro_id');
+            $query->whereNull('ruta_cobro_id')->where('saldo', '>', 0);
+        } elseif ($rutaId === 'cuentas_cerradas') {
+            $query->whereNull('ruta_cobro_id')->where('saldo', '<=', 0);
         } elseif (! $esTodos) {
             $query->where('ruta_cobro_id', $rutaId);
         }
@@ -234,6 +241,10 @@ class ClientesRutaController extends Controller
 
         $listado = $query
             ->with(['rutaCobro:id,nombre,cobrador_id', 'ventas' => fn ($q) => $q->where('tipo_pago', 'credito')
+                // Solo las cuentas que todavía deben — una venta ya pagada al 100%
+                // (completada) no debe seguir apareciendo en la lista de la ruta,
+                // aunque el cliente siga ahí por tener otra cuenta con saldo.
+                ->where('saldo_pendiente', '>', 0)
                 ->oldest('fecha_venta')
                 // Antes traía TODOS los pagos de cada venta (a veces 20+ cuotas) solo
                 // para quedarse con el primero — con una subconsulta se trae ya
@@ -251,6 +262,12 @@ class ClientesRutaController extends Controller
             // en SQL) porque si a un cliente le falta uno de los dos, GREATEST con
             // NULL da NULL en MySQL y se perdería el otro dato.
             ->addSelect([
+                // Total pagado histórico del cliente — independiente del filtro de
+                // saldo_pendiente > 0 en la relación 'ventas' de arriba, para que
+                // no se pierda lo pagado en cuentas que ya se terminaron de pagar.
+                'total_pagado_historico' => PagoVenta::selectRaw('COALESCE(SUM(monto), 0)')
+                    ->whereColumn('cliente_id', 'clientes.id')
+                    ->whereNull('anulado_en'),
                 'ultimo_pago_fecha' => PagoVenta::selectRaw('MAX(fecha_pago)')
                     ->whereColumn('cliente_id', 'clientes.id')
                     ->whereNull('anulado_en'),
@@ -337,7 +354,7 @@ class ClientesRutaController extends Controller
                     'ruta_nombre' => $c->rutaCobro?->nombre,
                     'cobrador_id_ruta' => $c->rutaCobro?->cobrador_id,
                     'ventas_credito' => $ventasCredito,
-                    'total_pagado_cliente' => round($ventasCredito->sum('monto_pagado'), 2),
+                    'total_pagado_cliente' => round((float) $c->total_pagado_historico, 2),
                     'revisado' => $c->revisado_en !== null,
                 ];
             })
@@ -375,7 +392,9 @@ class ClientesRutaController extends Controller
         $query = Cliente::where('activo', true);
 
         if ($rutaId === 'sin_ruta') {
-            $query->whereNull('ruta_cobro_id');
+            $query->whereNull('ruta_cobro_id')->where('saldo', '>', 0);
+        } elseif ($rutaId === 'cuentas_cerradas') {
+            $query->whereNull('ruta_cobro_id')->where('saldo', '<=', 0);
         } elseif (! $esTodos) {
             $query->where('ruta_cobro_id', $rutaId);
         }
@@ -486,7 +505,9 @@ class ClientesRutaController extends Controller
         $query = Cliente::where('activo', true);
 
         if ($rutaId === 'sin_ruta') {
-            $query->whereNull('ruta_cobro_id');
+            $query->whereNull('ruta_cobro_id')->where('saldo', '>', 0);
+        } elseif ($rutaId === 'cuentas_cerradas') {
+            $query->whereNull('ruta_cobro_id')->where('saldo', '<=', 0);
         } elseif ($rutaId !== 'todos') {
             $query->where('ruta_cobro_id', $rutaId);
         }

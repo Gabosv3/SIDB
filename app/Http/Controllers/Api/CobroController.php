@@ -15,6 +15,7 @@ use App\Models\Supervision;
 use App\Models\Vale;
 use App\Models\Venta;
 use App\Models\VisitaCobro;
+use App\Services\IdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -923,6 +924,7 @@ class CobroController extends Controller
                     new OA\Property(property: 'venta_id', type: 'integer', example: 20, description: 'ID de la venta a la que se aplica el pago'),
                     new OA\Property(property: 'referencia', type: 'string', nullable: true),
                     new OA\Property(property: 'observaciones', type: 'string', nullable: true),
+                    new OA\Property(property: 'idempotency_key', type: 'string', nullable: true, maxLength: 80, description: 'Generada una vez por la app antes del primer intento y reutilizada en reintentos offline, para que un timeout no cree un cobro duplicado'),
                 ],
             ),
         ),
@@ -930,19 +932,31 @@ class CobroController extends Controller
             new OA\Response(response: 200, description: 'Pago registrado'),
             new OA\Response(response: 404, description: 'No hay cuotas pendientes'),
             new OA\Response(response: 403, description: 'Cliente no pertenece a tus rutas o venta no pertenece al cliente'),
+            new OA\Response(response: 409, description: 'Ya se está procesando un request con la misma idempotency_key'),
             new OA\Response(response: 422, description: 'Validación fallida'),
         ],
     )]
     public function pagarCliente(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'monto'         => 'required|numeric|min:0.01',
-            'metodo_pago'   => 'required|in:efectivo,transferencia,cheque,deposito',
-            'venta_id'      => 'required|integer|exists:ventas,id',
-            'referencia'    => 'nullable|string|max:100',
-            'observaciones' => 'nullable|string|max:500',
+            'monto'           => 'required|numeric|min:0.01',
+            'metodo_pago'     => 'required|in:efectivo,transferencia,cheque,deposito',
+            'venta_id'        => 'required|integer|exists:ventas,id',
+            'referencia'      => 'nullable|string|max:100',
+            'observaciones'   => 'nullable|string|max:500',
+            'idempotency_key' => 'nullable|string|max:80',
         ]);
 
+        return IdempotencyService::manejar(
+            $request->user()->id,
+            'cobros.pagarCliente',
+            $data['idempotency_key'] ?? null,
+            fn () => $this->registrarPagoCliente($request, $id, $data)
+        );
+    }
+
+    private function registrarPagoCliente(Request $request, int $id, array $data): JsonResponse
+    {
         $cobrador = $this->cobrador($request);
         if (! $cobrador) {
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
@@ -1485,6 +1499,7 @@ class CobroController extends Controller
                         new OA\Property(property: 'foto_hogar', type: 'string', format: 'binary', nullable: true, description: 'Foto del hogar como comprobante (jpg/png, max 5MB)'),
                         new OA\Property(property: 'latitud', type: 'number', format: 'float', nullable: true),
                         new OA\Property(property: 'longitud', type: 'number', format: 'float', nullable: true),
+                        new OA\Property(property: 'idempotency_key', type: 'string', nullable: true, maxLength: 80, description: 'Generada una vez por la app antes del primer intento y reutilizada en reintentos offline, para que un timeout no cree una visita duplicada'),
                     ]
                 )
             )
@@ -1505,8 +1520,19 @@ class CobroController extends Controller
             'foto_hogar'      => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
             'latitud'         => 'nullable|numeric|between:-90,90',
             'longitud'        => 'nullable|numeric|between:-180,180',
+            'idempotency_key' => 'nullable|string|max:80',
         ]);
 
+        return IdempotencyService::manejar(
+            $request->user()->id,
+            'cobros.registrarVisita',
+            $data['idempotency_key'] ?? null,
+            fn () => $this->crearVisita($request, $id, $data)
+        );
+    }
+
+    private function crearVisita(Request $request, int $id, array $data): JsonResponse
+    {
         $cobrador = $this->cobrador($request);
         if (! $cobrador) {
             return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);

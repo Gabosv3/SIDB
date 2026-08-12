@@ -98,6 +98,11 @@ class Cliente extends Model
         return $this->hasMany(PagoVenta::class, 'cliente_id');
     }
 
+    public function pagares(): HasMany
+    {
+        return $this->hasMany(Pagare::class, 'cliente_id');
+    }
+
     public function gestionesCobro(): HasMany
     {
         return $this->hasMany(GestionCobro::class, 'cliente_id');
@@ -139,9 +144,39 @@ class Cliente extends Model
     }
 
     /** Igual que sacarDeRuta(), pero sobre una instancia ya cargada (evita una consulta extra). */
-    public function sacarDeSuRuta(): void
+    /**
+     * Saca al cliente de su ruta de cobro activa (venta pagada al 100%,
+     * cancelada/devuelta, o mandado a reintegro) y deja constancia en el
+     * mismo historial de movimientos de ruta que ya usan los cambios
+     * manuales (Activity log 'cliente_ruta_cambio'), para no perder de
+     * vista por qué salió.
+     */
+    public function sacarDeSuRuta(string $motivo = 'Salió de la ruta'): void
     {
+        $rutaAnterior = $this->rutaCobro;
+
         $this->update(['ruta_cobro_id' => null, 'orden' => null]);
+
+        if (! $rutaAnterior) {
+            return;
+        }
+
+        $nombreCobrador = $rutaAnterior->cobrador
+            ? trim($rutaAnterior->cobrador->nombre.' '.$rutaAnterior->cobrador->apellido)
+            : null;
+
+        activity('cliente_ruta_cambio')
+            ->causedBy(auth()->check() ? auth()->user() : null)
+            ->performedOn($this)
+            ->withProperties([
+                'ruta_anterior_id' => $rutaAnterior->id,
+                'ruta_anterior_nombre' => $rutaAnterior->nombre,
+                'cobrador_anterior' => $nombreCobrador,
+                'ruta_nueva_id' => null,
+                'ruta_nueva_nombre' => null,
+                'cobrador_nuevo' => null,
+            ])
+            ->log(sprintf('%s (de "%s")', $motivo, $rutaAnterior->nombre));
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────

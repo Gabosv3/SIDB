@@ -234,6 +234,9 @@
             <option value="sin_ruta" {{ $rutaId === 'sin_ruta' ? 'selected' : '' }}>
                 ⚠ Sin ruta asignada ({{ $sinRuta }})
             </option>
+            <option value="cuentas_cerradas" {{ $rutaId === 'cuentas_cerradas' ? 'selected' : '' }}>
+                🔒 Cuentas cerradas ({{ $cuentasCerradas }})
+            </option>
             <option value="todos" {{ $rutaId === 'todos' ? 'selected' : '' }}>
                 Todos los clientes (todas las rutas)
             </option>
@@ -1132,7 +1135,7 @@
 
     document.getElementById('cr-sugerir-orden').addEventListener('click', function () {
         var rutaId = rutaSelect.value;
-        if (!rutaId || rutaId === 'todos' || rutaId === 'sin_ruta') return;
+        if (!rutaId || rutaId === 'todos' || rutaId === 'sin_ruta' || rutaId === 'cuentas_cerradas') return;
 
         var btn = this;
         var textoOriginal = btn.textContent;
@@ -1230,7 +1233,7 @@
 
         var rutaSel = document.getElementById('cr-nuevo-ruta');
         var actual = rutaSelect.value;
-        rutaSel.value = (actual !== 'todos' && actual !== 'sin_ruta') ? actual : '';
+        rutaSel.value = (actual !== 'todos' && actual !== 'sin_ruta' && actual !== 'cuentas_cerradas') ? actual : '';
 
         nuevoOverlay.classList.add('show');
     }

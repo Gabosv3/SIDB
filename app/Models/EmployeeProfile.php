@@ -31,6 +31,7 @@ class EmployeeProfile extends Model
         'meta_ventas_mensual' => 'decimal:2',
         'meta_cobros_mensual' => 'decimal:2',
         'puede_usar_pos_movil' => 'boolean',
+        'tipo_empleado' => 'array',
     ];
 
     protected static function boot(): void

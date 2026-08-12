@@ -66,7 +66,9 @@ class Venta extends Model
 
         static::creating(function (Venta $venta): void {
             if (empty($venta->numero_venta)) {
-                $venta->numero_venta = 'VNT-' . strtoupper(Str::random(8));
+                $venta->numero_venta = $venta->vendedor_id
+                    ? static::siguienteNumeroTicket((int) $venta->vendedor_id)
+                    : 'VNT-' . strtoupper(Str::random(8));
             }
             if (empty($venta->fecha_venta)) {
                 $venta->fecha_venta = now();
@@ -85,11 +87,12 @@ class Venta extends Model
             }
         });
 
-        // Al cancelar o devolver una venta, el cliente sale de su ruta de cobro
-        // activa — pero solo si esta era su única cuenta a crédito con saldo. Si
-        // le queda otra venta activa, se queda en la ruta para que lo sigan cobrando.
+        // Al cancelar, devolver, o terminar de pagar una venta, el cliente sale
+        // de su ruta de cobro activa — pero solo si esta era su única cuenta a
+        // crédito con saldo. Si le queda otra venta activa, se queda en la ruta
+        // para que lo sigan cobrando por esa.
         static::saved(function (Venta $venta): void {
-            if (! $venta->wasChanged('estado') || ! in_array($venta->estado, ['cancelada', 'devuelta'], true) || ! $venta->cliente_id) {
+            if (! $venta->wasChanged('estado') || ! in_array($venta->estado, ['cancelada', 'devuelta', 'completada'], true) || ! $venta->cliente_id) {
                 return;
             }
 
@@ -111,10 +114,69 @@ class Venta extends Model
                     ->exists();
 
                 if (! $tieneOtraCuentaActiva) {
-                    $cliente->sacarDeSuRuta();
+                    $motivo = match ($venta->estado) {
+                        'completada' => "Venta {$venta->numero_venta} pagada al 100%",
+                        'cancelada' => "Venta {$venta->numero_venta} cancelada",
+                        'devuelta' => "Venta {$venta->numero_venta} devuelta",
+                        default => 'Salió de la ruta',
+                    };
+                    $cliente->sacarDeSuRuta($motivo);
                 }
             });
         });
+
+        // Aviso a los super_admin (campanita de notificaciones) cuando una
+        // venta se cancela o se devuelve — antes esto pasaba en silencio, sin
+        // que el admin se enterara salvo que entrara a revisar manualmente.
+        static::saved(function (Venta $venta): void {
+            if (! $venta->wasChanged('estado') || ! in_array($venta->estado, ['cancelada', 'devuelta'], true)) {
+                return;
+            }
+
+            $cliente = $venta->cliente_id ? Cliente::find($venta->cliente_id) : null;
+            $accion = $venta->estado === 'cancelada' ? 'cancelada' : 'devuelta';
+
+            $notificacion = \Filament\Notifications\Notification::make()
+                ->title('Venta ' . $accion)
+                ->body(sprintf(
+                    '%s (%s) — %s',
+                    $venta->numero_venta,
+                    $cliente?->nombre_completo ?? 'cliente #' . $venta->cliente_id,
+                    $venta->observaciones ?: 'sin motivo indicado'
+                ))
+                ->icon('heroicon-o-x-circle')
+                ->iconColor('danger')
+                ->warning()
+                ->toDatabase();
+
+            // sendNow() en vez de sendToDatabase(): la notificación de Filament
+            // implementa ShouldQueue, y este proyecto no tiene un worker de cola
+            // corriendo — con sendToDatabase() se quedaría encolada para siempre
+            // y nunca llegaría a la campanita.
+            \Illuminate\Support\Facades\Notification::sendNow(
+                User::role('super_admin')->get(),
+                $notificacion
+            );
+        });
+    }
+
+    // Numeración de ticket propia por vendedor, igual que los recibos de
+    // cobro (REC-{cobradorId}-{000001}). Se apoya en una fila-contador con
+    // lockForUpdate para que dos ventas casi simultáneas del mismo vendedor
+    // nunca reciban el mismo número, y cada vendedor lleva su propia serie
+    // en vez de un folio único compartido para todos.
+    private static function siguienteNumeroTicket(int $vendedorId): string
+    {
+        $contador = VendedorTicketsContador::where('vendedor_id', $vendedorId)->lockForUpdate()->first();
+        if (! $contador) {
+            VendedorTicketsContador::create(['vendedor_id' => $vendedorId, 'ultimo_numero' => 0]);
+            $contador = VendedorTicketsContador::where('vendedor_id', $vendedorId)->lockForUpdate()->first();
+        }
+
+        $siguiente = $contador->ultimo_numero + 1;
+        $contador->update(['ultimo_numero' => $siguiente]);
+
+        return sprintf('TCK-%d-%06d', $vendedorId, $siguiente);
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────

@@ -39,6 +39,30 @@
         font-size:.65rem; font-weight:600; padding:.15rem .45rem; border-radius:.35rem; cursor:pointer;
     }
     .pm-liberar-btn:hover { background:#fee2e2; }
+    .pm-edit-btn {
+        border:1px solid var(--border); background:var(--card); color:var(--muted);
+        font-size:.7rem; line-height:1; padding:.2rem .35rem; border-radius:.35rem; cursor:pointer;
+    }
+    .pm-edit-btn:hover { background:#eef2ff; color:#6366f1; border-color:#c7d2fe; }
+    .pm-modal-backdrop {
+        display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+        align-items:center; justify-content:center;
+    }
+    .pm-modal-backdrop.open { display:flex; }
+    .pm-modal {
+        background:var(--card); border-radius:.75rem; padding:1.25rem; width:100%; max-width:360px;
+        box-shadow:0 10px 40px rgba(0,0,0,.2);
+    }
+    .pm-modal h3 { margin:0 0 .9rem; font-size:.95rem; }
+    .pm-modal label { display:block; font-size:.72rem; font-weight:600; color:var(--muted); margin-bottom:.25rem; margin-top:.7rem; }
+    .pm-modal input, .pm-modal textarea {
+        width:100%; border:1px solid var(--border); border-radius:.5rem; padding:.5rem .6rem;
+        font-size:.8rem; font-family:inherit; background:var(--card); color:var(--text);
+    }
+    .pm-modal textarea { resize:vertical; min-height:60px; }
+    .pm-modal-actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:1.1rem; }
+    .pm-modal-btn { border-radius:.5rem; padding:.5rem 1rem; font-size:.8rem; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--text-2); }
+    .pm-modal-btn.primary { background:#6366f1; border-color:#6366f1; color:#fff; }
 
     @media (max-width:1100px) {
         .pm-main-grid  { grid-template-columns:1fr; }
@@ -180,7 +204,16 @@
                         @endphp
                         <tr class="pm-tr" id="pm-row-{{ $d->id }}">
                             <td class="pm-td" style="font-weight:700;color:var(--text);">
-                                {{ $d->nombre }}
+                                <div style="display:flex;align-items:center;gap:.35rem;">
+                                    <span>{{ $d->nombre }}</span>
+                                    @if($puedeLiberar)
+                                    <button type="button" class="pm-edit-btn" title="Editar dispositivo"
+                                        onclick="abrirEditar({{ $d->id }}, {{ Illuminate\Support\Js::from($d->nombre) }}, {{ Illuminate\Support\Js::from($d->numero_inventario) }}, {{ Illuminate\Support\Js::from($d->notas) }})">✎</button>
+                                    @endif
+                                </div>
+                                @if($d->numero_inventario)
+                                <div style="font-size:.65rem;font-weight:600;color:#6366f1;">Inv. {{ $d->numero_inventario }}</div>
+                                @endif
                                 @if($d->serial)
                                 <div style="font-size:.65rem;font-weight:400;color:#9ca3af;">{{ $d->serial }}</div>
                                 @endif
@@ -350,6 +383,24 @@
 
     </div>
 </div>
+
+@if($puedeLiberar)
+<div class="pm-modal-backdrop" id="pm-edit-backdrop">
+    <div class="pm-modal">
+        <h3>Editar dispositivo</h3>
+        <label for="pm-edit-nombre">Nombre</label>
+        <input type="text" id="pm-edit-nombre" maxlength="100">
+        <label for="pm-edit-inventario">Número de inventario</label>
+        <input type="text" id="pm-edit-inventario" maxlength="100" placeholder="Ej. INV-0012">
+        <label for="pm-edit-notas">Notas</label>
+        <textarea id="pm-edit-notas" maxlength="2000" placeholder="Notas internas sobre este dispositivo (opcional)"></textarea>
+        <div class="pm-modal-actions">
+            <button type="button" class="pm-modal-btn" onclick="cerrarEditar()">Cancelar</button>
+            <button type="button" class="pm-modal-btn primary" onclick="guardarEditar()">Guardar</button>
+        </div>
+    </div>
+</div>
+@endif
 @endsection
 
 @section('scripts')
@@ -373,6 +424,46 @@ function liberarDispositivo(id, nombre) {
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function () { poll(); })
         .catch(function () { alert('No se pudo liberar el dispositivo.'); });
+}
+
+var ACTUALIZAR_URL_BASE = '{{ url('pos/'.$tenant.'/monitor/dispositivos') }}';
+var editandoId = null;
+
+function abrirEditar(id, nombre, numeroInventario, notas) {
+    editandoId = id;
+    document.getElementById('pm-edit-nombre').value = nombre || '';
+    document.getElementById('pm-edit-inventario').value = numeroInventario || '';
+    document.getElementById('pm-edit-notas').value = notas || '';
+    document.getElementById('pm-edit-backdrop').classList.add('open');
+}
+
+function cerrarEditar() {
+    editandoId = null;
+    document.getElementById('pm-edit-backdrop').classList.remove('open');
+}
+
+function guardarEditar() {
+    if (!editandoId) return;
+    var nombre = document.getElementById('pm-edit-nombre').value.trim();
+    if (!nombre) { alert('El nombre no puede estar vacío.'); return; }
+    var body = new URLSearchParams({
+        nombre: nombre,
+        numero_inventario: document.getElementById('pm-edit-inventario').value.trim(),
+        notas: document.getElementById('pm-edit-notas').value.trim(),
+    });
+    fetch(ACTUALIZAR_URL_BASE + '/' + editandoId + '/actualizar', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+    })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function () { cerrarEditar(); poll(); })
+        .catch(function () { alert('No se pudo guardar. Intenta de nuevo.'); });
 }
 
 // ── Estado de badges / colores ─────────────────────────────────────────────
@@ -530,7 +621,11 @@ function refreshTable(devices) {
             row = tr;
         }
         row.innerHTML =
-            '<td class="pm-td" style="font-weight:700;color:var(--text);">' + d.nombre +
+            '<td class="pm-td" style="font-weight:700;color:var(--text);">' +
+                '<div style="display:flex;align-items:center;gap:.35rem;"><span>' + d.nombre + '</span>' +
+                (PUEDE_LIBERAR ? '<button type="button" class="pm-edit-btn" title="Editar dispositivo" onclick=\'abrirEditar(' + d.id + ',' + JSON.stringify(d.nombre) + ',' + JSON.stringify(d.numero_inventario) + ',' + JSON.stringify(d.notas) + ')\'>✎</button>' : '') +
+                '</div>' +
+                (d.numero_inventario ? '<div style="font-size:.65rem;font-weight:600;color:#6366f1;">Inv. ' + d.numero_inventario + '</div>' : '') +
                 (d.serial ? '<div style="font-size:.65rem;font-weight:400;color:#9ca3af;">' + d.serial + '</div>' : '') +
             '</td>' +
             '<td class="pm-td">' +

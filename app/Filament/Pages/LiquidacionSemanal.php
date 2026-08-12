@@ -45,6 +45,11 @@ class LiquidacionSemanal extends Page
         return 'Cobros';
     }
 
+    public static function getNavigationSort(): ?int
+    {
+        return 3;
+    }
+
     public function mount(): void
     {
         // Lunes de la semana actual

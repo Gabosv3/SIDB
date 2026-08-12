@@ -18,6 +18,15 @@ class VendedorResource extends Resource
 {
     protected static ?string $model = Vendedor::class;
 
+    // Centralizado: la gestión de vendedores ahora se hace desde el perfil
+    // del empleado (Usuarios → Ver perfil → pestaña Laboral), no desde este
+    // módulo aparte. Se mantiene registrado (rutas, permisos, relaciones)
+    // pero fuera del menú.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-briefcase';

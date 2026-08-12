@@ -8,6 +8,7 @@ use App\Models\EmployeeDocument;
 use App\Models\EmployeeProfile;
 use App\Models\PagoVenta;
 use App\Models\PosDevice;
+use App\Models\Supervisor;
 use App\Models\User;
 use App\Models\Vendedor;
 use App\Models\Venta;
@@ -52,11 +53,17 @@ class EmpleadoPerfilController extends Controller
             : 0.0);
         $cobrosSemana = $this->serieUltimosDias(fn ($dia) => (float) PagoVenta::where('user_id', $empleado->id)->whereDate('fecha_pago', $dia)->whereNull('anulado_en')->sum('monto'));
 
+        // Solo aplica si este empleado es supervisor — se muestra en la pestaña
+        // Laboral para que asignar rutas supervisadas no requiera ir a un
+        // módulo aparte (antes solo existía dentro de SupervisorResource).
+        $rutasCobro = \App\Models\RutaCobro::orderBy('nombre')->get(['id', 'nombre']);
+        $rutasSupervisadasIds = $empleado->supervisor?->rutasSupervisadas()->pluck('rutas_cobro.id')->all() ?? [];
+
         return view('empleados.perfil', compact(
             'tenant', 'empleado', 'perfilLaboral', 'employeeProfile', 'tipoPerfil', 'posDevice',
             'documentos', 'actividad', 'historial', 'asignacionHoy', 'ventasMes', 'cobrosMes',
             'clientesAsignados', 'clientesActivos', 'metaVentasPct', 'metaCobrosPct', 'supervisor',
-            'ventasSemana', 'cobrosSemana'
+            'ventasSemana', 'cobrosSemana', 'rutasCobro', 'rutasSupervisadasIds'
         ));
     }
 
@@ -99,7 +106,8 @@ class EmpleadoPerfilController extends Controller
 
         $data = $request->validate([
             'cargo' => ['nullable', 'string', 'max:150'],
-            'tipo_empleado' => ['nullable', 'in:vendedor,cobrador,administrador,supervisor,tecnico,otro'],
+            'tipo_empleado' => ['nullable', 'array'],
+            'tipo_empleado.*' => ['in:vendedor,cobrador,supervisor'],
             'fecha_ingreso' => ['nullable', 'date'],
             'fecha_salida' => ['nullable', 'date'],
             'salario_base' => ['nullable', 'numeric', 'min:0'],
@@ -110,13 +118,77 @@ class EmpleadoPerfilController extends Controller
             'estado_laboral' => ['required', 'in:activo,suspendido,inactivo,despedido,renuncia'],
             'supervisor_id' => ['nullable', 'exists:users,id'],
             'puede_usar_pos_movil' => ['nullable', 'boolean'],
+            'rutas_supervisadas' => ['nullable', 'array'],
+            'rutas_supervisadas.*' => ['integer', 'exists:rutas_cobro,id'],
         ]);
 
         $data['puede_usar_pos_movil'] = $request->boolean('puede_usar_pos_movil');
+        $rutasSupervisadas = $data['rutas_supervisadas'] ?? [];
+        unset($data['rutas_supervisadas']);
 
         EmployeeProfile::updateOrCreate(['user_id' => $empleado->id], $data);
 
+        $this->sincronizarPerfilOperativo($empleado, $data['tipo_empleado'] ?? [], $data['estado_laboral'], $rutasSupervisadas);
+
         return redirect()->back()->with('success', 'Información laboral actualizada.');
+    }
+
+    /**
+     * Centraliza en el perfil lo que antes había que ir a hacer a
+     * VendedorResource/CobradorResource/SupervisorResource: según los
+     * "tipo_empleado" elegidos (una persona puede tener varios a la vez —
+     * ej. vendedor y cobrador simultáneamente, como ya soporta el POS
+     * móvil), crea (o reactiva) el registro operativo correspondiente. Si
+     * un tipo se quita, o su estado laboral ya no es "activo", el registro
+     * que ya no aplica se desactiva (nunca se borra — otras tablas lo
+     * referencian por FK, como ventas.vendedor_id o rutas_cobro.cobrador_id).
+     */
+    private function sincronizarPerfilOperativo(User $empleado, array $tiposEmpleado, string $estadoLaboral, array $rutasSupervisadas = []): void
+    {
+        $partes = preg_split('/\s+/', trim($empleado->name), 2);
+        $nombre = $partes[0] ?? $empleado->name;
+        $apellido = $partes[1] ?? '';
+        $activo = $estadoLaboral === 'activo';
+
+        if (in_array('vendedor', $tiposEmpleado, true)) {
+            Vendedor::updateOrCreate(
+                ['user_id' => $empleado->id],
+                [
+                    'nombre' => $nombre,
+                    'apellido' => $apellido,
+                    'email' => $empleado->email,
+                    'activo' => $activo,
+                    'codigo' => Vendedor::where('user_id', $empleado->id)->value('codigo') ?? sprintf('V%04d', $empleado->id),
+                ]
+            );
+        } else {
+            Vendedor::where('user_id', $empleado->id)->update(['activo' => false]);
+        }
+
+        if (in_array('cobrador', $tiposEmpleado, true)) {
+            Cobrador::updateOrCreate(
+                ['user_id' => $empleado->id],
+                [
+                    'nombre' => $nombre,
+                    'apellido' => $apellido,
+                    'email' => $empleado->email,
+                    'activo' => $activo,
+                    'sucursal_id' => Cobrador::where('user_id', $empleado->id)->value('sucursal_id') ?? \App\Models\Sucursal::first()?->id,
+                ]
+            );
+        } else {
+            Cobrador::where('user_id', $empleado->id)->update(['activo' => false]);
+        }
+
+        if (in_array('supervisor', $tiposEmpleado, true)) {
+            $supervisor = Supervisor::updateOrCreate(
+                ['user_id' => $empleado->id],
+                ['nombre' => $nombre, 'apellido' => $apellido, 'email' => $empleado->email, 'activo' => $activo]
+            );
+            $supervisor->rutasSupervisadas()->sync($rutasSupervisadas);
+        } else {
+            Supervisor::where('user_id', $empleado->id)->update(['activo' => false]);
+        }
     }
 
     public function toggleBloqueo(Request $request, $tenant, $user)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Vale;
 use App\Models\Vehiculo;
+use App\Services\IdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -61,7 +62,7 @@ class ValeController extends Controller
     #[OA\Post(
         path: '/vales',
         summary: 'Enviar un vale (consumo o vehículo)',
-        description: 'Vale de consumo: solo requiere monto y comprobante. Vale de vehículo: requiere además vehiculo_id y categoria_vehiculo (gasolina o imprevisto — mantenimiento es de uso administrativo). Queda en estado "pendiente" hasta que un administrador lo apruebe o rechace.',
+        description: 'Vale de consumo: solo requiere monto (sin foto) y queda aprobado automáticamente. Vale de vehículo: requiere además comprobante (foto), vehiculo_id y categoria_vehiculo (gasolina o imprevisto — mantenimiento es de uso administrativo), y queda en estado "pendiente" hasta que un administrador lo apruebe o rechace.',
         security: [['sanctum' => []]],
         tags: ['Vales'],
         requestBody: new OA\RequestBody(
@@ -69,15 +70,16 @@ class ValeController extends Controller
             content: new OA\MediaType(
                 mediaType: 'multipart/form-data',
                 schema: new OA\Schema(
-                    required: ['tipo', 'monto', 'comprobante'],
+                    required: ['tipo', 'monto'],
                     properties: [
                         new OA\Property(property: 'tipo', type: 'string', enum: ['consumo', 'vehiculo']),
                         new OA\Property(property: 'monto', type: 'number', format: 'float', example: 5.00),
-                        new OA\Property(property: 'comprobante', type: 'string', format: 'binary', description: 'Foto del comprobante (jpg/png, max 5MB)'),
+                        new OA\Property(property: 'comprobante', type: 'string', format: 'binary', nullable: true, description: 'Foto del comprobante (jpg/png, max 5MB). Requerida si tipo=vehiculo; no aplica a tipo=consumo'),
                         new OA\Property(property: 'descripcion', type: 'string', nullable: true),
                         new OA\Property(property: 'fecha_gasto', type: 'string', format: 'date', nullable: true),
                         new OA\Property(property: 'vehiculo_id', type: 'integer', nullable: true, description: 'Requerido si tipo=vehiculo'),
                         new OA\Property(property: 'categoria_vehiculo', type: 'string', enum: ['gasolina', 'imprevisto'], nullable: true, description: 'Requerido si tipo=vehiculo'),
+                        new OA\Property(property: 'idempotency_key', type: 'string', nullable: true, maxLength: 80, description: 'Generada una vez por la app antes del primer intento y reutilizada en reintentos offline, para que un timeout no cree un vale duplicado'),
                     ],
                 ),
             ),
@@ -93,14 +95,27 @@ class ValeController extends Controller
         $data = $request->validate([
             'tipo'               => 'required|in:consumo,vehiculo',
             'monto'              => 'required|numeric|min:0.01',
-            'comprobante'        => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            // Solo vehículo exige comprobante — consumo (almuerzo, refrigerio)
+            // se aprueba directo con el monto, sin foto.
+            'comprobante'        => 'required_if:tipo,vehiculo|nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'descripcion'        => 'nullable|string|max:500',
             'fecha_gasto'        => 'nullable|date',
             'vehiculo_id'        => 'required_if:tipo,vehiculo|nullable|integer|exists:vehiculos,id',
             // "mantenimiento" es de uso administrativo (Filament), no se acepta desde el móvil.
             'categoria_vehiculo' => 'required_if:tipo,vehiculo|nullable|in:gasolina,imprevisto',
+            'idempotency_key'    => 'nullable|string|max:80',
         ]);
 
+        return IdempotencyService::manejar(
+            $request->user()->id,
+            'vales.store',
+            $data['idempotency_key'] ?? null,
+            fn () => $this->crearVale($request, $data)
+        );
+    }
+
+    private function crearVale(Request $request, array $data): JsonResponse
+    {
         $user = $request->user();
 
         if ($data['tipo'] === 'vehiculo') {
@@ -114,7 +129,15 @@ class ValeController extends Controller
 
         $sucursalId = $user->vendedor?->sucursal_id ?? $user->cobrador?->sucursal_id;
 
-        $comprobantePath = $request->file('comprobante')->store("vales/{$user->id}", 'public');
+        $comprobantePath = $request->hasFile('comprobante')
+            ? $request->file('comprobante')->store("vales/{$user->id}", 'public')
+            : null;
+
+        // Consumo (almuerzo, refrigerio) queda preaprobado directo — son
+        // montos chicos y frecuentes, sin foto que revisar; no tiene sentido
+        // hacer esperar al empleado a que un admin lo apruebe a mano.
+        // Vehículo (gasolina/imprevisto) sigue requiriendo aprobación manual.
+        $esConsumo = $data['tipo'] === 'consumo';
 
         $vale = Vale::create([
             'user_id'                => $user->id,
@@ -126,7 +149,8 @@ class ValeController extends Controller
             'comprobante'            => $comprobantePath,
             'descripcion'            => $data['descripcion'] ?? null,
             'fecha_gasto'            => $data['fecha_gasto'] ?? now()->toDateString(),
-            'estado'                 => 'pendiente',
+            'estado'                 => $esConsumo ? 'aprobado' : 'pendiente',
+            'fecha_aprobado'         => $esConsumo ? now() : null,
             // Todo lo enviado desde el móvil es plata que el empleado ya pagó de
             // lo cobrado ese día (imprevisto de calle, gasolina, consumo) — sí se
             // descuenta del efectivo a entregar en Resumen del Día.
@@ -134,12 +158,12 @@ class ValeController extends Controller
         ]);
 
         return response()->json([
-            'mensaje' => 'Vale enviado, queda pendiente de aprobación.',
+            'mensaje' => $esConsumo ? 'Vale registrado y aprobado.' : 'Vale enviado, queda pendiente de aprobación.',
             'vale'    => [
                 'id'              => $vale->id,
                 'tipo'            => $vale->tipo,
                 'monto'           => (float) $vale->monto,
-                'comprobante_url' => Storage::url($comprobantePath),
+                'comprobante_url' => $comprobantePath ? Storage::url($comprobantePath) : null,
                 'estado'          => $vale->estado,
             ],
         ], 201);

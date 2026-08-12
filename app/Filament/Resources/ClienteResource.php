@@ -6,6 +6,7 @@ use App\Filament\Resources\ClienteResource\Pages;
 use App\Filament\Resources\ClienteResource\RelationManagers\CuentasCobrarRelationManager;
 use App\Filament\Resources\ClienteResource\RelationManagers\VentasRelationManager;
 use App\Filament\Resources\ClienteResource\RelationManagers\PagosVentaRelationManager;
+use App\Filament\Resources\ClienteResource\RelationManagers\PagaresRelationManager;
 use App\Forms\Components\MapPicker;
 use App\Data\ElSalvadorData;
 use App\Models\Cliente;
@@ -609,6 +610,7 @@ class ClienteResource extends Resource implements HasShieldPermissions
             CuentasCobrarRelationManager::class,
             VentasRelationManager::class,
             PagosVentaRelationManager::class,
+            PagaresRelationManager::class,
         ];
     }
 

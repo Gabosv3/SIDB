@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DetallePreventa;
 use App\Models\Preventa;
 use App\Models\Producto;
+use App\Services\IdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -127,8 +128,19 @@ class PreventaController extends Controller
             'detalles'                => 'required|array|min:1',
             'detalles.*.producto_id'  => 'required|integer|exists:productos,id',
             'detalles.*.cantidad'     => 'required|integer|min:1',
+            'idempotency_key'         => 'nullable|string|max:80',
         ]);
 
+        return IdempotencyService::manejar(
+            $request->user()->id,
+            'preventas.store',
+            $data['idempotency_key'] ?? null,
+            fn () => $this->crearPreventa($request, $data)
+        );
+    }
+
+    private function crearPreventa(Request $request, array $data): JsonResponse
+    {
         $cobrador = $request->user()->cobrador;
 
         if (! $cobrador) {

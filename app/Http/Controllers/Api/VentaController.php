@@ -7,6 +7,7 @@ use App\Models\AsignacionDiaria;
 use App\Models\DetalleVenta;
 use App\Models\GestionCobro;
 use App\Models\Venta;
+use App\Services\IdempotencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -131,6 +132,7 @@ class VentaController extends Controller
                     new OA\Property(property: 'dias_credito', type: 'integer', nullable: true, example: 30, description: 'Días para fecha_pago_limite si hay líneas a crédito (default 30)'),
                     new OA\Property(property: 'descuento_porcentaje', type: 'number', format: 'float', nullable: true, example: 0),
                     new OA\Property(property: 'observaciones', type: 'string', nullable: true, maxLength: 500),
+                    new OA\Property(property: 'idempotency_key', type: 'string', nullable: true, maxLength: 80, description: 'Generada una vez por la app antes del primer intento y reutilizada en reintentos offline, para que un timeout no cree una venta duplicada'),
                     new OA\Property(
                         property: 'detalles',
                         type: 'array',
@@ -175,8 +177,19 @@ class VentaController extends Controller
             'detalles.*.tipo_pago'           => 'nullable|in:contado,credito',
             'detalles.*.cuotas'              => 'nullable|integer|min:2',
             'detalles.*.precio_cuota'        => 'nullable|numeric|min:0',
+            'idempotency_key'                => 'nullable|string|max:80',
         ]);
 
+        return IdempotencyService::manejar(
+            $request->user()->id,
+            'ventas.store',
+            $data['idempotency_key'] ?? null,
+            fn () => $this->crearVenta($request, $data)
+        );
+    }
+
+    private function crearVenta(Request $request, array $data): JsonResponse
+    {
         $vendedor = $request->user()->vendedor;
 
         if (! $vendedor) {

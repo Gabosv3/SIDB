@@ -123,6 +123,9 @@ class AdministrativoPanelProvider extends PanelProvider
                 AccountWidget::class,
                 FilamentInfoWidget::class,
             ])
+            // ── Notificaciones (campanita) ───────────────────────────────────────
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('30s')
             // ── Plugins ───────────────────────────────────────────────────────
             ->plugins([
                 FilamentShieldPlugin::make()

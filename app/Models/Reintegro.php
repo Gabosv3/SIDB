@@ -106,7 +106,7 @@ class Reintegro extends Model
                     ->exists();
 
                 if (! $tieneOtraCuentaActiva) {
-                    $cliente->sacarDeSuRuta();
+                    $cliente->sacarDeSuRuta('Mandado a reintegro');
                 }
             });
         });

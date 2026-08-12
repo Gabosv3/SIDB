@@ -19,6 +19,15 @@ class CobradorResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Cobrador::class;
 
+    // Centralizado: la gestión de cobradores ahora se hace desde el perfil
+    // del empleado (Usuarios → Ver perfil → pestaña Laboral), no desde este
+    // módulo aparte. Se mantiene registrado (rutas, permisos, relaciones)
+    // pero fuera del menú.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     // ── Shield ────────────────────────────────────────────────────────────────
 
     public static function getPermissionPrefixes(): array

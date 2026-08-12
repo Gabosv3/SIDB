@@ -12,7 +12,7 @@ class ReportesCobros extends Page
 {
     protected static ?string $navigationLabel = 'Reportes de Cobros';
     protected static ?string $title = 'Reportes de Cobros';
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 4;
     protected string $view = 'filament.pages.reportes-cobros';
     protected Width|string|null $maxContentWidth = Width::Full;
 

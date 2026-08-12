@@ -11,17 +11,26 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 
 class ProductosBajoStockWidget extends TableWidget
 {
-    protected static ?string $heading = 'Productos con Stock Bajo';
     protected static ?int $sort = 5;
     protected int|string|array $columnSpan = 'full';
-    protected ?string $pollingInterval = '120s';
+    protected ?string $pollingInterval = '60s';
+
+    public function getTableHeading(): string
+    {
+        $total = Producto::whereColumn('stock', '<=', 'stock_minimo')->where('activo', true)->count();
+
+        return $total > 10
+            ? "Productos con Stock Bajo (10 de {$total})"
+            : 'Productos con Stock Bajo';
+    }
 
     protected function getTableQuery(): Builder|Relation|null
     {
         return Producto::whereColumn('stock', '<=', 'stock_minimo')
             ->where('activo', true)
             ->with('categoria')
-            ->orderBy('stock');
+            ->orderBy('stock')
+            ->limit(10);
     }
 
     public function table(Table $table): Table

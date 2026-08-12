@@ -68,7 +68,13 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = $user->createToken('pos-token')->plainTextToken;
+        // El teléfono es de la empresa, pero se pierde/roba/daña en campo —
+        // un token que nunca vence dejaría acceso completo a la API activo
+        // para siempre si eso pasa. 60 días es suficiente para no forzar
+        // reinicios de sesión seguidos (el PIN local ya cubre el candado del
+        // día a día) y acota el daño de un teléfono perdido sin depender de
+        // que alguien recuerde revocarlo a mano.
+        $token = $user->createToken('pos-token', ['*'], now()->addDays(60))->plainTextToken;
 
         return response()->json([
             'token' => $token,
