@@ -208,11 +208,14 @@
                                     <span>{{ $d->nombre }}</span>
                                     @if($puedeLiberar)
                                     <button type="button" class="pm-edit-btn" title="Editar dispositivo"
-                                        onclick="abrirEditar({{ $d->id }}, {{ Illuminate\Support\Js::from($d->nombre) }}, {{ Illuminate\Support\Js::from($d->numero_inventario) }}, {{ Illuminate\Support\Js::from($d->notas) }})">✎</button>
+                                        onclick="abrirEditar({{ $d->id }}, {{ Illuminate\Support\Js::from($d->nombre) }}, {{ Illuminate\Support\Js::from($d->numero_inventario) }}, {{ Illuminate\Support\Js::from($d->notas) }}, {{ Illuminate\Support\Js::from($d->whatsapp) }})">✎</button>
                                     @endif
                                 </div>
                                 @if($d->numero_inventario)
                                 <div style="font-size:.65rem;font-weight:600;color:#6366f1;">Inv. {{ $d->numero_inventario }}</div>
+                                @endif
+                                @if($d->whatsapp)
+                                <div style="font-size:.65rem;font-weight:600;color:#16a34a;">📱 {{ $d->whatsapp }}</div>
                                 @endif
                                 @if($d->serial)
                                 <div style="font-size:.65rem;font-weight:400;color:#9ca3af;">{{ $d->serial }}</div>
@@ -392,6 +395,8 @@
         <input type="text" id="pm-edit-nombre" maxlength="100">
         <label for="pm-edit-inventario">Número de inventario</label>
         <input type="text" id="pm-edit-inventario" maxlength="100" placeholder="Ej. INV-0012">
+        <label for="pm-edit-whatsapp">WhatsApp del dispositivo</label>
+        <input type="text" id="pm-edit-whatsapp" maxlength="30" placeholder="Ej. 7000-0000">
         <label for="pm-edit-notas">Notas</label>
         <textarea id="pm-edit-notas" maxlength="2000" placeholder="Notas internas sobre este dispositivo (opcional)"></textarea>
         <div class="pm-modal-actions">
@@ -429,10 +434,11 @@ function liberarDispositivo(id, nombre) {
 var ACTUALIZAR_URL_BASE = '{{ url('pos/'.$tenant.'/monitor/dispositivos') }}';
 var editandoId = null;
 
-function abrirEditar(id, nombre, numeroInventario, notas) {
+function abrirEditar(id, nombre, numeroInventario, notas, whatsapp) {
     editandoId = id;
     document.getElementById('pm-edit-nombre').value = nombre || '';
     document.getElementById('pm-edit-inventario').value = numeroInventario || '';
+    document.getElementById('pm-edit-whatsapp').value = whatsapp || '';
     document.getElementById('pm-edit-notas').value = notas || '';
     document.getElementById('pm-edit-backdrop').classList.add('open');
 }
@@ -449,6 +455,7 @@ function guardarEditar() {
     var body = new URLSearchParams({
         nombre: nombre,
         numero_inventario: document.getElementById('pm-edit-inventario').value.trim(),
+        whatsapp: document.getElementById('pm-edit-whatsapp').value.trim(),
         notas: document.getElementById('pm-edit-notas').value.trim(),
     });
     fetch(ACTUALIZAR_URL_BASE + '/' + editandoId + '/actualizar', {
@@ -623,9 +630,10 @@ function refreshTable(devices) {
         row.innerHTML =
             '<td class="pm-td" style="font-weight:700;color:var(--text);">' +
                 '<div style="display:flex;align-items:center;gap:.35rem;"><span>' + d.nombre + '</span>' +
-                (PUEDE_LIBERAR ? '<button type="button" class="pm-edit-btn" title="Editar dispositivo" onclick=\'abrirEditar(' + d.id + ',' + JSON.stringify(d.nombre) + ',' + JSON.stringify(d.numero_inventario) + ',' + JSON.stringify(d.notas) + ')\'>✎</button>' : '') +
+                (PUEDE_LIBERAR ? '<button type="button" class="pm-edit-btn" title="Editar dispositivo" onclick=\'abrirEditar(' + d.id + ',' + JSON.stringify(d.nombre) + ',' + JSON.stringify(d.numero_inventario) + ',' + JSON.stringify(d.notas) + ',' + JSON.stringify(d.whatsapp) + ')\'>✎</button>' : '') +
                 '</div>' +
                 (d.numero_inventario ? '<div style="font-size:.65rem;font-weight:600;color:#6366f1;">Inv. ' + d.numero_inventario + '</div>' : '') +
+                (d.whatsapp ? '<div style="font-size:.65rem;font-weight:600;color:#16a34a;">📱 ' + d.whatsapp + '</div>' : '') +
                 (d.serial ? '<div style="font-size:.65rem;font-weight:400;color:#9ca3af;">' + d.serial + '</div>' : '') +
             '</td>' +
             '<td class="pm-td">' +

@@ -92,6 +92,7 @@ class PosMonitorController extends Controller
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:100'],
             'numero_inventario' => ['nullable', 'string', 'max:100'],
+            'whatsapp' => ['nullable', 'string', 'max:30'],
             'notas' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -143,6 +144,7 @@ class PosMonitorController extends Controller
                 'id' => $d->id,
                 'nombre' => $d->nombre,
                 'numero_inventario' => $d->numero_inventario,
+                'whatsapp' => $d->whatsapp,
                 'notas' => $d->notas,
                 'serial' => $d->serial,
                 'estado' => $estado,

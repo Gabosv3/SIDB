@@ -10,7 +10,7 @@ class PosDevice extends Model
     protected $table = 'pos_devices';
 
     protected $fillable = [
-        'nombre', 'numero_inventario', 'notas', 'serial', 'user_id', 'cobrador_id',
+        'nombre', 'numero_inventario', 'whatsapp', 'notas', 'serial', 'user_id', 'cobrador_id',
         'latitud', 'longitud', 'bateria', 'tiene_internet',
         'app_version', 'ultimo_error', 'ultimo_ping', 'estado', 'activo',
     ];
