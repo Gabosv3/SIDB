@@ -77,6 +77,10 @@ Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function 
         ->middleware('can:Gestionar:DispositivosPos')
         ->name('monitor.actualizar')
         ->where('tenant', '[0-9]+');
+    Route::delete('{tenant}/monitor/dispositivos/{device}', 'App\Http\Controllers\PosMonitorController@eliminarDispositivo')
+        ->middleware('can:Gestionar:DispositivosPos')
+        ->name('monitor.eliminar')
+        ->where('tenant', '[0-9]+');
     Route::get('{tenant}/resumen', 'App\Http\Controllers\PosMonitorController@resumen')
         ->middleware('can:View:ResumenDia')
         ->name('resumen')

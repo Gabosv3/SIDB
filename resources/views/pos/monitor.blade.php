@@ -229,6 +229,9 @@
                                 @if($puedeLiberar && $d->user_id)
                                 <button type="button" class="pm-liberar-btn" onclick="liberarDispositivo({{ $d->id }}, {{ Illuminate\Support\Js::from($d->nombre) }})">Liberar dispositivo</button>
                                 @endif
+                                @if($puedeLiberar)
+                                <button type="button" class="pm-liberar-btn" onclick="eliminarDispositivo({{ $d->id }}, {{ Illuminate\Support\Js::from($d->nombre) }})">Eliminar</button>
+                                @endif
                             </td>
                             <td class="pm-td">
                                 <span class="pm-badge" style="{{ $badgeStyles }}">
@@ -429,6 +432,21 @@ function liberarDispositivo(id, nombre) {
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function () { poll(); })
         .catch(function () { alert('No se pudo liberar el dispositivo.'); });
+}
+
+function eliminarDispositivo(id, nombre) {
+    if (!confirm('¿ELIMINAR por completo "' + nombre + '"? Esto no se puede deshacer — úsalo solo para borrar registros duplicados o viejos (ej. después de reinstalar la app).')) return;
+    fetch(LIBERAR_URL_BASE + '/' + id, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+    })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function () { poll(); })
+        .catch(function () { alert('No se pudo eliminar el dispositivo.'); });
 }
 
 var ACTUALIZAR_URL_BASE = '{{ url('pos/'.$tenant.'/monitor/dispositivos') }}';
@@ -640,6 +658,7 @@ function refreshTable(devices) {
                 '<div style="font-weight:600;font-size:.8rem;color:var(--text-2);">' + (d.usuario || '—') + '</div>' +
                 (d.cobrador ? '<div style="font-size:.68rem;color:#9ca3af;">' + d.cobrador + '</div>' : '') +
                 (PUEDE_LIBERAR && d.user_id ? '<button type="button" class="pm-liberar-btn" onclick=\'liberarDispositivo(' + d.id + ',' + JSON.stringify(d.nombre) + ')\'>Liberar dispositivo</button>' : '') +
+                (PUEDE_LIBERAR ? '<button type="button" class="pm-liberar-btn" onclick=\'eliminarDispositivo(' + d.id + ',' + JSON.stringify(d.nombre) + ')\'>Eliminar</button>' : '') +
             '</td>' +
             '<td class="pm-td"><span class="pm-badge" style="background:' + st.bg + ';color:' + st.color + ';">' +
                 '<span class="pm-dot" style="background:' + st.dot + ';"></span>' + st.label + '</span></td>' +

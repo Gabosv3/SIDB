@@ -82,6 +82,23 @@ class PosMonitorController extends Controller
     }
 
     /**
+     * Borra por completo un registro de dispositivo — pensado para limpiar
+     * duplicados (ej. cuando alguien desinstala y reinstala la app y queda
+     * un registro viejo huérfano junto al nuevo). No hay ninguna otra tabla
+     * que referencie pos_devices por FK, así que es seguro eliminarlo.
+     */
+    public function eliminarDispositivo(Request $request, $tenant, PosDevice $device)
+    {
+        $nombre = $device->nombre;
+        $device->delete();
+
+        return response()->json([
+            'ok' => true,
+            'mensaje' => "Dispositivo \"{$nombre}\" eliminado.",
+        ]);
+    }
+
+    /**
      * Permite al admin editar el nombre, número de inventario y notas de un
      * dispositivo desde el panel. No toca nada relacionado a la app POS: el
      * heartbeat solo setea "nombre" una vez al crear el registro y nunca
