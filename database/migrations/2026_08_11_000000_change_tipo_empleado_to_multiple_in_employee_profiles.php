@@ -11,10 +11,13 @@ return new class extends Migration
      * una misma persona puede ser vendedor y cobrador simultáneamente, como
      * ya soporta el resto del sistema (Vendedor::es_cobrador).
      *
-     * MySQL/MariaDB representa el ENUM original como un CHECK CONSTRAINT que
-     * sigue activo aunque la columna cambie de tipo — hay que quitarlo antes
-     * de convertir a JSON. En vez de adivinar el nombre, se busca en
-     * information_schema y se dropean todos los que apliquen a esta columna.
+     * Este servidor tiene un CHECK CONSTRAINT heredado del ENUM que ningún
+     * DROP CHECK/CONSTRAINT (probados con nombre literal y buscando en
+     * information_schema) logró quitar — parece un caso particular del
+     * motor de esa base. En vez de pelear con el ALTER, se crea una columna
+     * nueva, se copian los datos, y se elimina la columna vieja por
+     * completo: al borrar la columna, cualquier constraint atado a ella
+     * desaparece con ella sin importar cómo se llame.
      */
     public function up(): void
     {
@@ -26,9 +29,15 @@ return new class extends Migration
             return;
         }
 
-        $this->eliminarChecksDe('tipo_empleado');
+        DB::statement('ALTER TABLE `employee_profiles` ADD COLUMN `tipo_empleado_tmp` JSON NULL AFTER `tipo_empleado`');
 
-        DB::statement('ALTER TABLE `employee_profiles` MODIFY `tipo_empleado` JSON NULL');
+        DB::statement("UPDATE `employee_profiles` SET `tipo_empleado_tmp` = JSON_ARRAY(`tipo_empleado`) WHERE `tipo_empleado` IS NOT NULL AND `tipo_empleado` <> ''");
+
+        DB::statement('ALTER TABLE `employee_profiles` DROP COLUMN `tipo_empleado`');
+
+        // CHANGE (no RENAME COLUMN) por compatibilidad con versiones viejas de
+        // MySQL/MariaDB que no soportan la sintaxis RENAME COLUMN.
+        DB::statement('ALTER TABLE `employee_profiles` CHANGE `tipo_empleado_tmp` `tipo_empleado` JSON NULL');
     }
 
     public function down(): void
@@ -41,45 +50,12 @@ return new class extends Migration
             return;
         }
 
-        DB::statement("ALTER TABLE `employee_profiles` MODIFY `tipo_empleado` ENUM('vendedor', 'cobrador', 'administrador', 'supervisor', 'tecnico', 'otro') NULL");
-    }
+        DB::statement('ALTER TABLE `employee_profiles` ADD COLUMN `tipo_empleado_old` VARCHAR(50) NULL AFTER `tipo_empleado`');
 
-    /**
-     * Busca en information_schema todos los CHECK CONSTRAINT de la tabla
-     * employee_profiles cuya definición mencione la columna dada, y los
-     * elimina uno por uno (probando la sintaxis de MySQL 8 y de MariaDB,
-     * ya que difiere entre ambos motores).
-     */
-    private function eliminarChecksDe(string $columna): void
-    {
-        $database = DB::getDatabaseName();
+        DB::statement("UPDATE `employee_profiles` SET `tipo_empleado_old` = JSON_UNQUOTE(JSON_EXTRACT(`tipo_empleado`, '$[0]')) WHERE `tipo_empleado` IS NOT NULL");
 
-        $checks = DB::select(
-            'SELECT cc.CONSTRAINT_NAME AS nombre
-             FROM information_schema.CHECK_CONSTRAINTS cc
-             JOIN information_schema.TABLE_CONSTRAINTS tc
-               ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
-              AND tc.TABLE_SCHEMA = cc.CONSTRAINT_SCHEMA
-             WHERE cc.CONSTRAINT_SCHEMA = ?
-               AND tc.TABLE_NAME = \'employee_profiles\'
-               AND cc.CHECK_CLAUSE LIKE ?',
-            [$database, '%'.$columna.'%']
-        );
+        DB::statement('ALTER TABLE `employee_profiles` DROP COLUMN `tipo_empleado`');
 
-        foreach ($checks as $check) {
-            $nombre = $check->nombre;
-
-            try {
-                DB::statement("ALTER TABLE `employee_profiles` DROP CHECK `{$nombre}`");
-            } catch (\Throwable $e) {
-                try {
-                    DB::statement("ALTER TABLE `employee_profiles` DROP CONSTRAINT `{$nombre}`");
-                } catch (\Throwable $e2) {
-                    // Si ninguna de las dos sintaxis funciona, se sigue de todos
-                    // modos — el MODIFY de abajo va a fallar con un error claro
-                    // si el constraint de verdad seguía bloqueando el cambio.
-                }
-            }
-        }
+        DB::statement('ALTER TABLE `employee_profiles` CHANGE `tipo_empleado_old` `tipo_empleado` VARCHAR(50) NULL');
     }
 };
