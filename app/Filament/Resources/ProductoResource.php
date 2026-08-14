@@ -109,11 +109,16 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                     Forms\Components\TextInput::make('codigo')
                                         ->label('Código')
                                         ->default(function () {
-                                            $last = Producto::where('codigo', 'like', 'PROD-%')
-                                                ->orderByDesc('id')
-                                                ->value('codigo');
-                                            $num = $last ? ((int) substr($last, 5)) + 1 : 1;
-                                            return 'PROD-' . str_pad($num, 3, '0', STR_PAD_LEFT);
+                                            // El máximo numérico real entre todos los códigos PROD-*, no el del
+                                            // último id insertado — si hay productos borrados o códigos puestos
+                                            // a mano fuera de orden, orderByDesc('id') puede repetir un número
+                                            // ya usado (ej. vuelve a proponer PROD-001 si ese fue el último id
+                                            // pero ya existen PROD-002, PROD-003...).
+                                            $max = Producto::where('codigo', 'like', 'PROD-%')
+                                                ->get(['codigo'])
+                                                ->map(fn ($p) => (int) substr($p->codigo, 5))
+                                                ->max();
+                                            return 'PROD-' . str_pad(($max ?? 0) + 1, 3, '0', STR_PAD_LEFT);
                                         })
                                         ->disabled()
                                         ->dehydrated()
