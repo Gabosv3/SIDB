@@ -139,6 +139,9 @@ class CompraResource extends Resource implements HasShieldPermissions
                                         ->collapsible()
                                         ->cloneable()
                                         ->columns(2)
+                                        ->live()
+                                        ->afterStateUpdated(fn (Get $get, Set $set) => self::recalcularTotalesDesdeDetalles($get, $set))
+                                        ->deleteAction(fn ($action) => $action->after(fn (Get $get, Set $set) => self::recalcularTotalesDesdeDetalles($get, $set)))
                                         ->schema([
                                             Forms\Components\Select::make('producto_id')
                                                 ->label('Producto')
@@ -193,13 +196,6 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->disabled()
                                                 ->dehydrated()
                                                 ->default(0),
-
-                                            Forms\Components\TextInput::make('numero_lote')
-                                                ->label('Número de Lote')
-                                                ->maxLength(100),
-
-                                            Forms\Components\DatePicker::make('fecha_vencimiento')
-                                                ->label('Fecha Vencimiento Producto'),
 
                                             Forms\Components\Textarea::make('observaciones')
                                                 ->label('Observaciones')
@@ -457,6 +453,27 @@ class CompraResource extends Resource implements HasShieldPermissions
             'view'   => Pages\ViewCompra::route('/{record}'),
             'edit'   => Pages\EditCompra::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * El subtotal de cada línea del repeater se calculaba bien, pero nunca se
+     * sumaba al "Subtotal" general — se quedaba siempre en 0 porque nada lo
+     * recalculaba a partir de las líneas.
+     */
+    private static function recalcularTotalesDesdeDetalles(Get $get, Set $set): void
+    {
+        $detalles = $get('detalles') ?? [];
+        $subtotal = collect($detalles)->sum(fn ($fila) => (float) ($fila['subtotal'] ?? 0));
+
+        $descuento = (float) ($get('descuento_monto') ?? 0);
+        $pct = (float) ($get('impuesto_porcentaje') ?? 0);
+        $base = $subtotal - $descuento;
+        $impuesto = ($base * $pct) / 100;
+
+        $set('subtotal', round($subtotal, 2));
+        $set('impuesto_monto', round($impuesto, 2));
+        $set('total', round($base + $impuesto, 2));
+        $set('saldo_pendiente', round($base + $impuesto, 2));
     }
 }
 
