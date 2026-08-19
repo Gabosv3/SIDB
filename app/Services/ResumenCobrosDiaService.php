@@ -80,7 +80,14 @@ class ResumenCobrosDiaService
             // cliente.ruta_cobro_id quedó en null, pero el cobro ya registrado no
             // debe desaparecer del resumen por eso. Pagos muy viejos sin la foto
             // (de antes de este fix) usan la ruta actual del cliente como respaldo.
+            // ->toBase() fuerza la colección base explícitamente: una colección
+            // Eloquent VACÍA no se "degrada" sola tras map() (su chequeo interno
+            // de "¿contiene algo que no sea un modelo?" da false si está vacía),
+            // así que si un cobrador tuvo visitas pero cero pagos ese día, el
+            // merge() de más abajo seguía usando la versión de Eloquent — que
+            // espera modelos y truena al llamar ->getKey() sobre un simple ID.
             $rutaIdsConActividad = $pagosTodos->map(fn ($p) => $p->ruta_cobro_id ?? $p->cliente?->ruta_cobro_id)
+                ->toBase()
                 ->merge($visitasTodas->pluck('cliente.ruta_cobro_id'))
                 ->merge($rutasHoyIds)
                 ->filter()
