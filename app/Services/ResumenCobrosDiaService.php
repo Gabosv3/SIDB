@@ -74,7 +74,13 @@ class ResumenCobrosDiaService
                 ))
                 ->pluck('id');
 
-            $rutaIdsConActividad = $pagosTodos->pluck('cliente.ruta_cobro_id')
+            // Los pagos usan su propia foto de ruta_cobro_id (tomada al momento del
+            // cobro) en vez de la ruta actual del cliente: si la venta se canceló o
+            // se completó ese mismo día, el cliente ya salió de su ruta y
+            // cliente.ruta_cobro_id quedó en null, pero el cobro ya registrado no
+            // debe desaparecer del resumen por eso. Pagos muy viejos sin la foto
+            // (de antes de este fix) usan la ruta actual del cliente como respaldo.
+            $rutaIdsConActividad = $pagosTodos->map(fn ($p) => $p->ruta_cobro_id ?? $p->cliente?->ruta_cobro_id)
                 ->merge($visitasTodas->pluck('cliente.ruta_cobro_id'))
                 ->merge($rutasHoyIds)
                 ->filter()
@@ -92,7 +98,7 @@ class ResumenCobrosDiaService
                 ->unique();
 
             foreach ($rutaIdsConActividad as $rutaId) {
-                $pagos = $pagosTodos->filter(fn ($p) => $p->cliente?->ruta_cobro_id === $rutaId)->values();
+                $pagos = $pagosTodos->filter(fn ($p) => ($p->ruta_cobro_id ?? $p->cliente?->ruta_cobro_id) === $rutaId)->values();
                 $visitas = $visitasTodas->filter(fn ($v) => $v->cliente?->ruta_cobro_id === $rutaId)->values();
 
                 // Los pagos anulados se muestran en "detalle" (marcados como anulados)

@@ -15,6 +15,7 @@ class PagoVenta extends Model
     protected $fillable = [
         'venta_id',
         'cliente_id',
+        'ruta_cobro_id',
         'user_id',
         'numero_recibo',
         'monto',
@@ -38,6 +39,17 @@ class PagoVenta extends Model
     protected static function boot(): void
     {
         parent::boot();
+
+        // Guarda una foto de la ruta del cliente al momento del cobro. Es
+        // necesaria porque ruta_cobro_id del cliente cambia (se pone en null)
+        // cuando la venta se cancela/completa y sale de su ruta — sin esta
+        // foto, el cobro ya registrado desaparecería del resumen del día
+        // porque dejaría de encajar en cualquier ruta.
+        static::creating(function (PagoVenta $pago): void {
+            if (! $pago->ruta_cobro_id && $pago->cliente_id) {
+                $pago->ruta_cobro_id = Cliente::find($pago->cliente_id)?->ruta_cobro_id;
+            }
+        });
 
         static::created(function (PagoVenta $pago): void {
             $venta = $pago->venta;
