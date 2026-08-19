@@ -355,6 +355,12 @@
                 <p class="rc-cobrador-name">{{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}</p>
                 <p class="rc-cobrador-sub">
                     {{ $r['total_pagos'] }} pago(s) &middot; {{ $r['clientes_visitados'] }} cliente(s) visitado(s)
+                    @if($r['ventas_canceladas'] > 0)
+                        &middot; <span style="color:#dc2626;font-weight:700">{{ $r['ventas_canceladas'] }} venta(s) cancelada(s)/devuelta(s)</span>
+                    @endif
+                    @if($r['reintegros_enviados'] > 0)
+                        &middot; <span style="color:#b45309;font-weight:700">{{ $r['reintegros_enviados'] }} reintegro(s) enviado(s)</span>
+                    @endif
                 </p>
             </div>
             <div style="text-align:right">
