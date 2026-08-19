@@ -319,7 +319,12 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
                 </div>
                 <div style="min-width:0;">
-                    <div class="rd-cob-name">{{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}</div>
+                    <div class="rd-cob-name">
+                        {{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}
+                        @if(! $ruta)
+                            <span style="font-size:.68rem;font-weight:700;color:#b45309;background:#fef3c7;padding:.12rem .45rem;border-radius:9999px;margin-left:.35rem;">⚠ Sin ruta identificada</span>
+                        @endif
+                    </div>
                     <div class="rd-cob-sub">{{ $r['total_pagos'] }} pago(s) &middot; {{ $r['clientes_visitados'] }} cliente(s) visitado(s)</div>
                     <div class="rd-cob-sub" style="margin-top:.2rem;">
                         {{ $r['clientes_ruta_inicio'] }} en la ruta al inicio

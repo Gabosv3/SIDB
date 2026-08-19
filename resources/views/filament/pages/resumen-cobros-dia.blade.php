@@ -352,7 +352,12 @@
         {{-- Header --}}
         <div class="rc-cobrador-header">
             <div>
-                <p class="rc-cobrador-name">{{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}</p>
+                <p class="rc-cobrador-name">
+                    {{ $c->nombre }} {{ $c->apellido }}{{ $ruta ? ' — '.$ruta->nombre : '' }}
+                    @if(! $ruta)
+                        <span style="font-size:.7rem;font-weight:700;color:#b45309;background:#fef3c7;padding:.15rem .5rem;border-radius:9999px;margin-left:.4rem">⚠ Sin ruta identificada</span>
+                    @endif
+                </p>
                 <p class="rc-cobrador-sub">
                     {{ $r['total_pagos'] }} pago(s) &middot; {{ $r['clientes_visitados'] }} cliente(s) visitado(s)
                     @if($r['ventas_canceladas'] > 0)

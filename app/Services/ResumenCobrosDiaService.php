@@ -94,19 +94,24 @@ class ResumenCobrosDiaService
                 ->unique()
                 ->values();
 
-            if ($rutaIdsConActividad->isEmpty()) {
-                continue;
-            }
-
             $rutas = RutaCobro::whereIn('id', $rutaIdsConActividad)->get()->keyBy('id');
 
             $clientesAtendidosTodos = $pagosTodos->pluck('cliente_id')
                 ->merge($visitasTodas->pluck('cliente_id'))
                 ->unique();
 
+            // ventas_canceladas se cuenta por cobrador (no por ruta), así que solo
+            // se adjunta a UNA fila para no duplicar el número si el cobrador tuvo
+            // actividad en varias rutas ese día (ver push() más abajo).
+            $yaAdjuntoCanceladas = false;
+            $pagosIncluidosIds = collect();
+            $visitasIncluidasIds = collect();
+
             foreach ($rutaIdsConActividad as $rutaId) {
                 $pagos = $pagosTodos->filter(fn ($p) => ($p->ruta_cobro_id ?? $p->cliente?->ruta_cobro_id) === $rutaId)->values();
                 $visitas = $visitasTodas->filter(fn ($v) => $v->cliente?->ruta_cobro_id === $rutaId)->values();
+                $pagosIncluidosIds = $pagosIncluidosIds->merge($pagos->pluck('id'));
+                $visitasIncluidasIds = $visitasIncluidasIds->merge($visitas->pluck('id'));
 
                 // Los pagos anulados se muestran en "detalle" (marcados como anulados)
                 // pero no cuentan en ningún total/monto/gráfica.
@@ -153,8 +158,42 @@ class ResumenCobrosDiaService
                     'visitas_sin_cobro' => $visitas,
                     'no_visitados' => $noVisitados,
                     'clientes_ruta_inicio' => $clientesRutaInicio,
-                    'ventas_canceladas' => $ventasCanceladasCobrador,
+                    'ventas_canceladas' => $yaAdjuntoCanceladas ? 0 : $ventasCanceladasCobrador,
                     'reintegros_enviados' => $reintegrosEnviados,
+                ]);
+                $yaAdjuntoCanceladas = true;
+            }
+
+            // Red de seguridad: cualquier pago o visita cuya ruta no se pudo
+            // determinar (cliente sin ruta_cobro_id actual y sin foto guardada,
+            // por ejemplo un cobro muy viejo de antes del fix de la foto de ruta)
+            // no debe desaparecer en silencio — se muestra aparte en vez de
+            // perderse, para que "todos los recibos" realmente salgan todos.
+            $pagosSinRuta = $pagosTodos->whereNotIn('id', $pagosIncluidosIds)->values();
+            $visitasSinRuta = $visitasTodas->whereNotIn('id', $visitasIncluidasIds)->values();
+
+            if ($pagosSinRuta->isNotEmpty() || $visitasSinRuta->isNotEmpty()) {
+                $pagosValidosSinRuta = $pagosSinRuta->whereNull('anulado_en')->values();
+
+                $porMetodoSinRuta = $pagosValidosSinRuta->groupBy('metodo_pago')->map(fn ($grupo, $metodo) => (object) [
+                    'metodo_pago' => $metodo,
+                    'cantidad' => $grupo->count(),
+                    'monto' => (float) $grupo->sum('monto'),
+                ]);
+
+                $resumen->push([
+                    'cobrador' => $cobrador,
+                    'ruta' => null,
+                    'total_cobrado' => (float) $pagosValidosSinRuta->sum('monto'),
+                    'total_pagos' => $pagosValidosSinRuta->pluck('cliente_id')->unique()->count(),
+                    'clientes_visitados' => $pagosValidosSinRuta->pluck('cliente_id')->unique()->count(),
+                    'por_metodo' => $porMetodoSinRuta,
+                    'detalle' => $pagosSinRuta,
+                    'visitas_sin_cobro' => $visitasSinRuta,
+                    'no_visitados' => collect(),
+                    'clientes_ruta_inicio' => 0,
+                    'ventas_canceladas' => $yaAdjuntoCanceladas ? 0 : $ventasCanceladasCobrador,
+                    'reintegros_enviados' => 0,
                 ]);
             }
         }
