@@ -215,6 +215,7 @@ class ValeResource extends Resource
                 Tables\Columns\TextColumn::make('fecha_gasto')
                     ->label('Fecha')
                     ->date('d/m/Y')
+                    ->description(fn (Vale $record) => $record->created_at?->format('H:i').' — hora de registro')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('estado')
