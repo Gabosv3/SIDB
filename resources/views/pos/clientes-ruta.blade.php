@@ -808,6 +808,19 @@
                     setTimeout(function () { delete revisionesPendientes[clienteId]; }, 4000);
                 }).catch(function () {
                     delete revisionesPendientes[clienteId];
+
+                    // Si no se pudo guardar, se revierte el cambio optimista de una vez
+                    // en vez de dejar el checkbox marcado a medias: sin esto, la persona
+                    // seguía viéndolo "revisado" en pantalla y solo se daba cuenta de que
+                    // nunca se guardó hasta recargar la página mucho después — obligando
+                    // a repasar la lista entera de nuevo.
+                    if (cliente) {
+                        cliente.revisado = yaEstaba;
+                        if (marcado && !yaEstaba) ultimoData.total_revisados--;
+                        else if (!marcado && yaEstaba) ultimoData.total_revisados++;
+                    }
+                    render(ultimoData);
+
                     showToast('No se pudo guardar la revisión, intenta de nuevo.');
                 });
             });
