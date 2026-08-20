@@ -171,7 +171,9 @@ class ValeResource extends Resource
                     ->label('Comprobante')
                     ->disk('public')
                     ->square()
-                    ->size(50),
+                    ->size(50)
+                    ->url(fn (Vale $record) => $record->comprobante ? \Illuminate\Support\Facades\Storage::disk('public')->url($record->comprobante) : null)
+                    ->openUrlInNewTab(),
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Empleado')
