@@ -144,6 +144,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/clientes/{cliente}/campo', 'App\Http\Controllers\ClientesRutaController@actualizarCampo')
         ->name('campo')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/clientes/{cliente}/ubicacion', 'App\Http\Controllers\ClientesRutaController@actualizarUbicacion')
+        ->name('ubicacion')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
     Route::post('{tenant}/clientes/{cliente}/revisado', 'App\Http\Controllers\ClientesRutaController@marcarRevisado')
         ->name('revisado')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
@@ -216,6 +219,18 @@ Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+', 'documento' => '[0-9]+']);
     Route::get('{tenant}/{user}/expediente', 'App\Http\Controllers\EmpleadoPerfilController@descargarExpediente')
         ->name('descargarExpediente')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
+    Route::post('{tenant}/{user}/pagos', 'App\Http\Controllers\EmpleadoPerfilController@registrarPago')
+        ->name('registrarPago')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
+    Route::delete('{tenant}/{user}/pagos/{pago}', 'App\Http\Controllers\EmpleadoPerfilController@eliminarPago')
+        ->name('eliminarPago')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+', 'pago' => '[0-9]+']);
+    Route::get('{tenant}/{user}/pagos/{pago}/constancia', 'App\Http\Controllers\EmpleadoPerfilController@generarConstancia')
+        ->name('constanciaPago')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+', 'pago' => '[0-9]+']);
+    Route::get('{tenant}/{user}/contrato', 'App\Http\Controllers\EmpleadoPerfilController@generarContrato')
+        ->name('contrato')
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
 });
 

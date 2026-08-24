@@ -691,6 +691,9 @@
             var dirWarn = !c.direccion ? '<span class="cr-warn-badge" title="Sin dirección registrada">⚠</span>' : '';
             var tieneGps = !!(c.latitud && c.longitud);
             var gpsWarn = !tieneGps ? '<span class="cr-warn-badge" title="Sin ubicación GPS registrada">📍 Sin GPS</span>' : '';
+            var ubicacionBtn = '<button type="button" class="cr-abono-edit cr-ubicacion-edit" data-cliente="' + c.id + '" data-nombre="' + c.nombre.replace(/"/g, '&quot;') + '" title="' + (tieneGps ? 'Corregir ubicación (pega el link de WhatsApp)' : 'Agregar ubicación (pega el link de WhatsApp)') + '">' +
+                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+              '</button>';
             var wazeBtn = tieneGps
                 ? '<a class="cr-abono-edit" href="https://waze.com/ul?ll=' + c.latitud + ',' + c.longitud + '&navigate=yes" target="_blank" rel="noopener" title="Abrir en Waze">' +
                     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
@@ -762,7 +765,7 @@
                     '<td class="pm-td cr-sticky-3"><div class="cr-abono-wrap"><a class="cr-ver-detalle" href="' + baseUrl + '/clientes/' + c.id + '/perfil" title="Ver perfil completo del cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a><strong>' + c.nombre + '</strong>' + campoEditBtn(c.id, 'nombre', c.nombre, 'Nombre') + '</div>' + codigoHtml + '</td>' +
                     '<td class="pm-td" style="text-align:center;"><input type="checkbox" class="cr-check cr-revisar-check" data-cliente="' + c.id + '"' + (estaRevisado ? ' checked' : '') + '></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.telefono || '—') + '</span>' + campoEditBtn(c.id, 'telefono', c.telefono, 'Teléfono') + '</div></td>' +
-                    '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + gpsWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + mapsBtn + wazeBtn + '</div></td>' +
+                    '<td class="pm-td"><div class="cr-abono-wrap"><span>' + (c.direccion || '—') + '</span> ' + dirWarn + gpsWarn + campoEditBtn(c.id, 'direccion', c.direccion_raw, 'Dirección') + ubicacionBtn + mapsBtn + wazeBtn + '</div></td>' +
                     '<td class="pm-td"><div class="cr-abono-wrap"><span class="' + saldoClass + '">' + money(c.saldo) + '</span>' + campoEditBtn(c.id, 'saldo', c.saldo, 'Saldo') + '</div></td>' +
                     '<td class="pm-td">' + precioHtml + '</td>' +
                     '<td class="pm-td">' + abonoHtml + '</td>' +
@@ -855,6 +858,32 @@
                 }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
                   .then(function (res) {
                     showToast(res.body.mensaje || (res.ok ? 'Actualizado.' : 'Error.'));
+                    if (res.ok) cargar();
+                });
+            });
+        });
+
+        tbody.querySelectorAll('.cr-ubicacion-edit').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var clienteId = this.dataset.cliente;
+                var nombre = this.dataset.nombre;
+                var texto = window.prompt('Pega aquí la ubicación de ' + nombre + ' que te mandó por WhatsApp (el link, o las coordenadas):');
+                if (texto === null) return;
+                texto = texto.trim();
+                if (texto === '') {
+                    showToast('No pegaste nada.');
+                    return;
+                }
+                fetch(baseUrl + '/clientes/' + clienteId + '/ubicacion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ texto: texto }),
+                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                  .then(function (res) {
+                    showToast(res.body.mensaje || (res.ok ? 'Ubicación guardada.' : 'Error.'));
                     if (res.ok) cargar();
                 });
             });

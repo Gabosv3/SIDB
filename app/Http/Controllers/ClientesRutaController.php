@@ -1286,6 +1286,42 @@ class ClientesRutaController extends Controller
         return response()->json(['mensaje' => 'Cliente actualizado.']);
     }
 
+    /**
+     * Fija la ubicación GPS de un cliente desde /clientes-ruta, sin tener que
+     * entrar a su ficha completa. Acepta lat/lng ya separados, o el texto tal
+     * cual llega al pegar una ubicación de WhatsApp (mismo patrón que el
+     * "Pegar ubicación de WhatsApp" del formulario de edición de cliente).
+     */
+    public function actualizarUbicacion(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        $data = $request->validate([
+            'texto' => 'nullable|string',
+            'latitud' => 'nullable|numeric|between:-90,90',
+            'longitud' => 'nullable|numeric|between:-180,180',
+        ]);
+
+        $lat = $data['latitud'] ?? null;
+        $lng = $data['longitud'] ?? null;
+
+        if (($lat === null || $lng === null) && ! empty($data['texto'])) {
+            if (preg_match('/(-?\d{1,3}\.\d{3,})[,\s]+(-?\d{1,3}\.\d{3,})/', $data['texto'], $m)) {
+                $lat = (float) $m[1];
+                $lng = (float) $m[2];
+            }
+        }
+
+        if ($lat === null || $lng === null || abs((float) $lat) > 90 || abs((float) $lng) > 180) {
+            return response()->json(['mensaje' => 'No se encontraron coordenadas válidas en lo que pegaste. Copiá el link de ubicación de WhatsApp tal cual, o las coordenadas separadas por coma.'], 422);
+        }
+
+        $cliente->update([
+            'latitud' => round((float) $lat, 6),
+            'longitud' => round((float) $lng, 6),
+        ]);
+
+        return response()->json(['mensaje' => 'Ubicación guardada.']);
+    }
+
     // ── Importación de Excel ─────────────────────────────────────────────────
 
     public function previewExcel(Request $request, $tenant): JsonResponse
