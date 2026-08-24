@@ -793,7 +793,11 @@ class ClientesRutaController extends Controller
     {
         $ventas = $cliente->ventas()
             ->where('tipo_pago', 'credito')
-            ->with(['pagos' => fn ($q) => $q->orderBy('fecha_pago')->orderBy('id')])
+            ->with([
+                'pagos' => fn ($q) => $q->orderBy('fecha_pago')->orderBy('id'),
+                'vendedor:id,nombre,apellido',
+                'detalles.producto:id,nombre,codigo',
+            ])
             ->orderBy('fecha_venta')
             ->get();
 
@@ -814,11 +818,20 @@ class ClientesRutaController extends Controller
                 ]);
             }
 
-            foreach ($venta->pagos as $pago) {
-                if ($pago->anulado_en) {
+            // Un mismo recibo puede repartirse en varias cuotas/gestiones (varios
+            // PagoVenta con el mismo numero_recibo) -- se agrupan para que salgan
+            // como un solo movimiento sumado, igual que ya se hace en el resto de
+            // pantallas que listan pagos (historial, recibo PDF, etc.).
+            $gruposPorRecibo = $venta->pagos->groupBy(fn ($p) => $p->numero_recibo ?? 'sin_recibo_'.$p->id);
+
+            foreach ($gruposPorRecibo as $grupo) {
+                $primero = $grupo->first();
+                $validos = $grupo->whereNull('anulado_en');
+
+                if ($validos->isEmpty()) {
                     $movimientos->push([
-                        'fecha' => $pago->fecha_pago,
-                        'concepto' => 'Pago '.($pago->numero_recibo ?? '').' — ANULADO',
+                        'fecha' => $primero->fecha_pago,
+                        'concepto' => 'Pago '.($primero->numero_recibo ?? '').' — ANULADO',
                         'monto' => 0,
                         'saldo' => $saldoCorrido,
                         'anulado' => true,
@@ -827,11 +840,12 @@ class ClientesRutaController extends Controller
                     continue;
                 }
 
-                $saldoCorrido -= (float) $pago->monto;
+                $montoGrupo = (float) $validos->sum('monto');
+                $saldoCorrido -= $montoGrupo;
                 $movimientos->push([
-                    'fecha' => $pago->fecha_pago,
-                    'concepto' => 'Pago '.($pago->numero_recibo ?? 'sin recibo'),
-                    'monto' => (float) $pago->monto,
+                    'fecha' => $primero->fecha_pago,
+                    'concepto' => 'Pago '.($primero->numero_recibo ?? 'sin recibo'),
+                    'monto' => $montoGrupo,
                     'saldo' => $saldoCorrido,
                     'anulado' => false,
                 ]);

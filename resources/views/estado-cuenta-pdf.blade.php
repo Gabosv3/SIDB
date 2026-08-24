@@ -8,10 +8,14 @@
         body { font-family: 'DejaVu Sans', sans-serif; font-size:11px; color:#1f2937; }
         .page { padding:28px 36px; }
 
-        .header { text-align:center; margin-bottom:14px; }
-        .header img { max-height:60px; margin-bottom:6px; }
-        .header .empresa { font-size:14px; font-weight:700; letter-spacing:.5px; color:#111827; }
-        .header .subtitulo { font-size:8.5px; letter-spacing:2px; color:#6b7280; margin-top:3px; text-transform:uppercase; }
+        table.header { width:100%; border-collapse:collapse; margin-bottom:10px; }
+        table.header td { vertical-align:middle; }
+        .header-logo { width:50%; }
+        .header-logo img { max-height:95px; }
+        .header-logo .empresa { font-size:16px; font-weight:700; letter-spacing:.5px; color:#111827; margin-top:6px; }
+        .header-logo .subtitulo { font-size:8.5px; letter-spacing:1.5px; color:#6b7280; margin-top:2px; text-transform:uppercase; }
+        .header-contacto { width:50%; text-align:right; font-size:9.5px; color:#4b5563; line-height:1.7; }
+        .header-contacto strong { color:#111827; }
 
         .divisor { border-top:1px solid #d1d5db; margin:12px 0 16px; }
 
@@ -31,6 +35,7 @@
 
         .venta-header { background:#f3f4f6; padding:6px 8px; font-size:10.5px; font-weight:700; color:#111827; margin-top:14px; border:1px solid #e5e7eb; border-bottom:none; }
         .venta-sub { font-weight:400; color:#6b7280; font-size:9.5px; }
+        .venta-productos { font-weight:400; color:#4b5563; font-size:9.5px; margin-top:2px; }
 
         table.movimientos { width:100%; border-collapse:collapse; margin-bottom:4px; }
         table.movimientos th { background:#fff; border:1px solid #e5e7eb; padding:5px 8px; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#6b7280; text-align:left; }
@@ -46,13 +51,29 @@
 <body>
 <div class="page">
 
-    <div class="header">
-        @if($config->logo && \Illuminate\Support\Facades\Storage::disk('public')->exists($config->logo))
-            <img src="{{ storage_path('app/public/'.$config->logo) }}" alt="Logo">
-        @endif
-        <div class="empresa">{{ strtoupper($config->app_name ?? 'SIDB') }}</div>
-        <div class="subtitulo">Estado de cuenta del cliente</div>
-    </div>
+    <table class="header">
+        <tr>
+            <td class="header-logo">
+                @if($config->logo && \Illuminate\Support\Facades\Storage::disk('public')->exists($config->logo))
+                    <img src="{{ storage_path('app/public/'.$config->logo) }}" alt="Logo"><br>
+                @else
+                    <span class="empresa">{{ strtoupper($config->app_name ?? 'SIDB') }}</span><br>
+                @endif
+                <span class="subtitulo">Estado de cuenta del cliente</span>
+            </td>
+            <td class="header-contacto">
+                @if($config->direccion)
+                    <div>{{ $config->direccion }}</div>
+                @endif
+                @if($config->telefono)
+                    <div><strong>Tel:</strong> {{ $config->telefono }}</div>
+                @endif
+                @if($config->correo_contacto)
+                    <div>{{ $config->correo_contacto }}</div>
+                @endif
+            </td>
+        </tr>
+    </table>
 
     <div class="divisor"></div>
 
@@ -100,7 +121,11 @@
                 &middot; Total: ${{ number_format((float) $venta->total, 2) }}
                 &middot; Saldo actual: ${{ number_format((float) $venta->saldo_pendiente, 2) }}
                 &middot; Estado: {{ ucfirst($venta->estado) }}
+                &middot; Vendedor: {{ $venta->vendedor ? trim($venta->vendedor->nombre.' '.$venta->vendedor->apellido) : '—' }}
             </span>
+            <div class="venta-productos">
+                Producto(s): {{ $venta->detalles->map(fn ($d) => $d->producto?->nombre ?? '—')->implode(', ') ?: '—' }}
+            </div>
         </div>
         @if($item['movimientos']->isEmpty())
             <div class="sin-movimientos">Sin abonos registrados todavía.</div>
