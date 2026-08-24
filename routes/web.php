@@ -108,6 +108,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::get('{tenant}/clientes/{cliente}/perfil', 'App\Http\Controllers\ClientesRutaController@perfilCliente')
         ->name('perfil-cliente')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::get('{tenant}/clientes/{cliente}/estado-cuenta', 'App\Http\Controllers\ClientesRutaController@generarEstadoCuenta')
+        ->name('estado-cuenta')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
     Route::get('{tenant}/recibo/{numeroRecibo}', 'App\Http\Controllers\ClientesRutaController@generarRecibo')
         ->name('recibo')
         ->where(['tenant' => '[0-9]+', 'numeroRecibo' => 'REC-(HIST|[0-9]+)-[0-9]+']);

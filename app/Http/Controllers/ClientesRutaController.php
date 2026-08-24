@@ -783,6 +783,84 @@ class ClientesRutaController extends Controller
     }
 
     /**
+     * Genera el Estado de Cuenta del cliente: cada venta a crédito con su
+     * historial completo de abonos (fecha, recibo, monto, saldo restante
+     * después de cada uno), y los totales generales. Incluye todas las
+     * ventas a crédito del cliente, sin importar su estado, para que el
+     * documento refleje el historial real completo, no solo lo pendiente.
+     */
+    public function generarEstadoCuenta(Request $request, $tenant, Cliente $cliente)
+    {
+        $ventas = $cliente->ventas()
+            ->where('tipo_pago', 'credito')
+            ->with(['pagos' => fn ($q) => $q->orderBy('fecha_pago')->orderBy('id')])
+            ->orderBy('fecha_venta')
+            ->get();
+
+        $ventasConMovimientos = $ventas->map(function (Venta $venta) {
+            $saldoCorrido = (float) $venta->total;
+            $movimientos = collect();
+
+            // La prima (abono inicial) no vive en pago_ventas -- se registra en la
+            // venta misma, así que se agrega como el primer movimiento a mano.
+            if ((float) $venta->prima > 0) {
+                $saldoCorrido -= (float) $venta->prima;
+                $movimientos->push([
+                    'fecha' => $venta->fecha_venta,
+                    'concepto' => 'Abono inicial (prima)',
+                    'monto' => (float) $venta->prima,
+                    'saldo' => $saldoCorrido,
+                    'anulado' => false,
+                ]);
+            }
+
+            foreach ($venta->pagos as $pago) {
+                if ($pago->anulado_en) {
+                    $movimientos->push([
+                        'fecha' => $pago->fecha_pago,
+                        'concepto' => 'Pago '.($pago->numero_recibo ?? '').' — ANULADO',
+                        'monto' => 0,
+                        'saldo' => $saldoCorrido,
+                        'anulado' => true,
+                    ]);
+
+                    continue;
+                }
+
+                $saldoCorrido -= (float) $pago->monto;
+                $movimientos->push([
+                    'fecha' => $pago->fecha_pago,
+                    'concepto' => 'Pago '.($pago->numero_recibo ?? 'sin recibo'),
+                    'monto' => (float) $pago->monto,
+                    'saldo' => $saldoCorrido,
+                    'anulado' => false,
+                ]);
+            }
+
+            return [
+                'venta' => $venta,
+                'movimientos' => $movimientos,
+            ];
+        });
+
+        $totalVendido = (float) $ventas->sum('total');
+        $totalPagado = (float) $ventas->sum('prima')
+            + (float) $ventas->flatMap(fn (Venta $v) => $v->pagos)->whereNull('anulado_en')->sum('monto');
+
+        $pdf = Pdf::loadView('estado-cuenta-pdf', [
+            'cliente' => $cliente,
+            'ventasConMovimientos' => $ventasConMovimientos,
+            'totalVendido' => $totalVendido,
+            'totalPagado' => $totalPagado,
+            'saldoActual' => (float) $cliente->saldo,
+            'config' => ConfiguracionSistema::instance(),
+            'fechaEmision' => now(),
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->stream('Estado-de-cuenta-'.Str::slug($cliente->nombre_completo).'.pdf');
+    }
+
+    /**
      * Anula un recibo (todos los pagos que comparten ese numero_recibo) sin
      * borrar nada — el registro queda marcado como anulado y deja de contar
      * en el saldo/cuotas de la venta. Solo super_admin, con confirmación de
