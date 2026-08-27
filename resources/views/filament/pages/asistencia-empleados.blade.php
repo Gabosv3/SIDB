@@ -102,6 +102,37 @@
                                 @endif
                             </td>
                         </tr>
+                        <tr class="as-tr">
+                            <td colspan="6" style="padding:0;">
+                                <details style="padding:.4rem 1rem;">
+                                    <summary style="cursor:pointer; font-size:.75rem; color:#6b7280; font-weight:600;">Ver los {{ $r['marcajes']->count() }} marcaje(s) crudo(s) de este día</summary>
+                                    <table style="width:100%; border-collapse:collapse; margin:.5rem 0;">
+                                        <thead class="as-thead">
+                                            <tr>
+                                                <th>Hora</th>
+                                                <th>Tipo guardado</th>
+                                                <th>Método</th>
+                                                <th>Dispositivo</th>
+                                                <th>attendanceStatus recibido</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($r['marcajes'] as $m)
+                                                <tr class="as-tr">
+                                                    <td class="as-td">{{ $m->fecha_hora->format('H:i:s') }}</td>
+                                                    <td class="as-td">{{ $m->tipo }}</td>
+                                                    <td class="as-td">{{ $m->metodo ?? '—' }}</td>
+                                                    <td class="as-td">{{ $m->dispositivo ?? '—' }}</td>
+                                                    <td class="as-td" style="font-family:monospace; font-size:.72rem;">
+                                                        {{ data_get($m->payload_crudo, 'AccessControllerEvent.attendanceStatus') ?? data_get($m->payload_crudo, 'AcsEvent.attendanceStatus') ?? '(vacío — el equipo no lo mandó)' }}
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </details>
+                            </td>
+                        </tr>
                     @endforeach
                 </tbody>
             </table>

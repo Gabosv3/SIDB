@@ -62,6 +62,24 @@ class HikvisionAsistenciaWebhookController extends Controller
         }
 
         $fechaHora = $evento['fecha_hora'] ?? now();
+
+        // El equipo a veces manda el mismo toque dos veces (reintento por
+        // conexión lenta, o un doble disparo del sensor) -- si ya hay un
+        // marcaje del mismo empleado a menos de un minuto, se ignora en vez
+        // de guardarlo como si fuera un segundo evento real (que además el
+        // heurístico de abajo etiquetaría mal como "salida").
+        if ($userId) {
+            $reciente = Asistencia::where('user_id', $userId)
+                ->where('fecha_hora', '>=', Carbon::parse($fechaHora)->subMinute())
+                ->exists();
+
+            if ($reciente) {
+                Log::info('Webhook Hikvision: marcaje ignorado por ser duplicado (menos de 1 minuto del anterior)', $evento);
+
+                return response('duplicado, ignorado', 200);
+            }
+        }
+
         $tipo = $this->determinarTipo($evento['attendance_status'] ?? null, $userId, $fechaHora);
 
         Asistencia::create([
@@ -156,11 +174,15 @@ class HikvisionAsistenciaWebhookController extends Controller
      */
     private function determinarTipo(?string $attendanceStatus, ?int $userId, $fechaHora): string
     {
-        if ($attendanceStatus === 'checkIn') {
+        // Comparación insensible a mayúsculas/espacios: el valor exacto que
+        // manda cada firmware varía ("checkIn", "checkin", " CheckIn ", etc.).
+        $normalizado = $attendanceStatus ? strtolower(trim($attendanceStatus)) : null;
+
+        if (in_array($normalizado, ['checkin', 'check_in', 'check-in'], true)) {
             return 'entrada';
         }
 
-        if ($attendanceStatus === 'checkOut') {
+        if (in_array($normalizado, ['checkout', 'check_out', 'check-out'], true)) {
             return 'salida';
         }
 
