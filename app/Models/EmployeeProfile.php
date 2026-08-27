@@ -18,8 +18,9 @@ class EmployeeProfile extends Model
         'user_id', 'foto', 'dui', 'nit', 'fecha_nacimiento', 'genero', 'estado_civil', 'tipo_sangre',
         'telefono_whatsapp', 'direccion', 'departamento', 'municipio', 'nacionalidad', 'numero_afiliacion',
         'contacto_emergencia_nombre', 'contacto_emergencia_telefono',
-        'codigo_empleado', 'cargo', 'tipo_empleado', 'fecha_ingreso', 'fecha_salida',
-        'salario_base', 'meta_ventas_mensual', 'meta_cobros_mensual', 'tipo_contrato', 'horario_laboral', 'estado_laboral',
+        'codigo_empleado', 'codigo_asistencia', 'cargo', 'tipo_empleado', 'fecha_ingreso', 'fecha_salida',
+        'salario_base', 'modalidad_pago', 'porcentaje_comision', 'meta_ventas_mensual', 'meta_cobros_mensual', 'tipo_contrato', 'horario_laboral',
+        'hora_entrada_esperada', 'hora_salida_esperada', 'estado_laboral',
         'supervisor_id', 'puede_usar_pos_movil',
     ];
 
@@ -28,6 +29,7 @@ class EmployeeProfile extends Model
         'fecha_ingreso' => 'date',
         'fecha_salida' => 'date',
         'salario_base' => 'decimal:2',
+        'porcentaje_comision' => 'decimal:2',
         'meta_ventas_mensual' => 'decimal:2',
         'meta_cobros_mensual' => 'decimal:2',
         'puede_usar_pos_movil' => 'boolean',

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\AsignacionDiaria;
 use App\Models\Cobrador;
+use App\Models\ConfiguracionSistema;
 use App\Models\EmployeeDocument;
+use App\Models\EmployeePago;
 use App\Models\EmployeeProfile;
 use App\Models\PagoVenta;
 use App\Models\PosDevice;
@@ -12,6 +14,7 @@ use App\Models\Supervisor;
 use App\Models\User;
 use App\Models\Vendedor;
 use App\Models\Venta;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -59,11 +62,13 @@ class EmpleadoPerfilController extends Controller
         $rutasCobro = \App\Models\RutaCobro::orderBy('nombre')->get(['id', 'nombre']);
         $rutasSupervisadasIds = $empleado->supervisor?->rutasSupervisadas()->pluck('rutas_cobro.id')->all() ?? [];
 
+        $pagosEmpleado = EmployeePago::where('user_id', $empleado->id)->orderByDesc('fecha_pago')->get();
+
         return view('empleados.perfil', compact(
             'tenant', 'empleado', 'perfilLaboral', 'employeeProfile', 'tipoPerfil', 'posDevice',
             'documentos', 'actividad', 'historial', 'asignacionHoy', 'ventasMes', 'cobrosMes',
             'clientesAsignados', 'clientesActivos', 'metaVentasPct', 'metaCobrosPct', 'supervisor',
-            'ventasSemana', 'cobrosSemana', 'rutasCobro', 'rutasSupervisadasIds'
+            'ventasSemana', 'cobrosSemana', 'rutasCobro', 'rutasSupervisadasIds', 'pagosEmpleado'
         ));
     }
 
@@ -114,7 +119,12 @@ class EmpleadoPerfilController extends Controller
             'meta_ventas_mensual' => ['nullable', 'numeric', 'min:0'],
             'meta_cobros_mensual' => ['nullable', 'numeric', 'min:0'],
             'tipo_contrato' => ['nullable', 'in:indefinido,temporal,por_obra,practica'],
+            'modalidad_pago' => ['nullable', 'in:salario_fijo,comision,mixto'],
+            'porcentaje_comision' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'horario_laboral' => ['nullable', 'string', 'max:150'],
+            'codigo_asistencia' => ['nullable', 'string', 'max:50', 'unique:employee_profiles,codigo_asistencia,'.$user.',user_id'],
+            'hora_entrada_esperada' => ['nullable', 'date_format:H:i'],
+            'hora_salida_esperada' => ['nullable', 'date_format:H:i'],
             'estado_laboral' => ['required', 'in:activo,suspendido,inactivo,despedido,renuncia'],
             'supervisor_id' => ['nullable', 'exists:users,id'],
             'puede_usar_pos_movil' => ['nullable', 'boolean'],
@@ -189,6 +199,112 @@ class EmpleadoPerfilController extends Controller
         } else {
             Supervisor::where('user_id', $empleado->id)->update(['activo' => false]);
         }
+    }
+
+    public function registrarPago(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $data = $request->validate([
+            'mes_periodo' => ['required', 'string', 'max:100'],
+            'monto' => ['required', 'numeric', 'min:0.01'],
+            'fecha_pago' => ['required', 'date'],
+            'metodo_pago' => ['required', 'in:efectivo,transferencia,cheque,deposito'],
+            'referencia' => ['nullable', 'string', 'max:150'],
+            'observaciones' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $data['user_id'] = $empleado->id;
+        $data['registrado_por'] = auth()->id();
+
+        EmployeePago::create($data);
+
+        return redirect()->back()->with('success', 'Pago registrado.');
+    }
+
+    public function eliminarPago(Request $request, $tenant, $user, EmployeePago $pago)
+    {
+        if ($pago->user_id !== (int) $user) {
+            abort(404);
+        }
+
+        $pago->delete();
+
+        return redirect()->back()->with('success', 'Pago eliminado.');
+    }
+
+    /**
+     * Genera el PDF de "Constancia de Pago" de un pago puntual — mismo
+     * formato oficial (logo, datos del colaborador, monto, firmas) que ya
+     * se usa en la empresa para dejar constancia de pagos a empleados.
+     */
+    public function generarConstancia(Request $request, $tenant, $user, EmployeePago $pago)
+    {
+        if ($pago->user_id !== (int) $user) {
+            abort(404);
+        }
+
+        $empleado = User::query()->findOrFail($user);
+        $config = ConfiguracionSistema::instance();
+
+        $pdf = Pdf::loadView('empleados.constancia-pago-pdf', [
+            'empleado' => $empleado,
+            'pago' => $pago,
+            'config' => $config,
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->stream("constancia-pago-{$empleado->name}-{$pago->fecha_pago->format('Y-m')}.pdf");
+    }
+
+    /**
+     * Genera el Contrato Individual de Trabajo del empleado — modelo estándar
+     * de El Salvador (Código de Trabajo), adaptado según su modalidad de pago
+     * (salario fijo / comisión / mixto) y tipo de contrato ya guardados en su
+     * perfil laboral.
+     */
+    public function generarContrato(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+        $perfil = $empleado->employeeProfile ?? new EmployeeProfile();
+        $config = ConfiguracionSistema::instance();
+
+        $tipoContratoLabel = match ($perfil->tipo_contrato) {
+            'indefinido' => 'Tiempo indefinido',
+            'temporal' => 'Tiempo determinado',
+            'por_obra' => 'Por obra o labor determinada',
+            'practica' => 'Práctica / pasantía',
+            default => 'No definido',
+        };
+
+        $modalidadPagoLabel = match ($perfil->modalidad_pago) {
+            'comision' => 'Por comisión',
+            'mixto' => 'Mixto (salario + comisión)',
+            'salario_fijo' => 'Salario fijo',
+            default => 'No definida',
+        };
+
+        // Sobre qué se calcula la comisión: vendedores (ventas) y
+        // cobradores (cobros) tienen bases distintas, se ajusta el texto
+        // legal según el tipo de empleado que ya tiene marcado.
+        $tipos = $perfil->tipo_empleado ?? [];
+        $comisionBase = in_array('vendedor', $tipos, true) && in_array('cobrador', $tipos, true)
+            ? 'las ventas y/o cobros que gestione'
+            : (in_array('cobrador', $tipos, true)
+                ? 'los cobros que efectivamente recaude'
+                : 'las ventas que efectivamente realice');
+
+        $pdf = Pdf::loadView('empleados.contrato-trabajo-pdf', [
+            'empleado' => $empleado,
+            'perfil' => $perfil,
+            'config' => $config,
+            'tipoContratoLabel' => $tipoContratoLabel,
+            'modalidadPagoLabel' => $modalidadPagoLabel,
+            'comisionBase' => $comisionBase,
+            'lugar' => $config->direccion ? \Illuminate\Support\Str::before($config->direccion, ',') : 'El Salvador',
+            'fechaLetras' => now()->translatedFormat('d \\d\\e F \\d\\e Y'),
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->stream("contrato-trabajo-{$empleado->name}.pdf");
     }
 
     public function toggleBloqueo(Request $request, $tenant, $user)

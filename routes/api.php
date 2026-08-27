@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoriaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\CobroController;
+use App\Http\Controllers\HikvisionAsistenciaWebhookController;
 use App\Http\Controllers\Api\PagareController;
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\PosController;
@@ -36,6 +37,8 @@ Route::post('/webhooks/ycloud/whatsapp', [YCloudWebhookController::class, 'recei
 // GET = verificación única al configurar; POST = eventos reales.
 Route::get('/webhooks/meta/whatsapp', [MetaWhatsAppWebhookController::class, 'verificar']);
 Route::post('/webhooks/meta/whatsapp', [MetaWhatsAppWebhookController::class, 'recibir']);
+
+Route::post('/webhooks/hikvision/asistencia/{token}', [HikvisionAsistenciaWebhookController::class, 'recibir']);
 
 /*
 |--------------------------------------------------------------------------

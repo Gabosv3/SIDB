@@ -37,7 +37,15 @@
 @section('breadcrumb-current', $nombreEmpleado)
 
 @section('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <style>
+    .select2-container--default .select2-selection--multiple { border:1px solid #d1d5db; border-radius:.5rem; min-height:2.3rem; padding:.15rem .25rem; }
+    .select2-container--default.select2-container--focus .select2-selection--multiple { border-color:#10b981; box-shadow:0 0 0 2px rgba(16,185,129,.2); }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice { background:#d1fae5; border-color:#a7f3d0; color:#065f46; font-size:.78rem; padding:.05rem .5rem; }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove { color:#065f46; margin-right:.35rem; }
+    .select2-dropdown { border-color:#d1d5db; }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] { background-color:#10b981; }
+
     .pe-card { background:#fff; border:1px solid #e5e7eb; border-radius:.875rem; box-shadow:0 1px 3px rgba(0,0,0,.05); overflow:hidden; }
     .pe-card-header { display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.1rem; border-bottom:1px solid #f3f4f6; }
     .pe-card-title { font-size:.85rem; font-weight:700; color:#111827; }
@@ -459,9 +467,34 @@
                         @endforeach
                     </select>
                 </div>
+                <div>
+                    <label>Modalidad de pago</label>
+                    <select name="modalidad_pago" class="pe-input" id="pe-modalidad-pago" onchange="document.getElementById('pe-comision-wrap').style.display = this.value === 'salario_fijo' ? 'none' : ''">
+                        <option value="">—</option>
+                        @foreach(['salario_fijo'=>'Salario fijo','comision'=>'Por comisión','mixto'=>'Mixto (salario + comisión)'] as $val => $lbl)
+                            <option value="{{ $val }}" {{ old('modalidad_pago', $employeeProfile?->modalidad_pago) === $val ? 'selected' : '' }}>{{ $lbl }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div id="pe-comision-wrap" style="{{ old('modalidad_pago', $employeeProfile?->modalidad_pago) === 'salario_fijo' || !old('modalidad_pago', $employeeProfile?->modalidad_pago) ? 'display:none;' : '' }}">
+                    <label>% de comisión</label>
+                    <input type="number" step="0.01" min="0" max="100" name="porcentaje_comision" value="{{ old('porcentaje_comision', $employeeProfile?->porcentaje_comision) }}" class="pe-input" placeholder="Ej. 5.00">
+                </div>
                 <div><label>Meta de ventas mensual</label><input type="number" step="0.01" name="meta_ventas_mensual" value="{{ old('meta_ventas_mensual', $employeeProfile?->meta_ventas_mensual) }}" class="pe-input"></div>
                 <div><label>Meta de cobros mensual</label><input type="number" step="0.01" name="meta_cobros_mensual" value="{{ old('meta_cobros_mensual', $employeeProfile?->meta_cobros_mensual) }}" class="pe-input"></div>
                 <div style="grid-column:1/-1;"><label>Horario laboral</label><input type="text" name="horario_laboral" value="{{ old('horario_laboral', $employeeProfile?->horario_laboral) }}" class="pe-input"></div>
+                <div>
+                    <label>Hora de entrada esperada <span style="font-weight:400;color:var(--muted,#6b7280);">(para asistencia)</span></label>
+                    <input type="time" name="hora_entrada_esperada" value="{{ old('hora_entrada_esperada', $employeeProfile?->hora_entrada_esperada ? substr($employeeProfile->hora_entrada_esperada, 0, 5) : '') }}" class="pe-input">
+                </div>
+                <div>
+                    <label>Hora de salida esperada</label>
+                    <input type="time" name="hora_salida_esperada" value="{{ old('hora_salida_esperada', $employeeProfile?->hora_salida_esperada ? substr($employeeProfile->hora_salida_esperada, 0, 5) : '') }}" class="pe-input">
+                </div>
+                <div>
+                    <label>Código de asistencia <span style="font-weight:400;color:var(--muted,#6b7280);">(el número que le diste al inscribirlo en el equipo Hikvision)</span></label>
+                    <input type="text" name="codigo_asistencia" value="{{ old('codigo_asistencia', $employeeProfile?->codigo_asistencia) }}" class="pe-input" placeholder="Ej. 1001">
+                </div>
                 <div>
                     <label>Estado laboral</label>
                     <select name="estado_laboral" class="pe-input" required>
@@ -485,7 +518,7 @@
                 </div>
                 <div style="grid-column:1/-1;">
                     <label>Rutas supervisadas <span style="font-weight:400;color:var(--muted,#6b7280);">(solo aplica si el tipo de empleado es Supervisor)</span></label>
-                    <select name="rutas_supervisadas[]" class="pe-input" multiple size="6">
+                    <select name="rutas_supervisadas[]" id="pe-rutas-supervisadas" class="pe-input" multiple>
                         @foreach($rutasCobro as $ruta)
                             <option value="{{ $ruta->id }}" {{ in_array($ruta->id, old('rutas_supervisadas', $rutasSupervisadasIds)) ? 'selected' : '' }}>{{ $ruta->nombre }}</option>
                         @endforeach
@@ -496,6 +529,70 @@
                 <button type="submit" class="pe-btn pe-btn-primary">Guardar información laboral</button>
             </div>
         </form>
+    </div>
+
+    {{-- ── PAGOS AL EMPLEADO ── --}}
+    <div x-show="tab === 'laboral'" class="pe-card">
+        <div class="pe-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="pe-card-title">Pagos registrados</span>
+            <a href="{{ route('empleados.contrato', [$tenant, $empleado->id]) }}" target="_blank" class="pe-btn pe-btn-gray" style="padding:.4rem .8rem; font-size:.78rem;">📄 Generar contrato de trabajo</a>
+        </div>
+
+        <form method="POST" action="{{ route('empleados.registrarPago', [$tenant, $empleado->id]) }}" style="padding:0 1.25rem 1.25rem;">
+            @csrf
+            <div class="pe-form-grid">
+                <div><label>Mes / Período</label><input type="text" name="mes_periodo" class="pe-input" placeholder="Ej. Agosto 2026" required></div>
+                <div><label>Monto</label><input type="number" step="0.01" min="0.01" name="monto" class="pe-input" required></div>
+                <div><label>Fecha de pago</label><input type="date" name="fecha_pago" class="pe-input" value="{{ today()->toDateString() }}" required></div>
+                <div>
+                    <label>Método de pago</label>
+                    <select name="metodo_pago" class="pe-input" required>
+                        @foreach(['efectivo'=>'Efectivo','transferencia'=>'Transferencia','cheque'=>'Cheque','deposito'=>'Depósito'] as $val => $lbl)
+                            <option value="{{ $val }}">{{ $lbl }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div><label>Referencia</label><input type="text" name="referencia" class="pe-input" placeholder="Opcional"></div>
+                <div style="grid-column:1/-1;"><label>Observaciones</label><input type="text" name="observaciones" class="pe-input" placeholder="Opcional"></div>
+            </div>
+            <div class="pe-form-actions">
+                <button type="submit" class="pe-btn pe-btn-primary">Registrar pago</button>
+            </div>
+        </form>
+
+        @if($pagosEmpleado->isEmpty())
+            <div class="pe-empty-hint" style="padding:0 1.25rem 1.25rem;">Todavía no hay pagos registrados.</div>
+        @else
+            <table class="pe-table">
+                <thead>
+                    <tr>
+                        <th>Período</th>
+                        <th>Monto</th>
+                        <th>Fecha</th>
+                        <th>Método</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($pagosEmpleado as $pago)
+                        <tr>
+                            <td>{{ $pago->mes_periodo }}</td>
+                            <td>${{ number_format((float) $pago->monto, 2) }}</td>
+                            <td>{{ $pago->fecha_pago->format('d/m/Y') }}</td>
+                            <td>{{ ucfirst($pago->metodo_pago) }}</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <a href="{{ route('empleados.constanciaPago', [$tenant, $empleado->id, $pago->id]) }}" target="_blank" class="pe-btn pe-btn-gray" style="padding:.25rem .6rem; font-size:.72rem;">Constancia</a>
+                                <form method="POST" action="{{ route('empleados.eliminarPago', [$tenant, $empleado->id, $pago->id]) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar este pago?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="pe-btn pe-btn-danger" style="padding:.25rem .6rem; font-size:.72rem;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
     </div>
 
     {{-- ── ACCESO Y PERMISOS ── --}}
@@ -680,7 +777,17 @@
 @endsection
 
 @section('scripts')
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/es.js"></script>
 <script>
+$('#pe-rutas-supervisadas').select2({
+    width: '100%',
+    language: 'es',
+    placeholder: 'Selecciona las rutas a supervisar...',
+    closeOnSelect: false,
+});
+
 @if(session('success'))
 Swal.fire({
     toast: true, position: 'top-end', icon: 'success', title: @json(session('success')),

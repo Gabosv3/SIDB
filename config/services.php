@@ -48,4 +48,12 @@ return [
         'config_id' => env('META_WHATSAPP_CONFIG_ID'),
     ],
 
+    'hikvision' => [
+        // Token secreto que va en la URL que se configura DENTRO del equipo
+        // Hikvision (no hay otra forma sencilla de autenticar el webhook,
+        // varía por firmware) -- sin esto, cualquiera que adivine la URL
+        // podría mandar marcajes falsos.
+        'token' => env('HIKVISION_WEBHOOK_TOKEN'),
+    ],
+
 ];
