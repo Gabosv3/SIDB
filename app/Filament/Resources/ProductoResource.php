@@ -124,12 +124,14 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                 ->max();
                                             return 'PRODUC-' . str_pad(($max ?? 0) + 1, 3, '0', STR_PAD_LEFT);
                                         })
-                                        ->disabled()
+                                        ->disabled(fn (string $operation): bool => $operation === 'create')
                                         ->dehydrated()
                                         ->required()
                                         ->unique(Producto::class, 'codigo', ignoreRecord: true)
                                         ->maxLength(60)
-                                        ->helperText('Generado automáticamente. No puede modificarse.'),
+                                        ->helperText(fn (string $operation): string => $operation === 'create'
+                                            ? 'Generado automáticamente. No puede modificarse al crear.'
+                                            : 'Podés corregirlo si hace falta.'),
 
                                     Forms\Components\Select::make('unidad_medida')
                                         ->label('Unidad de medida')
