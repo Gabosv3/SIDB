@@ -109,16 +109,20 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                     Forms\Components\TextInput::make('codigo')
                                         ->label('Código')
                                         ->default(function () {
-                                            // El máximo numérico real entre todos los códigos PROD-*, no el del
-                                            // último id insertado — si hay productos borrados o códigos puestos
-                                            // a mano fuera de orden, orderByDesc('id') puede repetir un número
-                                            // ya usado (ej. vuelve a proponer PROD-001 si ese fue el último id
-                                            // pero ya existen PROD-002, PROD-003...).
-                                            $max = Producto::where('codigo', 'like', 'PROD-%')
+                                            // Prefijo distinto a los PROD-* que trajo la importación de Excel,
+                                            // con numeración propia, para que un producto cargado a mano desde
+                                            // el formulario se distinga a simple vista de los del catálogo
+                                            // importado (ver también el campo "origen").
+                                            //
+                                            // El máximo numérico real entre todos los códigos PRODUC-*, no el
+                                            // del último id insertado — si hay productos borrados o códigos
+                                            // puestos a mano fuera de orden, orderByDesc('id') puede repetir un
+                                            // número ya usado.
+                                            $max = Producto::where('codigo', 'like', 'PRODUC-%')
                                                 ->get(['codigo'])
-                                                ->map(fn ($p) => (int) substr($p->codigo, 5))
+                                                ->map(fn ($p) => (int) substr($p->codigo, 7))
                                                 ->max();
-                                            return 'PROD-' . str_pad(($max ?? 0) + 1, 3, '0', STR_PAD_LEFT);
+                                            return 'PRODUC-' . str_pad(($max ?? 0) + 1, 3, '0', STR_PAD_LEFT);
                                         })
                                         ->disabled()
                                         ->dehydrated()
