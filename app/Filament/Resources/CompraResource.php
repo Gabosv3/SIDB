@@ -167,7 +167,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->minValue(1)
                                                 ->live(onBlur: true)
                                                 ->afterStateUpdated(function ($state, Get $get, Set $set) {
-                                                    $set('subtotal', ((float)$get('precio_unitario') - (float)$get('descuento_unitario')) * (int)$state);
+                                                    $set('subtotal', round(((float)$get('precio_unitario') - (float)$get('descuento_unitario')) * (int)$state, 2));
                                                 }),
 
                                             Forms\Components\TextInput::make('precio_unitario')
@@ -177,7 +177,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->step(0.01)
                                                 ->live(onBlur: true)
                                                 ->afterStateUpdated(function ($state, Get $get, Set $set) {
-                                                    $set('subtotal', ((float)$state - (float)$get('descuento_unitario')) * (int)$get('cantidad'));
+                                                    $set('subtotal', round(((float)$state - (float)$get('descuento_unitario')) * (int)$get('cantidad'), 2));
                                                 }),
 
                                             Forms\Components\TextInput::make('descuento_unitario')
@@ -187,7 +187,7 @@ class CompraResource extends Resource implements HasShieldPermissions
                                                 ->default(0)
                                                 ->live(onBlur: true)
                                                 ->afterStateUpdated(function ($state, Get $get, Set $set) {
-                                                    $set('subtotal', ((float)$get('precio_unitario') - (float)$state) * (int)$get('cantidad'));
+                                                    $set('subtotal', round(((float)$get('precio_unitario') - (float)$state) * (int)$get('cantidad'), 2));
                                                 }),
 
                                             Forms\Components\TextInput::make('subtotal')
