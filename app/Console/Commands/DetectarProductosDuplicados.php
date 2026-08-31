@@ -8,7 +8,8 @@ use Illuminate\Console\Command;
 class DetectarProductosDuplicados extends Command
 {
     protected $signature = 'productos:duplicados-similares
-                            {--umbral=68 : % mínimo de similitud entre nombres para considerarlos posible duplicado (0-100)}';
+                            {--umbral=68 : % mínimo de similitud entre nombres para considerarlos posible duplicado (0-100)}
+                            {--origen= : Filtra solo productos "excel" o "manual". Sin este flag, revisa todos.}';
 
     protected $description = 'Solo reporta (no modifica nada) grupos de productos con nombres muy parecidos —'
         .' útil cuando el catálogo se importó varias veces desde Excel con nombres ligeramente distintos para'
@@ -18,7 +19,17 @@ class DetectarProductosDuplicados extends Command
     public function handle(): int
     {
         $umbral = (float) $this->option('umbral');
-        $productos = Producto::orderBy('id')->get(['id', 'codigo', 'nombre', 'stock', 'precio_venta', 'activo']);
+        $origen = $this->option('origen');
+
+        if ($origen && ! in_array($origen, ['excel', 'manual'], true)) {
+            $this->error('--origen debe ser "excel" o "manual".');
+
+            return self::FAILURE;
+        }
+
+        $productos = Producto::when($origen, fn ($q) => $q->where('origen', $origen))
+            ->orderBy('id')
+            ->get(['id', 'codigo', 'nombre', 'stock', 'precio_venta', 'activo']);
 
         $visitados = [];
         $grupos = [];

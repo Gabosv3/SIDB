@@ -346,6 +346,13 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->sortable()
                     ->weight('semibold'),
 
+                Tables\Columns\TextColumn::make('origen')
+                    ->label('Origen')
+                    ->badge()
+                    ->toggleable()
+                    ->color(fn (string $state): string => $state === 'excel' ? 'warning' : 'success')
+                    ->formatStateUsing(fn (string $state): string => $state === 'excel' ? 'Excel' : 'Manual'),
+
                 Tables\Columns\TextColumn::make('categoria.nombre')
                     ->label('Categoría')
                     ->badge()
@@ -391,6 +398,10 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->label('Stock bajo')
                     ->query(fn ($query) => $query->whereColumn('stock', '<=', 'stock_minimo'))
                     ->toggle(),
+
+                Tables\Filters\SelectFilter::make('origen')
+                    ->label('Origen')
+                    ->options(['excel' => 'Excel', 'manual' => 'Manual']),
             ])
             ->actions([
                 Actions\ViewAction::make(),

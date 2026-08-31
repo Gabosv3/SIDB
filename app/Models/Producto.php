@@ -25,6 +25,7 @@ class Producto extends Model
         'sucursal_id',
         'nombre',
         'codigo',
+        'origen',
         'descripcion',
         'unidad_medida',
         'precio_compra',
