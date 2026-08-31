@@ -401,7 +401,8 @@ class ProductoResource extends Resource implements HasShieldPermissions
 
                 Tables\Filters\SelectFilter::make('origen')
                     ->label('Origen')
-                    ->options(['excel' => 'Excel', 'manual' => 'Manual']),
+                    ->options(['excel' => 'Excel', 'manual' => 'Manual'])
+                    ->default('manual'),
             ])
             ->actions([
                 Actions\ViewAction::make(),
