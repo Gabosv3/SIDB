@@ -99,7 +99,7 @@ class CreateCompra extends CreateRecord
                                 ->schema([
                                     Forms\Components\Select::make('producto_id')
                                         ->label('Producto')
-                                        ->relationship('producto', 'nombre')
+                                        ->relationship('producto', 'nombre', modifyQueryUsing: fn ($query) => $query->where('origen', 'manual'))
                                         ->searchable()
                                         ->preload()
                                         ->required()
