@@ -1106,6 +1106,54 @@ class ClientesRutaController extends Controller
             ));
     }
 
+    /**
+     * Fusiona dos rutas de cobro: todos los clientes de la ruta origen pasan
+     * a la ruta destino (permanente), y la ruta origen queda desactivada en
+     * vez de borrada -- para no perder el historial de pagos/visitas/
+     * reintegros que ya la referencian por su ID.
+     */
+    public function fusionarRutas(Request $request, $tenant): JsonResponse
+    {
+        $data = $request->validate([
+            'ruta_origen_id' => 'required|integer|exists:rutas_cobro,id|different:ruta_destino_id',
+            'ruta_destino_id' => 'required|integer|exists:rutas_cobro,id',
+        ]);
+
+        $rutaOrigen = RutaCobro::with('cobrador:id,nombre,apellido')->findOrFail($data['ruta_origen_id']);
+        $rutaDestino = RutaCobro::with('cobrador:id,nombre,apellido')->findOrFail($data['ruta_destino_id']);
+
+        $cantidad = DB::transaction(function () use ($rutaOrigen, $rutaDestino) {
+            $clientes = Cliente::where('ruta_cobro_id', $rutaOrigen->id)->get();
+
+            $ordenSiguiente = (int) (Cliente::where('ruta_cobro_id', $rutaDestino->id)->max('orden') ?? 0) + 1;
+
+            foreach ($clientes as $cliente) {
+                $cliente->update([
+                    'ruta_cobro_id' => $rutaDestino->id,
+                    'orden' => $ordenSiguiente++,
+                ]);
+
+                $this->registrarMovimientoRuta($cliente, $rutaOrigen, $rutaDestino);
+            }
+
+            // No se borra: queda desactivada para conservar el historial de
+            // pagos/reintegros/actividad que ya apuntan a este ID de ruta.
+            $rutaOrigen->update(['activa' => false]);
+
+            return $clientes->count();
+        });
+
+        return response()->json([
+            'mensaje' => sprintf(
+                'Se movieron %d cliente(s) de "%s" a "%s". La ruta "%s" quedó desactivada.',
+                $cantidad,
+                $rutaOrigen->nombre,
+                $rutaDestino->nombre,
+                $rutaOrigen->nombre
+            ),
+        ]);
+    }
+
     public function actualizarAbonoInicial(Request $request, $tenant, Cliente $cliente): JsonResponse
     {
         $data = $request->validate([

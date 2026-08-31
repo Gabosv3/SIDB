@@ -344,6 +344,7 @@
             <span class="pm-card-link" id="cr-sugerir-orden" style="cursor:pointer; display:none;" title="Calcula un orden de visita según cercanía GPS (aproximado, línea recta)">🧭 Sugerir orden por GPS</span>
             <a class="pm-card-link" id="cr-exportar-excel" href="#" title="Descargar código y nombre de esta lista en Excel">📊 Excel</a>
             <a class="pm-card-link" id="cr-exportar-word" href="#" title="Descargar código y nombre de esta lista en Word">📄 Word</a>
+            <span class="pm-card-link" id="cr-fusionar-abrir" style="cursor:pointer;" title="Mueve todos los clientes de una ruta a otra, de forma permanente">🔀 Fusionar rutas</span>
             <span class="pm-card-link" id="cr-refresh-link" style="cursor:pointer;">↻ Actualizar</span>
         </div>
     </div>
@@ -575,6 +576,43 @@
             <div class="cr-import-actions">
                 <button type="button" class="cr-import-btn-secundario" id="cr-cambiar-cobrador-cancelar">Cancelar</button>
                 <button type="button" class="cr-import-btn" id="cr-cambiar-cobrador-confirmar">Mover cliente</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="cr-modal-overlay" id="cr-fusionar-overlay">
+    <div class="cr-modal" style="max-width:480px;">
+        <div class="cr-modal-header">
+            <span>Fusionar rutas</span>
+            <button type="button" class="cr-modal-close" id="cr-fusionar-close">&times;</button>
+        </div>
+        <div class="cr-modal-body">
+            <p class="cr-import-hint">Todos los clientes de la ruta que elijas como <strong>origen</strong> pasan a la ruta <strong>destino</strong>. Es permanente — la ruta origen queda desactivada.</p>
+            <div class="cr-import-ruta-form">
+                <div class="cr-import-field">
+                    <label>Ruta origen (se vacía y se desactiva)</label>
+                    <select id="cr-fusionar-origen" class="cr-filter-input">
+                        <option value="">Selecciona una ruta</option>
+                        @foreach($rutas as $r)
+                            <option value="{{ $r->id }}">{{ $r->nombre }} — {{ ucfirst($r->dia_semana) }} ({{ $r->clientes_count }} clientes)</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="cr-import-field">
+                    <label>Ruta destino (recibe los clientes)</label>
+                    <select id="cr-fusionar-destino" class="cr-filter-input">
+                        <option value="">Selecciona una ruta</option>
+                        @foreach($rutas as $r)
+                            <option value="{{ $r->id }}">{{ $r->nombre }} — {{ ucfirst($r->dia_semana) }} ({{ $r->clientes_count }} clientes)</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <p class="cr-import-error" id="cr-fusionar-error"></p>
+            <div class="cr-import-actions">
+                <button type="button" class="cr-import-btn-secundario" id="cr-fusionar-cancelar">Cancelar</button>
+                <button type="button" class="cr-import-btn" id="cr-fusionar-confirmar" style="background:#dc2626;">Fusionar (no se puede deshacer)</button>
             </div>
         </div>
     </div>
@@ -1419,6 +1457,73 @@
         }).catch(function () {
             btn.disabled = false;
             btn.textContent = 'Mover cliente';
+            errorEl.textContent = 'Error de conexión.';
+        });
+    });
+
+    // ── Fusionar rutas (permanente) ──────────────────────────────────────
+    var fusionarOverlay = document.getElementById('cr-fusionar-overlay');
+    var fusionarOrigenSel = document.getElementById('cr-fusionar-origen');
+    var fusionarDestinoSel = document.getElementById('cr-fusionar-destino');
+
+    function abrirFusionarModal() {
+        document.getElementById('cr-fusionar-error').textContent = '';
+        fusionarOrigenSel.value = '';
+        fusionarDestinoSel.value = '';
+        fusionarOverlay.classList.add('show');
+    }
+    function cerrarFusionarModal() { fusionarOverlay.classList.remove('show'); }
+
+    document.getElementById('cr-fusionar-abrir').addEventListener('click', abrirFusionarModal);
+    document.getElementById('cr-fusionar-close').addEventListener('click', cerrarFusionarModal);
+    document.getElementById('cr-fusionar-cancelar').addEventListener('click', cerrarFusionarModal);
+    fusionarOverlay.addEventListener('click', function (e) { if (e.target === fusionarOverlay) cerrarFusionarModal(); });
+
+    document.getElementById('cr-fusionar-confirmar').addEventListener('click', function () {
+        var errorEl = document.getElementById('cr-fusionar-error');
+        var origenId = fusionarOrigenSel.value;
+        var destinoId = fusionarDestinoSel.value;
+
+        if (!origenId || !destinoId) {
+            errorEl.textContent = 'Selecciona la ruta origen y la ruta destino.';
+            return;
+        }
+        if (origenId === destinoId) {
+            errorEl.textContent = 'La ruta origen y destino no pueden ser la misma.';
+            return;
+        }
+
+        var origenTexto = fusionarOrigenSel.options[fusionarOrigenSel.selectedIndex].textContent;
+        var destinoTexto = fusionarDestinoSel.options[fusionarDestinoSel.selectedIndex].textContent;
+        if (!window.confirm('¿Fusionar "' + origenTexto + '" dentro de "' + destinoTexto + '"?\n\nTodos sus clientes pasan a la ruta destino y "' + origenTexto + '" queda desactivada. Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Fusionando...';
+
+        fetch(baseUrl + '/fusionar-rutas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ ruta_origen_id: origenId, ruta_destino_id: destinoId }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Fusionar (no se puede deshacer)';
+            if (!res.ok) {
+                errorEl.textContent = res.body.mensaje || 'No se pudo fusionar las rutas.';
+                return;
+            }
+            cerrarFusionarModal();
+            showToast(res.body.mensaje || 'Rutas fusionadas.');
+            window.location.reload();
+        }).catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Fusionar (no se puede deshacer)';
             errorEl.textContent = 'Error de conexión.';
         });
     });

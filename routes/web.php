@@ -129,6 +129,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::get('{tenant}/rutas/{rutaId}/sugerir-orden', 'App\Http\Controllers\ClientesRutaController@sugerirOrden')
         ->name('sugerir-orden')
         ->where(['tenant' => '[0-9]+', 'rutaId' => '[0-9]+']);
+    Route::post('{tenant}/fusionar-rutas', 'App\Http\Controllers\ClientesRutaController@fusionarRutas')
+        ->name('fusionar-rutas')
+        ->where('tenant', '[0-9]+');
     Route::post('{tenant}/clientes/{cliente}/ruta', 'App\Http\Controllers\ClientesRutaController@cambiarRuta')
         ->name('cambiar-ruta')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
@@ -193,6 +196,9 @@ Route::middleware(['web', 'auth', 'can:View:WhatsAppCenter'])->prefix('whatsapp-
 // ─────────────────────────────────────────────────────────────────────────────
 // Perfil de Empleado
 Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados')->name('empleados.')->group(function () {
+    Route::get('{tenant}/ficha-datos-blanco', 'App\Http\Controllers\EmpleadoPerfilController@generarFichaDatos')
+        ->name('ficha-datos-blanco')
+        ->where('tenant', '[0-9]+');
     Route::get('{tenant}/{user}', 'App\Http\Controllers\EmpleadoPerfilController@show')
         ->name('show')
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
