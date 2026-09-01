@@ -39,7 +39,7 @@ class ComprasRecientesWidget extends TableWidget
 
                 Tables\Columns\TextColumn::make('total')
                     ->label('Total')
-                    ->money('MXN'),
+                    ->money('USD'),
 
                 Tables\Columns\TextColumn::make('estado')
                     ->label('Estado')
@@ -54,7 +54,7 @@ class ComprasRecientesWidget extends TableWidget
 
                 Tables\Columns\TextColumn::make('saldo_pendiente')
                     ->label('Saldo')
-                    ->money('MXN')
+                    ->money('USD')
                     ->color(fn (string $state): string =>
                         (float)$state > 0 ? 'danger' : 'success'
                     ),

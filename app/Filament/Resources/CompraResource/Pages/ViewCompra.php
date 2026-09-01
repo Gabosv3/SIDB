@@ -60,10 +60,10 @@ class ViewCompra extends ViewRecord
                             TextEntry::make('cantidad')->label('Cantidad'),
                             TextEntry::make('precio_unitario')
                                 ->label('Precio')
-                                ->money('MXN'),
+                                ->money('USD'),
                             TextEntry::make('subtotal')
                                 ->label('Subtotal')
-                                ->money('MXN'),
+                                ->money('USD'),
                         ]),
                 ]),
 
@@ -72,20 +72,20 @@ class ViewCompra extends ViewRecord
                 ->components([
                     TextEntry::make('subtotal')
                         ->label('Subtotal')
-                        ->money('MXN'),
+                        ->money('USD'),
                     TextEntry::make('descuento_monto')
                         ->label('Descuento')
-                        ->money('MXN'),
+                        ->money('USD'),
                     TextEntry::make('impuesto_monto')
                         ->label('Impuesto')
-                        ->money('MXN'),
+                        ->money('USD'),
                     TextEntry::make('total')
                         ->label('Total')
-                        ->money('MXN')
+                        ->money('USD')
                         ->weight('bold'),
                     TextEntry::make('saldo_pendiente')
                         ->label('Saldo Pendiente')
-                        ->money('MXN')
+                        ->money('USD')
                         ->color(fn (string $state): string =>
                             (float)$state > 0 ? 'danger' : 'success'
                         ),
