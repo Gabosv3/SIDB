@@ -257,6 +257,21 @@ class EmpleadoPerfilController extends Controller
     }
 
     /**
+     * Ficha en blanco con todos los campos que se le piden a un empleado
+     * (identidad, contacto, datos laborales), para imprimir y llenar a mano
+     * antes de registrarlo en el sistema. No depende de ningún empleado en
+     * particular -- siempre sale vacía.
+     */
+    public function generarFichaDatos(Request $request, $tenant)
+    {
+        $pdf = Pdf::loadView('empleados.ficha-datos-pdf', [
+            'config' => ConfiguracionSistema::instance(),
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->stream('Ficha-de-datos-empleado.pdf');
+    }
+
+    /**
      * Genera el Contrato Individual de Trabajo del empleado — modelo estándar
      * de El Salvador (Código de Trabajo), adaptado según su modalidad de pago
      * (salario fijo / comisión / mixto) y tipo de contrato ya guardados en su

@@ -117,6 +117,7 @@ class CreateCompra extends CreateRecord
                                     Forms\Components\TextInput::make('cantidad')
                                         ->label('Cantidad')
                                         ->numeric()
+                                        ->integer()
                                         ->required()
                                         ->minValue(1)
                                         ->live(onBlur: true)

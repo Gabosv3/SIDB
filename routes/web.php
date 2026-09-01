@@ -17,6 +17,13 @@ Route::middleware(['web', 'auth', 'can:Export:Clientes'])->prefix('clientes')->n
     Route::get('/exportar/csv', 'App\Http\Controllers\ClienteExportController@exportarSimpleCSV')->name('exportar.csv');
 });
 
+// Productos
+Route::middleware(['web', 'auth'])->prefix('productos')->name('productos.')->group(function () {
+    Route::get('{tenant}/conteo-inventario', 'App\Http\Controllers\ProductoController@generarConteoInventario')
+        ->name('conteo-inventario')
+        ->where('tenant', '[0-9]+');
+});
+
 // Pagos y Ubicación (masivo)
 Route::middleware(['web', 'auth', 'can:View:PagosUbicacion'])->prefix('pagos-ubicacion')->name('pagos-ubicacion.')->group(function () {
     Route::get('/', 'App\Http\Controllers\PagosYUbicacionController@index')->name('index');
