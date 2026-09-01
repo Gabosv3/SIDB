@@ -409,6 +409,74 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->label('Origen')
                     ->options(['excel' => 'Excel', 'manual' => 'Manual'])
                     ->default('manual'),
+
+                Tables\Filters\SelectFilter::make('categoria_id')
+                    ->label('Categoría')
+                    ->relationship('categoria', 'nombre')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('proveedores')
+                    ->label('Proveedor')
+                    ->relationship('proveedores', 'nombre')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\Filter::make('rango_precio')
+                    ->label('Rango de precio')
+                    ->schema([
+                        Forms\Components\TextInput::make('precio_desde')
+                            ->label('Precio desde')
+                            ->numeric()
+                            ->prefix('$'),
+                        Forms\Components\TextInput::make('precio_hasta')
+                            ->label('Precio hasta')
+                            ->numeric()
+                            ->prefix('$'),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when($data['precio_desde'] ?? null, fn ($q, $valor) => $q->where('precio_venta', '>=', $valor))
+                            ->when($data['precio_hasta'] ?? null, fn ($q, $valor) => $q->where('precio_venta', '<=', $valor));
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicadores = [];
+                        if ($data['precio_desde'] ?? null) {
+                            $indicadores[] = 'Precio desde $'.$data['precio_desde'];
+                        }
+                        if ($data['precio_hasta'] ?? null) {
+                            $indicadores[] = 'Precio hasta $'.$data['precio_hasta'];
+                        }
+
+                        return $indicadores;
+                    }),
+
+                Tables\Filters\Filter::make('rango_stock')
+                    ->label('Rango de stock')
+                    ->schema([
+                        Forms\Components\TextInput::make('stock_desde')
+                            ->label('Stock desde')
+                            ->numeric(),
+                        Forms\Components\TextInput::make('stock_hasta')
+                            ->label('Stock hasta')
+                            ->numeric(),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when($data['stock_desde'] ?? null, fn ($q, $valor) => $q->where('stock', '>=', $valor))
+                            ->when($data['stock_hasta'] ?? null, fn ($q, $valor) => $q->where('stock', '<=', $valor));
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicadores = [];
+                        if ($data['stock_desde'] ?? null) {
+                            $indicadores[] = 'Stock desde '.$data['stock_desde'];
+                        }
+                        if ($data['stock_hasta'] ?? null) {
+                            $indicadores[] = 'Stock hasta '.$data['stock_hasta'];
+                        }
+
+                        return $indicadores;
+                    }),
             ])
             ->actions([
                 Actions\ViewAction::make(),
