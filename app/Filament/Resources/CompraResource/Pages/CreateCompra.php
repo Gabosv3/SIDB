@@ -61,6 +61,7 @@ class CreateCompra extends CreateRecord
                                 ->searchable()
                                 ->preload()
                                 ->required()
+                                ->live()
                                 ->columnSpanFull(),
                         ]),
 
@@ -99,11 +100,27 @@ class CreateCompra extends CreateRecord
                                 ->schema([
                                     Forms\Components\Select::make('producto_id')
                                         ->label('Producto')
-                                        ->relationship('producto', 'nombre', modifyQueryUsing: fn ($query) => $query->where('origen', 'manual'))
+                                        ->relationship(
+                                            'producto',
+                                            'nombre',
+                                            modifyQueryUsing: function ($query, Get $get) {
+                                                $query->where('origen', 'manual');
+
+                                                $proveedorId = $get('../../proveedor_id');
+                                                if ($proveedorId) {
+                                                    $query->whereHas('proveedores', fn ($q) => $q->where('proveedores.id', $proveedorId));
+                                                }
+
+                                                return $query;
+                                            }
+                                        )
                                         ->searchable()
                                         ->preload()
                                         ->required()
                                         ->columnSpanFull()
+                                        ->helperText(fn (Get $get) => $get('../../proveedor_id')
+                                            ? 'Mostrando solo productos vinculados a este proveedor.'
+                                            : 'Seleccioná un proveedor primero para ver solo sus productos.')
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(function ($state, Set $set) {
                                             if ($state) {
