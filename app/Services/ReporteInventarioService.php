@@ -15,7 +15,7 @@ class ReporteInventarioService
 {
     public static function totales(): array
     {
-        $productos = Producto::where('activo', true)->get(['stock', 'precio_compra', 'precio_venta', 'stock_minimo']);
+        $productos = Producto::where('activo', true)->where('origen', 'manual')->get(['stock', 'precio_compra', 'precio_venta', 'stock_minimo']);
 
         return [
             'total_productos' => $productos->count(),
@@ -32,6 +32,7 @@ class ReporteInventarioService
     public static function stockBajo(): array
     {
         return Producto::where('activo', true)
+            ->where('origen', 'manual')
             ->whereColumn('stock', '<=', 'stock_minimo')
             ->orderBy('stock')
             ->get(['id', 'codigo', 'nombre', 'stock', 'stock_minimo', 'precio_venta'])
@@ -53,6 +54,7 @@ class ReporteInventarioService
     public static function mayorValorizacion(int $limite = 15): array
     {
         return Producto::where('activo', true)
+            ->where('origen', 'manual')
             ->where('stock', '>', 0)
             ->get(['id', 'codigo', 'nombre', 'stock', 'precio_compra', 'precio_venta'])
             ->map(fn (Producto $p) => [
@@ -82,6 +84,7 @@ class ReporteInventarioService
             ->pluck('producto_id');
 
         return Producto::where('activo', true)
+            ->where('origen', 'manual')
             ->where('stock', '>', 0)
             ->whereNotIn('id', $productoIdsConMovimiento)
             ->orderByDesc('stock')
