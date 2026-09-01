@@ -33,16 +33,26 @@ class CompraObserver
     private function registrarMovimientoStock(Compra $compra): void
     {
         foreach ($compra->detalles as $detalle) {
-            // Actualizar stock del producto
-            $detalle->producto->increment('stock', $detalle->cantidad);
+            // El stock se actualiza solo -- MovimientoStock::boot() ya lo suma
+            // al crearse un registro con tipo 'entrada'. Antes se sumaba acá
+            // A MANO además, porque el campo 'tipo' se mandaba mal nombrado
+            // ('tipo_movimiento') y el hook del modelo nunca disparaba; ahora
+            // que el nombre está bien, sumarlo también acá lo duplicaría.
 
-            // Registrar movimiento
+            // Registrar movimiento. user_id y sucursal_id son obligatorios en
+            // la tabla (sin default) -- auth()->id() cubre el caso normal (un
+            // admin cambia el estado desde el panel); usuario_id de la compra
+            // es el respaldo si esto llega a correr fuera de una sesión web
+            // (cola, comando, etc.).
             MovimientoStock::create([
                 'producto_id' => $detalle->producto_id,
-                'tipo_movimiento' => 'entrada',
+                'user_id' => auth()->id() ?? $compra->usuario_id,
+                'sucursal_id' => $detalle->producto->sucursal_id,
+                'tipo' => 'entrada',
                 'cantidad' => $detalle->cantidad,
-                'descripcion' => "Compra {$compra->numero_compra}",
-                'referencia_id' => $compra->id,
+                'precio_unitario' => $detalle->precio_unitario,
+                'referencia' => $compra->numero_compra,
+                'observaciones' => "Compra {$compra->numero_compra}",
             ]);
         }
 
