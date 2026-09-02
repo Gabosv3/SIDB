@@ -88,7 +88,7 @@ class AsignacionDiariaController extends Controller
             'vendedores' => Vendedor::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get(),
             'sucursales' => Sucursal::orderBy('nombre')->get(),
             'categorias' => Categoria::orderBy('nombre')->get(),
-            'productos' => Producto::where('activo', true)->orderBy('nombre')->paginate(12),
+            'productos' => Producto::where('activo', true)->where('stock', '>', 0)->orderBy('nombre')->paginate(12),
         ]);
     }
 
