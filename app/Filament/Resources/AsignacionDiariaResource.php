@@ -72,6 +72,19 @@ class AsignacionDiariaResource extends Resource
                             ->mapWithKeys(fn (Vendedor $v) => [
                                 $v->id => "{$v->nombre} {$v->apellido}",
                             ]))
+                        // El vendedor ya guardado en un registro viejo puede ya no estar
+                        // activo (ej. el empleado quedó suspendido) -- sin esto, el campo
+                        // no encuentra su nombre en la lista de opciones y muestra el ID
+                        // crudo ("47"), como si el dato estuviera roto en vez de mostrar
+                        // quién es y que ya no está activo.
+                        ->getOptionLabelUsing(function ($value) {
+                            $vendedor = Vendedor::find($value);
+                            if (! $vendedor) {
+                                return null;
+                            }
+
+                            return trim("{$vendedor->nombre} {$vendedor->apellido}").($vendedor->activo ? '' : ' (inactivo)');
+                        })
                         ->placeholder('Seleccionar vendedor...')
                         ->searchable()
                         ->preload()
