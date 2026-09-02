@@ -35,6 +35,9 @@ Route::middleware(['web', 'auth', 'can:View:AsignacionesDiarias'])->prefix('asig
     Route::get('{tenant}/crear', 'App\Http\Controllers\AsignacionDiariaController@crear')
         ->name('crear')
         ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/productos-buscar', 'App\Http\Controllers\AsignacionDiariaController@buscarProductos')
+        ->name('productos-buscar')
+        ->where('tenant', '[0-9]+');
     Route::post('{tenant}/guardar', 'App\Http\Controllers\AsignacionDiariaController@guardar')
         ->name('guardar')
         ->where('tenant', '[0-9]+');

@@ -831,6 +831,7 @@
         };
 
         const assetPath = '{{ asset("storage") }}';
+        const productosBuscarUrl = '{{ route('asignacion-diaria.productos-buscar', $tenant) }}';
 
         // Utility functions
         function escapeHtml(text) {
@@ -1047,27 +1048,64 @@
             form.submit();
         }
 
-        // Función para filtrar y buscar
+        // Construye el HTML de una tarjeta de producto, igual a la que arma
+        // el servidor en la carga inicial de la página.
+        function tarjetaProductoHtml(p) {
+            const imagenHtml = p.imagen
+                ? `<img src="${assetPath}/${p.imagen}" alt="${escapeHtml(p.nombre)}">`
+                : '📦';
+
+            return `
+                <div class="product-card" data-category-id="${p.categoria_id ?? ''}" data-product-name="${escapeHtml(p.nombre.toLowerCase())}" data-product-code="${escapeHtml(p.codigo.toLowerCase())}" data-stock="${p.stock}">
+                    <div class="product-image">${imagenHtml}</div>
+                    <div class="product-info">
+                        <div>
+                            <p class="product-name">${escapeHtml(p.nombre)}</p>
+                            <p class="product-code">${escapeHtml(p.codigo)}</p>
+                            <p class="product-stock">Stock: ${p.stock}</p>
+                            <p class="product-price">$${parseFloat(p.precio_venta).toFixed(2)}</p>
+                        </div>
+                        <button type="button" class="add-btn" data-product-id="${p.id}" data-product-name="${escapeHtml(p.nombre)}" data-product-code="${escapeHtml(p.codigo)}" data-product-image="${p.imagen ?? ''}" data-product-price="${p.precio_venta}" data-product-stock="${p.stock}" data-category-id="${p.categoria_id ?? ''}" onclick="agregarProducto(this)">+ Agregar</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Búsqueda real contra el servidor: antes esto solo filtraba entre
+        // los primeros 12 productos que ya venían cargados en la página, así
+        // que cualquier producto fuera de esos 12 (por orden alfabético) era
+        // invisible sin importar lo que se escribiera acá. Ahora sí consulta
+        // todo el catálogo.
+        let buscarProductosTimeout = null;
         function filtrarProductos() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            clearTimeout(buscarProductosTimeout);
+            buscarProductosTimeout = setTimeout(ejecutarBusquedaProductos, 250);
+        }
+
+        function ejecutarBusquedaProductos() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
             const categoryId = document.querySelector('.category-btn.active')?.dataset.category || '';
-            let visibles = 0;
+            const grid = document.getElementById('productsGrid');
 
-            document.querySelectorAll('.product-card').forEach(card => {
-                const cardCategory = card.dataset.categoryId || '';
-                const cardName = card.dataset.productName || '';
-                const cardCode = card.dataset.productCode || '';
-                const stock = parseInt(card.dataset.stock) || 0;
+            const url = new URL(productosBuscarUrl, window.location.origin);
+            if (searchTerm) url.searchParams.set('q', searchTerm);
+            if (categoryId) url.searchParams.set('categoria_id', categoryId);
 
-                const matchSearch = cardName.includes(searchTerm) || cardCode.includes(searchTerm);
-                const matchCategory = !categoryId || cardCategory === categoryId;
-                const shouldShow = matchSearch && matchCategory && stock > 0;
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('productCount').textContent = data.total;
 
-                card.style.display = shouldShow ? '' : 'none';
-                if (shouldShow) visibles++;
-            });
+                    if (data.productos.length === 0) {
+                        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem; color: #6b7280;">No hay productos disponibles</div>';
+                        return;
+                    }
 
-            document.getElementById('productCount').textContent = visibles;
+                    grid.innerHTML = data.productos.map(tarjetaProductoHtml).join('');
+                })
+                .catch(() => {
+                    showNotification('No se pudo buscar productos, intenta de nuevo', 'warning');
+                });
         }
 
         // Event listener para búsqueda
@@ -1078,17 +1116,12 @@
             if (e.target.classList.contains('category-btn')) {
                 document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
                 e.target.classList.add('active');
-                filtrarProductos();
+                ejecutarBusquedaProductos();
             }
         });
 
         // Set min date on fecha input
         document.getElementById('fechaInput').min = new Date().toISOString().split('T')[0];
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            filtrarProductos();
-        });
     </script>
 </body>
 </html>

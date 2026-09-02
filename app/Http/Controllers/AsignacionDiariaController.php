@@ -33,7 +33,36 @@ class AsignacionDiariaController extends Controller
             'vendedores' => $vendedores,
             'sucursales' => Sucursal::orderBy('nombre')->get(),
             'categorias' => Categoria::orderBy('nombre')->get(),
-            'productos' => Producto::where('activo', true)->orderBy('nombre')->paginate(12),
+            'productos' => Producto::where('activo', true)->where('stock', '>', 0)->orderBy('nombre')->paginate(12),
+        ]);
+    }
+
+    /**
+     * Búsqueda de productos para el catálogo de "Crear asignación" — el
+     * buscador de esa pantalla antes solo filtraba entre los primeros 12
+     * productos ya cargados en la página (paginate(12) sin forma de traer
+     * más), así que cualquier producto que no cayera ahí por orden
+     * alfabético era invisible sin importar lo que se escribiera. Este
+     * endpoint sí consulta todo el catálogo activo con stock.
+     */
+    public function buscarProductos(Request $request, $tenant)
+    {
+        $termino = trim((string) $request->get('q', ''));
+        $categoriaId = $request->get('categoria_id');
+
+        $productos = Producto::where('activo', true)
+            ->where('stock', '>', 0)
+            ->when($termino !== '', fn ($q) => $q->where(fn ($q2) => $q2
+                ->where('nombre', 'like', "%{$termino}%")
+                ->orWhere('codigo', 'like', "%{$termino}%")))
+            ->when($categoriaId, fn ($q) => $q->where('categoria_id', $categoriaId))
+            ->orderBy('nombre')
+            ->limit(60)
+            ->get(['id', 'nombre', 'codigo', 'imagen', 'stock', 'precio_venta', 'categoria_id']);
+
+        return response()->json([
+            'productos' => $productos,
+            'total' => $productos->count(),
         ]);
     }
 
