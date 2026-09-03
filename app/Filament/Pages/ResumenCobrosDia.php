@@ -173,7 +173,7 @@ class ResumenCobrosDia extends Page
                     ->label('Cobrador')
                     ->options(fn () => $this->getCobradores()
                         ->filter(fn (Cobrador $c) => $c->user_id)
-                        ->mapWithKeys(fn (Cobrador $c) => [$c->id => "{$c->nombre} {$c->apellido}"]))
+                        ->mapWithKeys(fn (Cobrador $c) => [(string) $c->id => "{$c->nombre} {$c->apellido}"]))
                     ->default(fn () => $this->cobrador_id)
                     ->searchable()
                     ->required(),
@@ -198,7 +198,7 @@ class ResumenCobrosDia extends Page
                         ->limit(20)
                         ->get()
                         ->mapWithKeys(fn (Venta $v) => [
-                            $v->id => sprintf('%s — %s (saldo $%s)', $v->numero_venta, $v->cliente?->nombre_completo ?? 'Sin cliente', number_format((float) $v->saldo_pendiente, 2)),
+                            (string) $v->id => sprintf('%s — %s (saldo $%s)', $v->numero_venta, $v->cliente?->nombre_completo ?? 'Sin cliente', number_format((float) $v->saldo_pendiente, 2)),
                         ]))
                     ->getOptionLabelUsing(function ($value) {
                         $venta = Venta::with('cliente')->find($value);

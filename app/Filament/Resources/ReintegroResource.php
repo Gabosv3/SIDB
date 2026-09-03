@@ -97,7 +97,7 @@ class ReintegroResource extends Resource
                                 ->limit(20)
                                 ->get()
                                 ->mapWithKeys(fn ($v) => [
-                                    $v->id => "{$v->numero_venta} — " . ($v->cliente?->nombre_completo ?? ''),
+                                    (string) $v->id => "{$v->numero_venta} — " . ($v->cliente?->nombre_completo ?? ''),
                                 ])
                         )
                         ->reactive()
@@ -116,7 +116,7 @@ class ReintegroResource extends Resource
                             Vendedor::where('activo', true)
                                 ->orderBy('nombre')
                                 ->get()
-                                ->mapWithKeys(fn ($v) => [$v->id => "{$v->nombre} {$v->apellido} ({$v->codigo})"])
+                                ->mapWithKeys(fn ($v) => [(string) $v->id => "{$v->nombre} {$v->apellido} ({$v->codigo})"])
                         )
                         ->searchable()
                         ->required(),

@@ -70,7 +70,13 @@ class AsignacionDiariaResource extends Resource
                             ->orderBy('nombre')
                             ->get()
                             ->mapWithKeys(fn (Vendedor $v) => [
-                                $v->id => "{$v->nombre} {$v->apellido}",
+                                // (string) explícito: el valor guardado en el formulario
+                                // llega como texto ("47"), y si las llaves de este arreglo
+                                // quedan como número (47), el selector del navegador no
+                                // encuentra la coincidencia exacta -- no marca nada como
+                                // seleccionado, y con solo abrir/cerrar el desplegable
+                                // termina "eligiendo" otra opción por error.
+                                (string) $v->id => "{$v->nombre} {$v->apellido}",
                             ]))
                         // El vendedor ya guardado en un registro viejo puede ya no estar
                         // activo (ej. el empleado quedó suspendido) -- sin esto, el campo
@@ -137,7 +143,7 @@ class AsignacionDiariaResource extends Resource
                                     ->orderBy('nombre')
                                     ->get()
                                     ->mapWithKeys(fn (Producto $producto) => [
-                                        $producto->id => "{$producto->nombre} ({$producto->codigo}) - Stock: {$producto->stock}",
+                                        (string) $producto->id => "{$producto->nombre} ({$producto->codigo}) - Stock: {$producto->stock}",
                                     ]))
                                 ->placeholder('Buscar producto...')
                                 ->searchable()

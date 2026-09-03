@@ -149,7 +149,7 @@ class PreventaResource extends Resource
                             ->when($get('sucursal_id'), fn ($q, $sucursalId) => $q->where('sucursal_id', $sucursalId))
                             ->orderBy('nombre')
                             ->get()
-                            ->mapWithKeys(fn ($v) => [$v->id => "{$v->nombre} {$v->apellido} ({$v->codigo})"]))
+                            ->mapWithKeys(fn ($v) => [(string) $v->id => "{$v->nombre} {$v->apellido} ({$v->codigo})"]))
                         ->searchable()
                         ->nullable(),
 
