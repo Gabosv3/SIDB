@@ -1032,7 +1032,7 @@
             // Crear y enviar form
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = '{{ route("asignacion-diaria.guardar", ["tenant" => $tenant]) }}';
+            form.action = '{{ route("asignacion-diaria.actualizar", ["tenant" => $tenant, "asignacion" => $asignacion->id]) }}';
 
             form.innerHTML = '<input type="hidden" name="_token" value="{{ csrf_token() }}">';
             form.innerHTML += `<input type="hidden" name="vendedor_id" value="${vendedorId}">`;
