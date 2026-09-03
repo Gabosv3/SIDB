@@ -12,6 +12,18 @@ Route::get('/', function () {
 // fuera de Filament; sin esto, un acceso sin sesión lanza RouteNotFoundException (500).
 Route::get('/login', fn () => redirect()->route('filament.administrativo.auth.login'))->name('login');
 
+// TEMPORAL: fuerza a limpiar OPcache del proceso web (no del CLI, que es un
+// proceso separado) para diagnosticar codigo que parece "no actualizarse" en
+// produccion aunque el archivo en disco ya este al dia. Quitar despues.
+Route::get('/_limpiar-opcache-temporal', function () {
+    $resultado = function_exists('opcache_reset') ? opcache_reset() : null;
+
+    return response()->json([
+        'opcache_disponible' => function_exists('opcache_reset'),
+        'opcache_limpiado' => $resultado,
+    ]);
+})->middleware(['web', 'auth']);
+
 // Exportación de clientes
 Route::middleware(['web', 'auth', 'can:Export:Clientes'])->prefix('clientes')->name('clientes.')->group(function () {
     Route::get('/exportar/csv', 'App\Http\Controllers\ClienteExportController@exportarSimpleCSV')->name('exportar.csv');
