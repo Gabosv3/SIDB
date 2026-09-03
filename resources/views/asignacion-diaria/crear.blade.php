@@ -294,11 +294,7 @@
             color: white;
             font-size: 13px;
             line-height: 1.4;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            overflow-wrap: break-word;
         }
 
         .product-code {
