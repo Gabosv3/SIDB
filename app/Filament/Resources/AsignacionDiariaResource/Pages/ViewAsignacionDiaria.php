@@ -20,8 +20,15 @@ class ViewAsignacionDiaria extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make()
-                ->visible(fn () => $this->record->estaActiva()),
+            Actions\Action::make('editar')
+                ->label('Editar')
+                ->icon('heroicon-m-pencil-square')
+                ->color('warning')
+                ->visible(fn () => $this->record->estaActiva())
+                ->url(fn () => route('asignacion-diaria.editar', [
+                    'tenant' => \Filament\Facades\Filament::getTenant()->id,
+                    'asignacion' => $this->record->id,
+                ])),
 
             Actions\Action::make('liquidar')
                 ->label('Liquidar jornada')
