@@ -12,6 +12,38 @@ Route::get('/', function () {
 // fuera de Filament; sin esto, un acceso sin sesión lanza RouteNotFoundException (500).
 Route::get('/login', fn () => redirect()->route('filament.administrativo.auth.login'))->name('login');
 
+// TEMPORAL: diagnostico de OPcache + version real del codigo que PHP tiene
+// cargado en memoria en este momento (no lo que hay en disco). Quitar despues.
+Route::get('/_diagnostico-opcache', function () {
+    $archivo = app_path('Filament/Resources/AsignacionDiariaResource.php');
+
+    $estado = [
+        'opcache_habilitado' => function_exists('opcache_get_status'),
+        'opcache_validate_timestamps' => ini_get('opcache.validate_timestamps'),
+        'opcache_revalidate_freq' => ini_get('opcache.revalidate_freq'),
+    ];
+
+    if (function_exists('opcache_get_status')) {
+        $status = opcache_get_status(false);
+        $cachedScripts = $status['scripts'] ?? [];
+        $entry = collect($cachedScripts)->first(fn ($s, $path) => str_contains($path, 'AsignacionDiariaResource.php'));
+        $estado['archivo_en_opcache'] = $entry !== null;
+        if ($entry) {
+            $estado['opcache_timestamp'] = date('Y-m-d H:i:s', $entry['timestamp'] ?? 0);
+        }
+    }
+
+    $estado['archivo_en_disco_timestamp'] = date('Y-m-d H:i:s', filemtime($archivo));
+    $estado['archivo_en_disco_tiene_fix'] = str_contains(file_get_contents($archivo), '(string) $v->id');
+
+    if (function_exists('opcache_reset')) {
+        opcache_reset();
+        $estado['opcache_reseteado_ahora'] = true;
+    }
+
+    return response()->json($estado, 200, [], JSON_PRETTY_PRINT);
+})->middleware(['web', 'auth']);
+
 // Exportación de clientes
 Route::middleware(['web', 'auth', 'can:Export:Clientes'])->prefix('clientes')->name('clientes.')->group(function () {
     Route::get('/exportar/csv', 'App\Http\Controllers\ClienteExportController@exportarSimpleCSV')->name('exportar.csv');
