@@ -35,6 +35,11 @@ Route::get('/_diagnostico-opcache', function () {
 
     $estado['archivo_en_disco_timestamp'] = date('Y-m-d H:i:s', filemtime($archivo));
     $estado['archivo_en_disco_tiene_fix'] = str_contains(file_get_contents($archivo), '(string) $v->id');
+    $estado['archivo_ruta_real'] = realpath($archivo);
+    $estado['base_path'] = base_path();
+    $estado['marcador_unico_9c23e88fa333'] = class_exists(\App\Filament\Resources\AsignacionDiariaResource::class)
+        ? 'presente en el autoloader'
+        : 'AUSENTE (raro)';
 
     if (function_exists('opcache_reset')) {
         opcache_reset();
