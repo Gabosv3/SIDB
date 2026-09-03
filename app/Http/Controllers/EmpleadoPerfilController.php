@@ -160,6 +160,14 @@ class EmpleadoPerfilController extends Controller
         $apellido = $partes[1] ?? '';
         $activo = $estadoLaboral === 'activo';
 
+        // Fuente de la sucursal operativa: la(s) que ya se le asignaron al
+        // usuario en Usuarios → Permisos → Asignación de sucursales. Antes se
+        // caía a Sucursal::first() como default, lo cual es incorrecto en
+        // cuanto hay más de una sucursal (asignaba la sucursal equivocada sin
+        // ningún error visible — vendedor/cobrador sin clientes en su ruta).
+        $sucursalIdAsignada = $empleado->sucursales()->orderBy('nombre')->value('sucursales.id')
+            ?? \App\Models\Sucursal::first()?->id;
+
         if (in_array('vendedor', $tiposEmpleado, true)) {
             Vendedor::updateOrCreate(
                 ['user_id' => $empleado->id],
@@ -169,6 +177,7 @@ class EmpleadoPerfilController extends Controller
                     'email' => $empleado->email,
                     'activo' => $activo,
                     'codigo' => Vendedor::where('user_id', $empleado->id)->value('codigo') ?? sprintf('V%04d', $empleado->id),
+                    'sucursal_id' => Vendedor::where('user_id', $empleado->id)->value('sucursal_id') ?? $sucursalIdAsignada,
                 ]
             );
         } else {
@@ -183,7 +192,7 @@ class EmpleadoPerfilController extends Controller
                     'apellido' => $apellido,
                     'email' => $empleado->email,
                     'activo' => $activo,
-                    'sucursal_id' => Cobrador::where('user_id', $empleado->id)->value('sucursal_id') ?? \App\Models\Sucursal::first()?->id,
+                    'sucursal_id' => Cobrador::where('user_id', $empleado->id)->value('sucursal_id') ?? $sucursalIdAsignada,
                 ]
             );
         } else {
