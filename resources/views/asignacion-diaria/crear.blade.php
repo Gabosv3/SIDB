@@ -378,7 +378,7 @@
 
         /* RIGHT PANEL */
         .right-panel {
-            width: 300px;
+            width: 380px;
             background: #111827;
             border: 1px solid #1f2937;
             border-radius: 0.75rem;
