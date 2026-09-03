@@ -449,8 +449,8 @@
         }
 
         .cart-item-image {
-            width: 40px;
-            height: 40px;
+            width: 48px;
+            height: 48px;
             background: #374151;
             border-radius: 0.5rem;
             flex-shrink: 0;
@@ -473,12 +473,10 @@
         }
 
         .cart-item-name {
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             color: white;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            overflow-wrap: break-word;
         }
 
         .cart-item-code {
