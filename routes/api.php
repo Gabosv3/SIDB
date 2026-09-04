@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PreventaController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\ReintegroController;
+use App\Http\Controllers\Api\GarantiaController;
 use App\Http\Controllers\Api\ValeController;
 use App\Http\Controllers\Api\VehiculoController;
 use App\Http\Controllers\Api\VentaController;
@@ -101,6 +102,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ReintegroController::class, 'index']);
             Route::post('/', [ReintegroController::class, 'store']);
             Route::patch('/{id}/estado', [ReintegroController::class, 'actualizarEstado']);
+        });
+
+        // ── Garantías (vendedores y cobradores con acceso POS) ───────────────
+        Route::prefix('garantias')->group(function () {
+            Route::get('/', [GarantiaController::class, 'index']);
+            Route::post('/', [GarantiaController::class, 'store']);
         });
 
         // ── Cobros: reportes accesibles por cualquier perfil POS ─────────────

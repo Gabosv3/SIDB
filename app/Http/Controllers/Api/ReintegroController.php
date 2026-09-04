@@ -310,7 +310,7 @@ class ReintegroController extends Controller
         $query = Reintegro::query()
             ->with([
                 'venta:id,numero_venta,total,saldo_pendiente',
-                'cliente:id,nombre,apellido,dui,telefono_normal',
+                'cliente:id,nombre,apellido,dui,telefono_normal,direccion,latitud,longitud',
                 'vendedor:id,nombre,apellido,codigo',
             ])
             ->where(function ($q) use ($vendedor, $cobrador) {
@@ -352,6 +352,9 @@ class ReintegroController extends Controller
                 'nombre'  => $r->cliente->nombre_completo,
                 'dui'     => $r->cliente->dui,
                 'telefono' => $r->cliente->telefono_normal,
+                'direccion' => $r->cliente->direccion,
+                'latitud'  => $r->cliente->latitud !== null ? (float) $r->cliente->latitud : null,
+                'longitud' => $r->cliente->longitud !== null ? (float) $r->cliente->longitud : null,
             ] : null,
             'vendedor'        => $r->vendedor ? [
                 'id'     => $r->vendedor->id,

@@ -530,6 +530,7 @@ class CobroController extends Controller
         $data = $request->validate([
             'codigo' => 'required|string|max:50',
         ]);
+        $termino = $data['codigo'];
 
         $cobrador = $this->cobrador($request);
         if (! $cobrador) {
@@ -538,9 +539,18 @@ class CobroController extends Controller
 
         $rutasIds = $this->rutasIdsAccesibles($request, $cobrador);
 
+        // Antes solo buscaba por código_anterior — el cobrador también
+        // necesita encontrar un cliente por nombre o teléfono cuando no
+        // recuerda el código, así que se busca en todos esos campos.
         $clientes = Cliente::whereIn('ruta_cobro_id', $rutasIds)
             ->where('activo', true)
-            ->where('codigo_anterior', 'like', '%'.$data['codigo'].'%')
+            ->where(function ($q) use ($termino) {
+                $q->where('codigo_anterior', 'like', '%'.$termino.'%')
+                  ->orWhere('nombre', 'like', '%'.$termino.'%')
+                  ->orWhere('apellido', 'like', '%'.$termino.'%')
+                  ->orWhere('telefono_normal', 'like', '%'.$termino.'%')
+                  ->orWhere('telefono_whatsapp', 'like', '%'.$termino.'%');
+            })
             ->with('rutaCobro:id,nombre,dia_semana')
             ->orderBy('codigo_anterior')
             ->get()
@@ -643,6 +653,15 @@ class CobroController extends Controller
         $totalPendientes = $gestiones->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])->count();
         $totalVencidas   = $gestiones->filter(fn ($g) => $g->fecha_vencimiento->isPast() && $g->estado !== 'cobrado')->count();
 
+        // Último abono del cliente — el cobrador necesita verlo apenas entra
+        // al detalle, para saber si ya pasó mucho tiempo sin pagar sin tener
+        // que revisar cuota por cuota.
+        $ultimoPago = \App\Models\PagoVenta::where('cliente_id', $id)
+            ->whereNull('anulado_en')
+            ->orderByDesc('fecha_pago')
+            ->orderByDesc('id')
+            ->first();
+
         return response()->json([
             'cliente' => [
                 'id'             => $cliente->id,
@@ -656,6 +675,11 @@ class CobroController extends Controller
                 'ruta'           => $cliente->rutaCobro?->nombre,
                 'latitud'        => $cliente->latitud !== null ? (float) $cliente->latitud : null,
                 'longitud'       => $cliente->longitud !== null ? (float) $cliente->longitud : null,
+                'ultimo_pago'    => $ultimoPago ? [
+                    'fecha'  => $ultimoPago->fecha_pago->format('d/m/Y'),
+                    'monto'  => (float) $ultimoPago->monto,
+                    'dias'   => $ultimoPago->fecha_pago->diffInDays(now()->startOfDay()),
+                ] : null,
             ],
             'resumen' => [
                 'total_ventas'   => $ventas->count(),
