@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ClienteResource\RelationManagers;
 
+use Filament\Actions;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -57,7 +58,7 @@ class PagaresRelationManager extends RelationManager
                     ->placeholder('—'),
             ])
             ->actions([
-                Tables\Actions\Action::make('ver')
+                Actions\Action::make('ver')
                     ->label('Ver PDF')
                     ->icon('heroicon-o-document-text')
                     ->url(fn ($record) => $record->pdf_url)
