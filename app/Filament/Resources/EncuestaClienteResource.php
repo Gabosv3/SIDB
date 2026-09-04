@@ -21,6 +21,11 @@ class EncuestaClienteResource extends Resource
 {
     protected static ?string $model = EncuestaCliente::class;
 
+    // El modelo no tiene columna de sucursal directa (se llega a ella vía
+    // cliente->rutaCobro->sucursal) — sin esto, Filament exige una relación
+    // "sucursal" para el multi-tenant y el recurso ni siquiera carga.
+    protected static bool $isScopedToTenant = false;
+
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-clipboard-document-check';
