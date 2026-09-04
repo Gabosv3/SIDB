@@ -51,9 +51,19 @@ class HikvisionAsistenciaWebhookController extends Controller
         Log::info('Webhook Hikvision: evento recibido', $evento);
 
         $codigoEmpleado = $evento['codigo_empleado'] ?? null;
-        $userId = $codigoEmpleado
-            ? EmployeeProfile::where('codigo_asistencia', $codigoEmpleado)->value('user_id')
-            : null;
+
+        // El equipo manda por el mismo webhook otros eventos del control de
+        // acceso que no son marcajes reales (ej. majorEventType 3 / "invalid":
+        // un intento de verificación fallido o un evento de puerta), y esos
+        // vienen sin employeeNoString. Antes se guardaban igual como un
+        // "marcaje" vacío sin empleado, ensuciando la tabla — se descartan.
+        if (! $codigoEmpleado) {
+            Log::info('Webhook Hikvision: evento descartado por no traer código de empleado (no es un marcaje real)', $evento);
+
+            return response('descartado, sin empleado', 200);
+        }
+
+        $userId = EmployeeProfile::where('codigo_asistencia', $codigoEmpleado)->value('user_id');
 
         if (! $userId) {
             Log::warning('Webhook Hikvision: código de empleado sin vincular a ningún perfil', [
