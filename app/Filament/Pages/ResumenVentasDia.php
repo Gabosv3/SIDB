@@ -41,7 +41,7 @@ class ResumenVentasDia extends Page
 
     public function getVendedores(): \Illuminate\Support\Collection
     {
-        return Vendedor::where('activo', true)->orderBy('nombre')->get();
+        return Vendedor::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get();
     }
 
     public function getResumen(): \Illuminate\Support\Collection
