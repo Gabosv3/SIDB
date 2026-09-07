@@ -22,6 +22,14 @@ class GarantiaResource extends Resource
 {
     protected static ?string $model = Garantia::class;
 
+    // Ya está "Garantías del Día" en el grupo Resúmenes (mismo dato, con
+    // filtros y totales) — se oculta este listado crudo del menú para no
+    // duplicar. Se llega igual desde el botón "Gestionar" del resumen.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-shield-exclamation';

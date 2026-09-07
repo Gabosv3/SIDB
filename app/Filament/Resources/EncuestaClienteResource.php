@@ -26,6 +26,14 @@ class EncuestaClienteResource extends Resource
     // "sucursal" para el multi-tenant y el recurso ni siquiera carga.
     protected static bool $isScopedToTenant = false;
 
+    // Ya está "Encuestas de Cliente" en el grupo Resúmenes (mismo dato, con
+    // filtros por fecha/cobrador) — se oculta este listado crudo del menú
+    // para no duplicar. Se llega igual desde el botón "Gestionar" del resumen.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-clipboard-document-check';

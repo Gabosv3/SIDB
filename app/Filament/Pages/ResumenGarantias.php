@@ -2,9 +2,11 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\GarantiaResource;
 use App\Models\Garantia;
 use App\Models\User;
 use App\Services\ResumenGarantiasService;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 
@@ -37,6 +39,17 @@ class ResumenGarantias extends Page
     public function mount(): void
     {
         $this->fecha = today()->toDateString();
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('gestionar')
+                ->label('Gestionar garantías')
+                ->icon('heroicon-m-cog-6-tooth')
+                ->color('gray')
+                ->url(fn () => GarantiaResource::getUrl('index')),
+        ];
     }
 
     public function getAsignados(): \Illuminate\Support\Collection

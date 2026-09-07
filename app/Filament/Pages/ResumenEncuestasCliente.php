@@ -2,8 +2,10 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\EncuestaClienteResource;
 use App\Models\Cobrador;
 use App\Services\ResumenEncuestasClienteService;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 
@@ -36,6 +38,17 @@ class ResumenEncuestasCliente extends Page
     public function mount(): void
     {
         $this->fecha = today()->toDateString();
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('gestionar')
+                ->label('Gestionar encuestas')
+                ->icon('heroicon-m-cog-6-tooth')
+                ->color('gray')
+                ->url(fn () => EncuestaClienteResource::getUrl('index')),
+        ];
     }
 
     public function getCobradores(): \Illuminate\Support\Collection

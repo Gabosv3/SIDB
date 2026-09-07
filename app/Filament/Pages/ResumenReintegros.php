@@ -2,10 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Resources\ReintegroResource;
 use App\Models\Cobrador;
 use App\Models\RutaCobro;
 use App\Models\Vendedor;
 use App\Services\ResumenReintegrosService;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 
@@ -42,6 +44,17 @@ class ResumenReintegros extends Page
     public function mount(): void
     {
         $this->fecha = today()->toDateString();
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('gestionar')
+                ->label('Gestionar reintegros')
+                ->icon('heroicon-m-cog-6-tooth')
+                ->color('gray')
+                ->url(fn () => ReintegroResource::getUrl('index')),
+        ];
     }
 
     public function getVendedores(): \Illuminate\Support\Collection
