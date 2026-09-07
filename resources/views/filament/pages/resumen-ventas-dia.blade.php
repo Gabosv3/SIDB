@@ -51,6 +51,8 @@
     .rv-badge-pendiente    { background:#f1f5f9; color:#475569; }
     .rv-badge-cancelada    { background:#ffe4e6; color:#9f1239; }
     .rv-badge-devuelta     { background:#ffe4e6; color:#9f1239; }
+    .rv-mapa-link          { color:#0369a1; font-size:0.75rem; font-weight:600; text-decoration:none; white-space:nowrap; }
+    .rv-mapa-link:hover    { text-decoration:underline; }
 
     /* ── Dark mode ── */
     .dark .rv-input         { background: #2a2a35; border-color: #3f3f50; color: #f3f4f6; }
@@ -74,6 +76,7 @@
     .dark .rv-badge-pendiente  { background:rgba(100,116,139,.18);color:#94a3b8; }
     .dark .rv-badge-cancelada  { background:rgba(225,29,72,.18);  color:#fb7185; }
     .dark .rv-badge-devuelta   { background:rgba(225,29,72,.18);  color:#fb7185; }
+    .dark .rv-mapa-link        { color:#38bdf8; }
 </style>
 
 @php
@@ -177,6 +180,8 @@
                         <th>Cliente</th>
                         <th>Teléfono</th>
                         <th>¿Nuevo?</th>
+                        <th>Producto</th>
+                        <th>Ubicación</th>
                         <th>Vendedor</th>
                         <th>Venta</th>
                         <th>Tipo pago</th>
@@ -202,6 +207,18 @@
                                 <span class="rv-badge {{ $r->es_cliente_nuevo ? 'rv-badge-nuevo' : 'rv-badge-recurrente' }}">
                                     {{ $r->es_cliente_nuevo ? 'Nuevo' : 'Recurrente' }}
                                 </span>
+                            </td>
+                            <td class="rv-td" style="color:#6b7280">
+                                {{ $v->detalles->pluck('producto.nombre')->filter()->implode(', ') ?: '—' }}
+                            </td>
+                            <td class="rv-td">
+                                @if($c?->latitud && $c?->longitud)
+                                    <a href="https://www.google.com/maps?q={{ $c->latitud }},{{ $c->longitud }}" target="_blank" class="rv-mapa-link">
+                                        Ver en mapa
+                                    </a>
+                                @else
+                                    <span style="color:#9ca3af;font-size:0.75rem;font-style:italic">Sin ubicación</span>
+                                @endif
                             </td>
                             <td class="rv-td" style="color:#6b7280">
                                 {{ $v->vendedor ? "{$v->vendedor->nombre} {$v->vendedor->apellido}" : '—' }}

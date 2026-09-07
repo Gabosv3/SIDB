@@ -108,15 +108,16 @@ class AdministrativoPanelProvider extends PanelProvider
                 Dashboard::class,
             ])
             ->navigationGroups([
-                NavigationGroup::make('POS'),
-                NavigationGroup::make('Cobros'),
+                NavigationGroup::make('Resúmenes'),
                 NavigationGroup::make('Ventas'),
-                NavigationGroup::make('Comercial'),
-                NavigationGroup::make('Comunicación'),
-                NavigationGroup::make('Compras'),
+                NavigationGroup::make('Cobros'),
                 NavigationGroup::make('Inventario'),
+                NavigationGroup::make('Compras'),
+                NavigationGroup::make('Empleados'),
+                NavigationGroup::make('Vehículos y Gastos'),
                 NavigationGroup::make('Administración'),
                 NavigationGroup::make('Sistema'),
+                NavigationGroup::make('Historial'),
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([

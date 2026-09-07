@@ -19,7 +19,7 @@ class ResumenVentasDiaService
         $dia = Carbon::parse($fecha)->startOfDay();
 
         $query = Venta::whereDate('fecha_venta', $dia)
-            ->with(['cliente', 'vendedor', 'user'])
+            ->with(['cliente', 'vendedor', 'user', 'detalles.producto:id,nombre'])
             ->when($vendedorIds !== [], fn ($q) => $q->whereIn('vendedor_id', $vendedorIds))
             ->orderBy('fecha_venta');
 

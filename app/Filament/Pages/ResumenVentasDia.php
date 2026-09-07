@@ -9,7 +9,7 @@ use Filament\Support\Enums\Width;
 
 class ResumenVentasDia extends Page
 {
-    protected static ?string $navigationLabel = 'Resumen del Día';
+    protected static ?string $navigationLabel = 'Ventas del Día';
     protected static ?string $title = 'Resumen de Ventas del Día';
     protected string $view = 'filament.pages.resumen-ventas-dia';
     protected Width|string|null $maxContentWidth = Width::Full;
@@ -26,12 +26,12 @@ class ResumenVentasDia extends Page
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Ventas';
+        return 'Resúmenes';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 2;
+        return 1;
     }
 
     public function mount(): void
