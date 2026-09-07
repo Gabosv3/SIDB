@@ -43,9 +43,11 @@ class GarantiaController extends Controller
             'id'          => $g->id,
             'cliente'     => trim(($g->cliente?->nombre ?? '').' '.($g->cliente?->apellido ?? '')),
             'venta'       => $g->venta?->numero_venta,
+            'motivo'      => $g->motivo,
             'descripcion' => $g->descripcion,
             'resolucion'  => $g->resolucion,
             'estado'      => $g->estado,
+            'fotos'       => $g->fotos_urls,
             'fecha_reporte' => $g->fecha_reporte->toDateString(),
             'creado'      => $g->created_at->format('d/m/Y H:i'),
         ]);
@@ -61,14 +63,19 @@ class GarantiaController extends Controller
         tags: ['Garantías'],
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(
-                required: ['venta_id', 'descripcion'],
-                properties: [
-                    new OA\Property(property: 'venta_id', type: 'integer', example: 20),
-                    new OA\Property(property: 'descripcion', type: 'string', example: 'El refrigerador no enfría desde hace una semana'),
-                    new OA\Property(property: 'idempotency_key', type: 'string', nullable: true, maxLength: 80),
-                ],
-            ),
+            content: new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    required: ['venta_id', 'descripcion'],
+                    properties: [
+                        new OA\Property(property: 'venta_id', type: 'integer', example: 20),
+                        new OA\Property(property: 'motivo', type: 'string', nullable: true, example: 'No enfría'),
+                        new OA\Property(property: 'descripcion', type: 'string', example: 'El refrigerador no enfría desde hace una semana'),
+                        new OA\Property(property: 'fotos', type: 'array', items: new OA\Items(type: 'string', format: 'binary'), nullable: true, description: 'Hasta 5 fotos del producto dañado'),
+                        new OA\Property(property: 'idempotency_key', type: 'string', nullable: true, maxLength: 80),
+                    ],
+                )
+            )
         ),
         responses: [
             new OA\Response(response: 201, description: 'Garantía reportada'),
@@ -80,7 +87,10 @@ class GarantiaController extends Controller
     {
         $data = $request->validate([
             'venta_id'        => 'required|integer|exists:ventas,id',
+            'motivo'          => 'nullable|string|max:255',
             'descripcion'     => 'required|string|max:1000',
+            'fotos'           => 'nullable|array|max:5',
+            'fotos.*'         => 'image|mimes:jpeg,png,webp|max:4096',
             'idempotency_key' => 'nullable|string|max:80',
         ]);
 
@@ -95,7 +105,7 @@ class GarantiaController extends Controller
     private function crearGarantia(Request $request, array $data): JsonResponse
     {
         $user = $request->user();
-        $venta = Venta::with('cliente')->findOrFail($data['venta_id']);
+        $venta = Venta::with('cliente.rutaCobro')->findOrFail($data['venta_id']);
 
         // El cobrador solo puede reportar garantías de ventas de clientes que
         // realmente están en sus rutas — mismo criterio que el resto de la
@@ -109,13 +119,26 @@ class GarantiaController extends Controller
             }
         }
 
+        $fotos = [];
+        foreach ($request->file('fotos', []) as $foto) {
+            $fotos[] = $foto->store('garantias', 'public');
+        }
+
         $garantia = Garantia::create([
             'venta_id'      => $venta->id,
             'cliente_id'    => $venta->cliente_id,
             'sucursal_id'   => $this->sucursalIdDelUsuario($user) ?? $venta->sucursal_id,
             'reportado_por' => $user->id,
+            // El cobrador que debe pasar a recoger el producto es el de la
+            // ruta del cliente en este momento — normalmente es el mismo que
+            // está reportando la garantía en la visita, pero se guarda por
+            // separado de "reportado_por" porque un supervisor o vendedor
+            // también podría reportarla sin ser quien recoge.
+            'cobrador_id'   => $venta->cliente?->rutaCobro?->cobrador_id,
             'estado'        => 'pendiente',
+            'motivo'        => $data['motivo'] ?? null,
             'descripcion'   => $data['descripcion'],
+            'fotos'         => $fotos ?: null,
             'fecha_reporte' => now()->toDateString(),
         ]);
 

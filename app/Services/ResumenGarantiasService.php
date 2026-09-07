@@ -13,7 +13,7 @@ class ResumenGarantiasService
     {
         return Garantia::whereDate('fecha_reporte', Carbon::parse($fecha))
             ->when($asignadoAIds !== [], fn ($q) => $q->whereIn('asignado_a', $asignadoAIds))
-            ->with(['cliente', 'venta:id,numero_venta', 'reportadoPor', 'asignadoA'])
+            ->with(['cliente', 'venta:id,numero_venta', 'reportadoPor', 'asignadoA', 'cobrador'])
             ->orderByDesc('created_at')
             ->get();
     }

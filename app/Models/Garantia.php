@@ -19,9 +19,12 @@ class Garantia extends Model
         'sucursal_id',
         'reportado_por',
         'asignado_a',
+        'cobrador_id',
         'estado',
+        'motivo',
         'descripcion',
         'resolucion',
+        'fotos',
         'fecha_reporte',
         'fecha_resolucion',
     ];
@@ -29,6 +32,7 @@ class Garantia extends Model
     protected $casts = [
         'fecha_reporte'    => 'date',
         'fecha_resolucion' => 'date',
+        'fotos'            => 'array',
     ];
 
     public function venta(): BelongsTo
@@ -54,6 +58,23 @@ class Garantia extends Model
     public function asignadoA(): BelongsTo
     {
         return $this->belongsTo(User::class, 'asignado_a');
+    }
+
+    // Cobrador de la ruta del cliente al momento del reporte — quien debe
+    // pasar a recoger el producto en su próxima visita.
+    public function cobrador(): BelongsTo
+    {
+        return $this->belongsTo(Cobrador::class);
+    }
+
+    // URLs completas de las fotos, listas para mostrar/enviar — el campo
+    // `fotos` en BD solo guarda las rutas relativas del disco `public`.
+    public function getFotosUrlsAttribute(): array
+    {
+        return collect($this->fotos ?? [])
+            ->map(fn (string $path) => asset('storage/'.$path))
+            ->values()
+            ->all();
     }
 
     public function getActivitylogOptions(): LogOptions

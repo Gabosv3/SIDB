@@ -156,9 +156,12 @@
                     <tr>
                         <th>Cliente</th>
                         <th>Venta</th>
+                        <th>Motivo</th>
                         <th>Reportado por</th>
+                        <th>Recoge (cobrador)</th>
                         <th>Asignado a</th>
                         <th>Descripción</th>
+                        <th>Fotos</th>
                         <th>Estado</th>
                         <th>Resuelto</th>
                     </tr>
@@ -173,11 +176,31 @@
                                 @endif
                             </td>
                             <td class="rg-td" style="color:#6b7280">{{ $g->venta?->numero_venta ?? '—' }}</td>
+                            <td class="rg-td" style="color:#6b7280">{{ $g->motivo ?? '—' }}</td>
                             <td class="rg-td" style="color:#6b7280">{{ $g->reportadoPor?->name ?? '—' }}</td>
+                            <td class="rg-td" style="{{ $g->cobrador ? 'color:#6b7280' : 'color:#dc2626;font-weight:600' }}">
+                                {{ $g->cobrador?->nombre_completo ?? 'Sin asignar' }}
+                            </td>
                             <td class="rg-td" style="{{ $g->asignadoA ? 'color:#6b7280' : 'color:#dc2626;font-weight:600' }}">
                                 {{ $g->asignadoA?->name ?? 'Sin asignar' }}
                             </td>
                             <td class="rg-td" style="color:#6b7280;font-size:0.78rem;max-width:260px">{{ \Illuminate\Support\Str::limit($g->descripcion, 60) }}</td>
+                            <td class="rg-td">
+                                @if($g->fotos)
+                                    <div style="display:flex;gap:.25rem">
+                                        @foreach(array_slice($g->fotos, 0, 3) as $foto)
+                                            <a href="{{ asset('storage/'.$foto) }}" target="_blank">
+                                                <img src="{{ asset('storage/'.$foto) }}" style="width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid #e5e7eb" />
+                                            </a>
+                                        @endforeach
+                                        @if(count($g->fotos) > 3)
+                                            <span style="font-size:0.7rem;color:#9ca3af;align-self:center">+{{ count($g->fotos) - 3 }}</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span style="color:#9ca3af">—</span>
+                                @endif
+                            </td>
                             <td class="rg-td">
                                 <span class="rg-badge rg-badge-{{ $g->estado }}">{{ $estadoLabels[$g->estado] ?? $g->estado }}</span>
                             </td>

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\GarantiaResource\Pages;
+use App\Models\Cobrador;
 use App\Models\Garantia;
 use App\Models\User;
 use App\Models\Venta;
@@ -123,6 +124,22 @@ class GarantiaResource extends Resource
                         ->searchable()
                         ->placeholder('Sin asignar todavía'),
 
+                    // Se autocompleta al reportar desde la app con el cobrador
+                    // de la ruta del cliente, pero se deja editable por si la
+                    // ruta cambió de cobrador entre el reporte y la revisión.
+                    Forms\Components\Select::make('cobrador_id')
+                        ->label('Cobrador que debe recogerlo')
+                        ->relationship('cobrador', 'nombre')
+                        ->getOptionLabelFromRecordUsing(fn (Cobrador $c) => $c->nombre_completo)
+                        ->searchable()
+                        ->preload()
+                        ->placeholder('Sin asignar'),
+
+                    Forms\Components\TextInput::make('motivo')
+                        ->label('Motivo (corto)')
+                        ->placeholder('Ej: No enfría, golpe en transporte, no enciende')
+                        ->maxLength(255),
+
                     Forms\Components\Hidden::make('cliente_id'),
                     Forms\Components\Hidden::make('sucursal_id'),
                     Forms\Components\Hidden::make('reportado_por')
@@ -163,6 +180,17 @@ class GarantiaResource extends Resource
                         ->label('Resolución (qué se hizo — reparación, cambio, rechazo, etc.)')
                         ->rows(3)
                         ->visible(fn (Get $get) => in_array($get('estado'), ['resuelta', 'rechazada'])),
+
+                    // Solo lectura — las fotos las toma el cobrador desde la
+                    // app al reportar, aquí solo se revisan.
+                    Forms\Components\FileUpload::make('fotos')
+                        ->label('Fotos del producto dañado')
+                        ->image()
+                        ->multiple()
+                        ->disk('public')
+                        ->directory('garantias')
+                        ->disabled()
+                        ->panelLayout('grid'),
                 ]),
         ]);
     }
@@ -195,15 +223,36 @@ class GarantiaResource extends Resource
                     ->icon('heroicon-m-phone')
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                Tables\Columns\TextColumn::make('motivo')
+                    ->label('Motivo')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('descripcion')
                     ->label('Problema')
                     ->limit(35)
                     ->tooltip(fn ($record) => $record->descripcion),
 
+                Tables\Columns\ImageColumn::make('fotos')
+                    ->label('Fotos')
+                    ->disk('public')
+                    ->stacked()
+                    ->circular()
+                    ->limit(3)
+                    ->limitedRemainingText(),
+
                 Tables\Columns\TextColumn::make('reportadoPor.name')
                     ->label('Reportado por')
                     ->placeholder('—')
                     ->icon('heroicon-m-user'),
+
+                Tables\Columns\TextColumn::make('cobrador.nombre')
+                    ->label('Recoge')
+                    ->formatStateUsing(fn ($record) =>
+                        trim(($record->cobrador?->nombre ?? '').' '.($record->cobrador?->apellido ?? '')) ?: null
+                    )
+                    ->placeholder('— Sin asignar')
+                    ->icon('heroicon-m-truck'),
 
                 Tables\Columns\TextColumn::make('asignadoA.name')
                     ->label('Asignado a')
@@ -263,6 +312,12 @@ class GarantiaResource extends Resource
                 Tables\Filters\SelectFilter::make('asignado_a')
                     ->label('Asignado a')
                     ->relationship('asignadoA', 'name')
+                    ->searchable()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('cobrador_id')
+                    ->label('Cobrador que recoge')
+                    ->relationship('cobrador', 'nombre')
                     ->searchable()
                     ->preload(),
             ])
