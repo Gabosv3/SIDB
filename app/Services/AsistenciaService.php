@@ -101,4 +101,30 @@ class AsistenciaService
             'total_horas' => round((float) $col->sum('horas_trabajadas'), 2),
         ];
     }
+
+    /**
+     * Agrupa las filas de resumenPorEmpleadoYDia() por empleado, con sus
+     * totales del periodo y el detalle día a día ordenado descendente.
+     *
+     * @param  array  $filas  Salida de resumenPorEmpleadoYDia()
+     */
+    public static function agruparPorEmpleado(array $filas): array
+    {
+        return collect($filas)
+            ->groupBy('empleado')
+            ->map(function ($dias, $empleado) {
+                $dias = $dias->sortByDesc('fecha')->values();
+
+                return [
+                    'empleado' => $empleado,
+                    'dias' => $dias,
+                    'dias_con_marcaje' => $dias->count(),
+                    'tardanzas' => $dias->where('llego_tarde', true)->count(),
+                    'total_horas' => round((float) $dias->sum('horas_trabajadas'), 2),
+                ];
+            })
+            ->sortBy('empleado')
+            ->values()
+            ->all();
+    }
 }

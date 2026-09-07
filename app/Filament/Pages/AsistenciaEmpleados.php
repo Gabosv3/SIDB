@@ -69,6 +69,11 @@ class AsistenciaEmpleados extends Page
         return AsistenciaService::totales($resumen);
     }
 
+    public function getResumenPorEmpleado(array $resumen): array
+    {
+        return AsistenciaService::agruparPorEmpleado($resumen);
+    }
+
     public function irPeriodoAnterior(): void
     {
         $this->fechaReferencia = match ($this->periodoTipo) {
