@@ -2,6 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Cobrador;
+use App\Models\RutaCobro;
 use App\Models\Vendedor;
 use App\Services\ResumenReintegrosService;
 use Filament\Pages\Page;
@@ -17,6 +19,10 @@ class ResumenReintegros extends Page
     public string $fecha = '';
     /** @var array<int> */
     public array $vendedoresSeleccionados = [];
+    /** @var array<int> */
+    public array $cobradoresSeleccionados = [];
+    /** @var array<int> */
+    public array $rutasSeleccionadas = [];
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -43,9 +49,29 @@ class ResumenReintegros extends Page
         return Vendedor::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get();
     }
 
+    /** Cobradores que mandan reintegros (campo asignado_por, que guarda el user_id). */
+    public function getCobradores(): \Illuminate\Support\Collection
+    {
+        return Cobrador::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get();
+    }
+
+    public function getRutas(): \Illuminate\Support\Collection
+    {
+        return RutaCobro::orderBy('nombre')->get();
+    }
+
     public function getResumen(): \Illuminate\Support\Collection
     {
-        return ResumenReintegrosService::resumen($this->fecha, $this->vendedoresSeleccionados);
+        $cobradorUserIds = $this->cobradoresSeleccionados !== []
+            ? Cobrador::whereIn('id', $this->cobradoresSeleccionados)->pluck('user_id')->filter()->all()
+            : [];
+
+        return ResumenReintegrosService::resumen(
+            $this->fecha,
+            $this->vendedoresSeleccionados,
+            $cobradorUserIds,
+            $this->rutasSeleccionadas,
+        );
     }
 
     public function getTotales(\Illuminate\Support\Collection $resumen): array

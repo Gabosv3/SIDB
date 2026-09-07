@@ -67,6 +67,8 @@
     $resumen = $this->getResumen();
     $totales = $this->getTotales($resumen);
     $vendedores = $this->getVendedores();
+    $cobradores = $this->getCobradores();
+    $rutas = $this->getRutas();
 
     $estadoLabels = [
         'pendiente' => 'Pendiente',
@@ -115,6 +117,82 @@
                 <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;color:#111827">
                     <input type="checkbox" value="{{ $vOpt->id }}" wire:model.live="vendedoresSeleccionados">
                     {{ $vOpt->nombre }} {{ $vOpt->apellido }}
+                </label>
+            @endforeach
+        </div>
+    </div>
+
+    <div x-data="{ open: false }" style="position:relative">
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Cobrador que lo mandó</label>
+        <button
+            type="button"
+            @click="open = !open"
+            class="rr-input"
+            style="min-width:200px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.5rem"
+        >
+            <span>
+                @if(empty($cobradoresSeleccionados))
+                    Todos los cobradores
+                @elseif(count($cobradoresSeleccionados) === 1)
+                    {{ $cobradores->firstWhere('id', $cobradoresSeleccionados[0])?->nombre }}
+                @else
+                    {{ count($cobradoresSeleccionados) }} cobradores seleccionados
+                @endif
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div
+            x-show="open"
+            @click.outside="open = false"
+            x-cloak
+            style="position:absolute;top:calc(100% + 4px);left:0;z-index:50;min-width:220px;max-height:280px;overflow-y:auto;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;box-shadow:0 6px 18px rgba(0,0,0,.1);padding:.4rem"
+        >
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;border-bottom:1px solid #f3f4f6;font-weight:600;color:#111827">
+                <input type="checkbox" {{ empty($cobradoresSeleccionados) ? 'checked' : '' }} wire:click="$set('cobradoresSeleccionados', [])">
+                Todos los cobradores
+            </label>
+            @foreach($cobradores as $cOpt)
+                <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;color:#111827">
+                    <input type="checkbox" value="{{ $cOpt->id }}" wire:model.live="cobradoresSeleccionados">
+                    {{ $cOpt->nombre }} {{ $cOpt->apellido }}
+                </label>
+            @endforeach
+        </div>
+    </div>
+
+    <div x-data="{ open: false }" style="position:relative">
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Ruta de origen</label>
+        <button
+            type="button"
+            @click="open = !open"
+            class="rr-input"
+            style="min-width:200px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.5rem"
+        >
+            <span>
+                @if(empty($rutasSeleccionadas))
+                    Todas las rutas
+                @elseif(count($rutasSeleccionadas) === 1)
+                    {{ $rutas->firstWhere('id', $rutasSeleccionadas[0])?->nombre }}
+                @else
+                    {{ count($rutasSeleccionadas) }} rutas seleccionadas
+                @endif
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div
+            x-show="open"
+            @click.outside="open = false"
+            x-cloak
+            style="position:absolute;top:calc(100% + 4px);left:0;z-index:50;min-width:220px;max-height:280px;overflow-y:auto;background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;box-shadow:0 6px 18px rgba(0,0,0,.1);padding:.4rem"
+        >
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;border-bottom:1px solid #f3f4f6;font-weight:600;color:#111827">
+                <input type="checkbox" {{ empty($rutasSeleccionadas) ? 'checked' : '' }} wire:click="$set('rutasSeleccionadas', [])">
+                Todas las rutas
+            </label>
+            @foreach($rutas as $rOpt)
+                <label style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;font-size:.8rem;cursor:pointer;color:#111827">
+                    <input type="checkbox" value="{{ $rOpt->id }}" wire:model.live="rutasSeleccionadas">
+                    {{ $rOpt->nombre }}
                 </label>
             @endforeach
         </div>

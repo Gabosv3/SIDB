@@ -8,11 +8,17 @@ use Illuminate\Support\Collection;
 
 class ResumenReintegrosService
 {
-    /** @param  array<int>  $vendedorIds */
-    public static function resumen(string $fecha, array $vendedorIds = []): Collection
+    /**
+     * @param  array<int>  $vendedorIds
+     * @param  array<int>  $cobradorUserIds  user_id de los cobradores que mandaron el reintegro (campo asignado_por)
+     * @param  array<int>  $rutaIds  ruta_cobro_id_original — la ruta de la que se sacó al cliente
+     */
+    public static function resumen(string $fecha, array $vendedorIds = [], array $cobradorUserIds = [], array $rutaIds = []): Collection
     {
         return Reintegro::whereDate('fecha_asignacion', Carbon::parse($fecha))
             ->when($vendedorIds !== [], fn ($q) => $q->whereIn('vendedor_id', $vendedorIds))
+            ->when($cobradorUserIds !== [], fn ($q) => $q->whereIn('asignado_por', $cobradorUserIds))
+            ->when($rutaIds !== [], fn ($q) => $q->whereIn('ruta_cobro_id_original', $rutaIds))
             ->with(['cliente', 'vendedor', 'asignadoPor', 'rutaCobroOriginal', 'venta:id,numero_venta'])
             ->orderByDesc('created_at')
             ->get();
