@@ -42,12 +42,12 @@ class LiquidacionSemanal extends Page
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Cobros';
+        return 'Reportes de Cobros';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return 3;
+        return 1;
     }
 
     public function mount(): void

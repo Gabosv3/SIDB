@@ -28,7 +28,12 @@ class ReportesCobros extends Page
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Cobros';
+        return 'Reportes de Cobros';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 2;
     }
 
     public function mount(): void

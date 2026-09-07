@@ -111,6 +111,7 @@ class AdministrativoPanelProvider extends PanelProvider
                 NavigationGroup::make('Resúmenes'),
                 NavigationGroup::make('Ventas'),
                 NavigationGroup::make('Cobros'),
+                NavigationGroup::make('Reportes de Cobros'),
                 NavigationGroup::make('Inventario'),
                 NavigationGroup::make('Compras'),
                 NavigationGroup::make('Empleados'),

@@ -21,7 +21,12 @@ class ReportesCartera extends Page
 
     public static function getNavigationGroup(): string|\UnitEnum|null
     {
-        return 'Cobros';
+        return 'Reportes de Cobros';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return 3;
     }
 
     public function getTotales(): array

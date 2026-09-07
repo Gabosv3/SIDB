@@ -45,7 +45,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
 
     public static function getNavigationSort(): ?int
     {
-        return 6;
+        return 3;
     }
 
     public function table(Table $table): Table

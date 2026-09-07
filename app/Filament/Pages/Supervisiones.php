@@ -32,6 +32,11 @@ class Supervisiones extends Page implements HasTable
         return 'Cobros';
     }
 
+    public static function getNavigationSort(): ?int
+    {
+        return 4;
+    }
+
     public function table(Table $table): Table
     {
         return $table

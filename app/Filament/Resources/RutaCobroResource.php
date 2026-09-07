@@ -56,7 +56,7 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
 
     public static function getNavigationSort(): ?int
     {
-        return 5;
+        return 2;
     }
 
     public static function shouldRegisterNavigation(): bool
