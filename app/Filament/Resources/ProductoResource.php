@@ -11,6 +11,8 @@ use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -198,7 +200,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                     Forms\Components\Repeater::make('precios_cuotas')
                                         ->label('')
                                         ->addActionLabel('Agregar opción de cuotas')
-                                        ->columns(3)
+                                        ->columns(4)
                                         ->defaultItems(0)
                                         ->schema([
                                             Forms\Components\TextInput::make('cuotas')
@@ -209,7 +211,47 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                 ->integer()
                                                 ->suffix('cuotas')
                                                 ->required()
+                                                ->live(onBlur: true)
+                                                ->afterStateUpdated(function (Set $set, Get $get): void {
+                                                    $cuotas = (int) ($get('cuotas') ?? 0);
+                                                    $total = (float) ($get('precio_total') ?? 0);
+                                                    if ($cuotas > 0 && $total > 0) {
+                                                        $set('precio_cuota', round($total / $cuotas, 2));
+                                                    }
+                                                })
                                                 ->helperText('Mínimo 2 cuotas.'),
+
+                                            Forms\Components\TextInput::make('precio_total')
+                                                ->label('Precio total a financiar')
+                                                ->numeric()
+                                                ->prefix('$')
+                                                ->minValue(0.01)
+                                                ->step(0.01)
+                                                ->required()
+                                                ->live(onBlur: true)
+                                                // El total no se guarda -- solo existe para calcular precio_cuota.
+                                                // Al editar un registro ya guardado, precio_total llega vacío
+                                                // (nunca se persistió), así que se reconstruye multiplicando
+                                                // cuotas x precio_cuota para no mostrar el campo en blanco.
+                                                ->dehydrated(false)
+                                                ->afterStateHydrated(function ($component, $state, Get $get): void {
+                                                    if (filled($state)) {
+                                                        return;
+                                                    }
+                                                    $cuotas = (float) ($get('cuotas') ?? 0);
+                                                    $precioCuota = (float) ($get('precio_cuota') ?? 0);
+                                                    if ($cuotas > 0 && $precioCuota > 0) {
+                                                        $component->state(round($cuotas * $precioCuota, 2));
+                                                    }
+                                                })
+                                                ->afterStateUpdated(function (Set $set, Get $get): void {
+                                                    $cuotas = (int) ($get('cuotas') ?? 0);
+                                                    $total = (float) ($get('precio_total') ?? 0);
+                                                    if ($cuotas > 0 && $total > 0) {
+                                                        $set('precio_cuota', round($total / $cuotas, 2));
+                                                    }
+                                                })
+                                                ->helperText('Ingresá el precio total del producto a plazos; el sistema calcula la cuota.'),
 
                                             Forms\Components\TextInput::make('precio_cuota')
                                                 ->label('Precio por cuota')
@@ -218,7 +260,10 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                 ->minValue(0.01)
                                                 ->step(0.01)
                                                 ->required()
-                                                ->helperText('Monto de cada pago periódico.'),
+                                                ->readOnly()
+                                                ->helperText(fn (Get $get) => $get('cuotas') && $get('precio_cuota')
+                                                    ? 'Total real: $'.number_format(((float) $get('cuotas')) * ((float) $get('precio_cuota')), 2)
+                                                    : 'Se calcula automáticamente (total ÷ cuotas).'),
 
                                             Forms\Components\TextInput::make('descripcion')
                                                 ->label('Descripción')
