@@ -216,6 +216,11 @@ class Venta extends Model
         return $this->hasMany(GestionCobro::class, 'venta_id');
     }
 
+    public function pagare(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Pagare::class, 'venta_id');
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     public function estaCompletada(): bool

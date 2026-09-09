@@ -182,6 +182,8 @@
                         <th>¿Nuevo?</th>
                         <th>Producto</th>
                         <th>Ubicación</th>
+                        <th>Pagaré</th>
+                        <th>Prima</th>
                         <th>Vendedor</th>
                         <th>Venta</th>
                         <th>Tipo pago</th>
@@ -219,6 +221,18 @@
                                 @else
                                     <span style="color:#9ca3af;font-size:0.75rem;font-style:italic">Sin ubicación</span>
                                 @endif
+                            </td>
+                            <td class="rv-td">
+                                @if($v->pagare?->pdf)
+                                    <a href="{{ $v->pagare->pdf_url }}" target="_blank" class="rv-mapa-link">
+                                        Ver pagaré
+                                    </a>
+                                @else
+                                    <span style="color:#9ca3af;font-size:0.75rem;font-style:italic">Sin pagaré</span>
+                                @endif
+                            </td>
+                            <td class="rv-td" style="color:#6b7280">
+                                {{ (float) $v->prima > 0 ? '$'.number_format((float) $v->prima, 2) : '—' }}
                             </td>
                             <td class="rv-td" style="color:#6b7280">
                                 {{ $v->vendedor ? "{$v->vendedor->nombre} {$v->vendedor->apellido}" : '—' }}
