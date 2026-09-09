@@ -1837,6 +1837,7 @@ class ClientesRutaController extends Controller
         $nuevo = Producto::create([
             'nombre' => $nombre,
             'codigo' => 'PROD-' . strtoupper(Str::random(6)),
+            'origen' => 'excel',
             'unidad_medida' => 'unidad',
             'precio_compra' => 0,
             'precio_venta' => 0,
