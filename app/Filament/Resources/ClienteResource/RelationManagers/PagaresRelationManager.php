@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\ClienteResource\RelationManagers;
 
+use App\Models\Venta;
 use Filament\Actions;
+use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -63,6 +66,37 @@ class PagaresRelationManager extends RelationManager
                     ->icon('heroicon-o-document-text')
                     ->url(fn ($record) => $record->pdf_url)
                     ->openUrlInNewTab(),
+
+                // La app manda el pagaré en dos pasos (sube el PDF firmado antes de
+                // confirmar la venta, y enlaza venta_id después con un segundo
+                // request) — cuando ese segundo paso no llega, el pagaré queda
+                // suelto y no aparece en ningún resumen de ventas. Este botón
+                // permite enlazarlo a mano en vez de dejarlo huérfano.
+                Actions\Action::make('enlazarVenta')
+                    ->label('Enlazar venta')
+                    ->icon('heroicon-o-link')
+                    ->color('warning')
+                    ->visible(fn ($record) => $record->venta_id === null)
+                    ->schema([
+                        Forms\Components\Select::make('venta_id')
+                            ->label('Venta de este cliente')
+                            ->options(fn ($record) => Venta::where('cliente_id', $record->cliente_id)
+                                ->orderByDesc('fecha_venta')
+                                ->get()
+                                ->mapWithKeys(fn (Venta $v) => [
+                                    (string) $v->id => sprintf('%s — %s (%s)', $v->numero_venta, $v->fecha_venta->format('d/m/Y'), number_format((float) $v->total, 2)),
+                                ]))
+                            ->searchable()
+                            ->required(),
+                    ])
+                    ->action(function ($record, array $data): void {
+                        $record->update(['venta_id' => $data['venta_id']]);
+
+                        Notification::make()
+                            ->title('Pagaré enlazado a la venta')
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->bulkActions([])
             ->defaultSort('created_at', 'desc');
