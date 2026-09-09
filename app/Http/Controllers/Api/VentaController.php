@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AsignacionDiaria;
 use App\Models\DetalleVenta;
 use App\Models\GestionCobro;
+use App\Models\Producto;
 use App\Models\Venta;
 use App\Services\IdempotencyService;
 use Illuminate\Http\JsonResponse;
@@ -249,16 +250,42 @@ class VentaController extends Controller
 
             foreach ($data['detalles'] as $item) {
                 $detalleAsignado = $asignacionDetalles->get((int) $item['producto_id']);
-                $precioUnitario  = $detalleAsignado?->precio_venta ?? $item['precio_unitario'];
-                $dto             = (float) ($item['descuento_porcentaje'] ?? 0);
-                $linea           = round($item['cantidad'] * $precioUnitario * (1 - $dto / 100), 2);
-                $subtotal       += $linea;
 
                 // tipo_pago por línea: si no viene, se hereda del tipo general de la venta
                 // (lo determinamos después de calcular totales)
                 $tipoPagoLinea = $item['tipo_pago'] ?? null;
 
-                $precioCuota = $item['precio_cuota'] ?? null;
+                $precioCuota = null;
+
+                if ($tipoPagoLinea === 'credito' && isset($item['cuotas'])) {
+                    // El total de una línea a crédito es cuotas × precio de
+                    // cuota, NO el precio de contado de la asignación diaria.
+                    // Antes se usaba ese precio de contado también aquí, y
+                    // como muchos productos (los que solo se venden a
+                    // plazos) nunca tienen precio de contado configurado en
+                    // el catálogo, quedaba en $0 y la venta se registraba
+                    // en $0 aunque el POS le mostrara el total correcto al
+                    // vendedor al momento de vender.
+                    // El precio de cuota se recalcula desde el catálogo del
+                    // producto (no se confía en el que mande la app) para
+                    // que no se pueda alterar desde el celular.
+                    $producto     = Producto::find($item['producto_id']);
+                    $planCatalogo = collect($producto?->precios_cuotas ?? [])
+                        ->first(fn ($p) => (int) ($p['cuotas'] ?? 0) === (int) $item['cuotas']);
+
+                    $precioCuota = $planCatalogo
+                        ? (float) ($planCatalogo['precio_cuota'] ?? $planCatalogo['precio'] ?? 0)
+                        : (float) ($item['precio_cuota'] ?? 0);
+
+                    $precioUnitario = round((int) $item['cuotas'] * $precioCuota, 2);
+                } else {
+                    $precioUnitario = $detalleAsignado?->precio_venta ?? $item['precio_unitario'];
+                }
+
+                $dto    = (float) ($item['descuento_porcentaje'] ?? 0);
+                $linea  = round($item['cantidad'] * $precioUnitario * (1 - $dto / 100), 2);
+                $subtotal += $linea;
+
                 if (isset($item['cuotas']) && $precioCuota === null) {
                     $precioCuota = $linea / $item['cuotas'];
                 }
