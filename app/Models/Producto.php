@@ -30,6 +30,7 @@ class Producto extends Model
         'unidad_medida',
         'precio_compra',
         'precio_venta',
+        'precio_vendedor',
         'precios_cuotas',
         'stock',
         'stock_minimo',
@@ -43,6 +44,7 @@ class Producto extends Model
     protected $casts = [
         'precio_compra'  => 'decimal:2',
         'precio_venta'   => 'decimal:2',
+        'precio_vendedor' => 'decimal:2',
         'precios_cuotas' => 'array',
         'stock'          => 'integer',
         'stock_minimo'   => 'integer',

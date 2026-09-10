@@ -166,7 +166,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                             Section::make('Precios')
                                 ->description('Costos y precios de venta')
                                 ->icon('heroicon-m-banknotes')
-                                ->columns(2)
+                                ->columns(3)
                                 ->components([
                                     Forms\Components\TextInput::make('precio_compra')
                                         ->label('Precio de compra')
@@ -189,6 +189,17 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->step(0.01)
                                         ->gte('precio_compra')
                                         ->helperText('Precio al que se vende al cliente. Debe ser mayor o igual al precio de compra.'),
+
+                                    Forms\Components\TextInput::make('precio_vendedor')
+                                        ->label('Se le recibe al vendedor')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->minValue(0)
+                                        ->step(0.01)
+                                        ->nullable()
+                                        ->gte('precio_compra')
+                                        ->lte('precio_venta')
+                                        ->helperText('Monto fijo que el vendedor debe entregar por cada unidad, sin importar a qué precio la haya vendido. La diferencia con el precio de venta es su ganancia.'),
                                 ]),
 
                             Section::make('Precios por cuotas')
@@ -531,6 +542,81 @@ class ProductoResource extends Resource implements HasShieldPermissions
             ->bulkActions([
                     Actions\BulkActionGroup::make([
                     Actions\DeleteBulkAction::make(),
+
+                    // Para variantes del mismo producto que solo cambian en color/talla/etc
+                    // (ej. 10 sillas iguales, una por color) y necesitan las mismas
+                    // opciones de pago a plazos sin editarlas una por una.
+                    Actions\BulkAction::make('asignarCuotas')
+                        ->label('Asignar precios por cuotas')
+                        ->icon('heroicon-m-credit-card')
+                        ->color('warning')
+                        ->schema([
+                            Forms\Components\Repeater::make('precios_cuotas')
+                                ->label('')
+                                ->addActionLabel('Agregar opción de cuotas')
+                                ->columns(4)
+                                ->minItems(1)
+                                ->required()
+                                ->schema([
+                                    Forms\Components\TextInput::make('cuotas')
+                                        ->label('N° de cuotas')
+                                        ->numeric()
+                                        ->minValue(2)
+                                        ->maxValue(120)
+                                        ->integer()
+                                        ->suffix('cuotas')
+                                        ->required()
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(function (Set $set, Get $get): void {
+                                            $cuotas = (int) ($get('cuotas') ?? 0);
+                                            $total = (float) ($get('precio_total') ?? 0);
+                                            if ($cuotas > 0 && $total > 0) {
+                                                $set('precio_cuota', round($total / $cuotas, 2));
+                                            }
+                                        }),
+
+                                    Forms\Components\TextInput::make('precio_total')
+                                        ->label('Precio total a financiar')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->minValue(0.01)
+                                        ->step(0.01)
+                                        ->required()
+                                        ->live(onBlur: true)
+                                        ->dehydrated(false)
+                                        ->afterStateUpdated(function (Set $set, Get $get): void {
+                                            $cuotas = (int) ($get('cuotas') ?? 0);
+                                            $total = (float) ($get('precio_total') ?? 0);
+                                            if ($cuotas > 0 && $total > 0) {
+                                                $set('precio_cuota', round($total / $cuotas, 2));
+                                            }
+                                        }),
+
+                                    Forms\Components\TextInput::make('precio_cuota')
+                                        ->label('Precio por cuota')
+                                        ->numeric()
+                                        ->prefix('$')
+                                        ->minValue(0.01)
+                                        ->step(0.01)
+                                        ->required()
+                                        ->readOnly()
+                                        ->helperText(fn (Get $get) => $get('cuotas') && $get('precio_cuota')
+                                            ? 'Total real: $'.number_format(((float) $get('cuotas')) * ((float) $get('precio_cuota')), 2)
+                                            : 'Se calcula solo (total ÷ cuotas).'),
+
+                                    Forms\Components\TextInput::make('descripcion')
+                                        ->label('Descripción')
+                                        ->placeholder('Ej: Sin interés, 12 meses')
+                                        ->maxLength(100),
+                                ])
+                                ->columnSpanFull(),
+                        ])
+                        ->modalDescription('Estas opciones de cuotas van a reemplazar las que ya tenga cada producto seleccionado.')
+                        ->action(function (\Illuminate\Support\Collection $records, array $data): void {
+                            $records->each(fn (Producto $producto) => $producto->update(['precios_cuotas' => $data['precios_cuotas']]));
+                        })
+                        ->deselectRecordsAfterCompletion()
+                        ->successNotificationTitle('Precios por cuotas asignados'),
                 ]),
             ])
             ->defaultSort('nombre');
