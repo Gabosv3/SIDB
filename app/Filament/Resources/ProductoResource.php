@@ -543,6 +543,56 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     Actions\BulkActionGroup::make([
                     Actions\DeleteBulkAction::make(),
 
+                    // Igual que "Asignar precios por cuotas": para variantes del mismo
+                    // producto (ej. 10 sillas iguales, una por color) que necesitan los
+                    // mismos precios sin editarlas una por una. Cada campo es opcional
+                    // -- se deja en blanco el que no se quiera cambiar en los productos
+                    // seleccionados.
+                    Actions\BulkAction::make('asignarPrecios')
+                        ->label('Asignar precios')
+                        ->icon('heroicon-m-banknotes')
+                        ->color('warning')
+                        ->schema([
+                            Forms\Components\TextInput::make('precio_compra')
+                                ->label('Precio de compra')
+                                ->numeric()
+                                ->prefix('$')
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Dejar vacío para no cambiarlo.'),
+
+                            Forms\Components\TextInput::make('precio_venta')
+                                ->label('Precio de venta')
+                                ->numeric()
+                                ->prefix('$')
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Dejar vacío para no cambiarlo.'),
+
+                            Forms\Components\TextInput::make('precio_vendedor')
+                                ->label('Se le recibe al vendedor')
+                                ->numeric()
+                                ->prefix('$')
+                                ->minValue(0)
+                                ->step(0.01)
+                                ->helperText('Dejar vacío para no cambiarlo.'),
+                        ])
+                        ->modalDescription('Solo se van a actualizar los campos que llenes — los que dejes vacíos quedan como están en cada producto.')
+                        ->action(function (\Illuminate\Support\Collection $records, array $data): void {
+                            $cambios = array_filter(
+                                $data,
+                                fn ($valor) => $valor !== null && $valor !== '',
+                            );
+
+                            if (empty($cambios)) {
+                                return;
+                            }
+
+                            $records->each(fn (Producto $producto) => $producto->update($cambios));
+                        })
+                        ->deselectRecordsAfterCompletion()
+                        ->successNotificationTitle('Precios asignados'),
+
                     // Para variantes del mismo producto que solo cambian en color/talla/etc
                     // (ej. 10 sillas iguales, una por color) y necesitan las mismas
                     // opciones de pago a plazos sin editarlas una por una.
