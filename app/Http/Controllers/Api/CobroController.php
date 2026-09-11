@@ -540,16 +540,15 @@ class CobroController extends Controller
         $rutasIds = $this->rutasIdsAccesibles($request, $cobrador);
 
         // Antes solo buscaba por código_anterior — el cobrador también
-        // necesita encontrar un cliente por nombre o teléfono cuando no
-        // recuerda el código, así que se busca en todos esos campos.
+        // necesita encontrar un cliente por nombre cuando no recuerda el
+        // código. Por teléfono se quitó a propósito — un número parcial
+        // coincide fácilmente con otros clientes y traía resultados falsos.
         $clientes = Cliente::whereIn('ruta_cobro_id', $rutasIds)
             ->where('activo', true)
             ->where(function ($q) use ($termino) {
                 $q->where('codigo_anterior', 'like', '%'.$termino.'%')
                   ->orWhere('nombre', 'like', '%'.$termino.'%')
-                  ->orWhere('apellido', 'like', '%'.$termino.'%')
-                  ->orWhere('telefono_normal', 'like', '%'.$termino.'%')
-                  ->orWhere('telefono_whatsapp', 'like', '%'.$termino.'%');
+                  ->orWhere('apellido', 'like', '%'.$termino.'%');
             })
             ->with('rutaCobro:id,nombre,dia_semana')
             ->orderBy('codigo_anterior')
