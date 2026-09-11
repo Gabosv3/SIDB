@@ -707,6 +707,10 @@ class CobroController extends Controller
         return [
             'fecha'         => $ultimaFila->fecha_pago->format('d/m/Y'),
             'monto'         => (float) $montoTotal,
+            // Constantes por ticket (no por cuota) — cualquier fila del
+            // mismo numero_recibo trae el mismo valor.
+            'saldo_antes'   => $ultimaFila->saldo_antes !== null ? (float) $ultimaFila->saldo_antes : null,
+            'saldo_despues' => $ultimaFila->saldo_despues !== null ? (float) $ultimaFila->saldo_despues : null,
             'numero_recibo' => $ultimaFila->numero_recibo,
             'dias'          => $ultimaFila->fecha_pago->diffInDays(now()->startOfDay()),
         ];
@@ -1041,6 +1045,12 @@ class CobroController extends Controller
                 ]);
             }
 
+            // Del ticket completo, no por cuota — se guarda en cada fila que
+            // genere este pago para que el recibo (en vivo o reimpreso desde
+            // el historial) siempre pueda mostrar "Debía" y "Resta" reales.
+            $saldoAntesTicket   = $saldoVenta;
+            $saldoDespuesTicket = round($saldoVenta - $monto, 2);
+
             $gestiones = GestionCobro::where('cliente_id', $id)
                 ->where('venta_id', $ventaId)
                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
@@ -1064,6 +1074,8 @@ class CobroController extends Controller
                     'cliente_id'    => $id,
                     'numero_recibo' => $numeroRecibo,
                     'monto'         => $aplicar,
+                    'saldo_antes'   => $saldoAntesTicket,
+                    'saldo_despues' => $saldoDespuesTicket,
                     'fecha_pago'    => today(),
                     'metodo_pago'   => $data['metodo_pago'],
                     'referencia'    => $data['referencia'] ?? null,
@@ -1450,6 +1462,12 @@ class CobroController extends Controller
                         'cantidad' => (int) $d->cantidad,
                     ])->values() ?? [],
                     'monto'         => round((float) $grupo->sum('monto'), 2),
+                    // Constantes por ticket (no por cuota) — se guardan igual
+                    // en cada fila del mismo numero_recibo, así que basta con
+                    // tomarlas de la primera. Los pagos de antes de este
+                    // cambio no las tienen (quedan null) — se maneja en la app.
+                    'saldo_antes'   => $p->saldo_antes !== null ? (float) $p->saldo_antes : null,
+                    'saldo_despues' => $p->saldo_despues !== null ? (float) $p->saldo_despues : null,
                     'metodo_pago'   => $p->metodo_pago,
                     'referencia'    => $p->referencia,
                     'hora'          => $p->created_at->format('H:i'),

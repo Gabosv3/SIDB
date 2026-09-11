@@ -19,6 +19,8 @@ class PagoVenta extends Model
         'user_id',
         'numero_recibo',
         'monto',
+        'saldo_antes',
+        'saldo_despues',
         'fecha_pago',
         'metodo_pago',
         'referencia',
@@ -29,9 +31,11 @@ class PagoVenta extends Model
     ];
 
     protected $casts = [
-        'monto'      => 'decimal:2',
-        'fecha_pago' => 'date',
-        'anulado_en' => 'datetime',
+        'monto'         => 'decimal:2',
+        'saldo_antes'   => 'decimal:2',
+        'saldo_despues' => 'decimal:2',
+        'fecha_pago'    => 'date',
+        'anulado_en'    => 'datetime',
     ];
 
     // ── Boot: actualizar monto_pagado y saldo de la venta ─────────────────────
