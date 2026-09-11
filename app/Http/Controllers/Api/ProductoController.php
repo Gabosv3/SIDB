@@ -52,8 +52,32 @@ class ProductoController extends Controller
         $user     = $request->user();
         $vendedor = $user->vendedor;
 
+        // Preventa: el vendedor solo está registrando el interés del cliente
+        // en un producto para encargarlo después — no lo está despachando
+        // ahora mismo, así que no aplica la restricción de "lo que traigo
+        // asignado hoy". Se usa el catálogo completo de origen manual (no el
+        // masivo importado de Excel), sin filtrar por stock.
+        if ($vendedor && $request->boolean('preventa')) {
+            $query = Producto::with('categoria:id,nombre')
+                ->where('activo', true)
+                ->where('origen', 'manual')
+                ->select([
+                    'productos.id',
+                    'productos.nombre',
+                    'productos.codigo',
+                    'productos.descripcion',
+                    'productos.unidad_medida',
+                    'productos.precio_venta',
+                    'productos.precios_cuotas',
+                    'productos.stock',
+                    'productos.activo',
+                    'productos.categoria_id',
+                    'productos.sucursal_id',
+                    'productos.imagen',
+                ]);
+        }
         // Si el usuario es vendedor, solo mostrar productos de su asignación de hoy
-        if ($vendedor) {
+        elseif ($vendedor) {
             $asignacion = AsignacionDiaria::where('vendedor_id', $vendedor->id)
                 ->where('fecha', today())
                 ->where('estado', 'activa')
