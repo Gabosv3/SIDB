@@ -655,11 +655,7 @@ class CobroController extends Controller
         // Último abono del cliente — el cobrador necesita verlo apenas entra
         // al detalle, para saber si ya pasó mucho tiempo sin pagar sin tener
         // que revisar cuota por cuota.
-        $ultimoPago = \App\Models\PagoVenta::where('cliente_id', $id)
-            ->whereNull('anulado_en')
-            ->orderByDesc('fecha_pago')
-            ->orderByDesc('id')
-            ->first();
+        $ultimoPago = $this->ultimoTicketPago($id);
 
         return response()->json([
             'cliente' => [
@@ -674,11 +670,7 @@ class CobroController extends Controller
                 'ruta'           => $cliente->rutaCobro?->nombre,
                 'latitud'        => $cliente->latitud !== null ? (float) $cliente->latitud : null,
                 'longitud'       => $cliente->longitud !== null ? (float) $cliente->longitud : null,
-                'ultimo_pago'    => $ultimoPago ? [
-                    'fecha'  => $ultimoPago->fecha_pago->format('d/m/Y'),
-                    'monto'  => (float) $ultimoPago->monto,
-                    'dias'   => $ultimoPago->fecha_pago->diffInDays(now()->startOfDay()),
-                ] : null,
+                'ultimo_pago'    => $ultimoPago,
             ],
             'resumen' => [
                 'total_ventas'   => $ventas->count(),
@@ -687,6 +679,37 @@ class CobroController extends Controller
             ],
             'ventas' => $ventas,
         ]);
+    }
+
+    // Un solo abono que el cobrador recibe (ej. $10) puede quedar repartido en
+    // VARIAS filas de pago_ventas si alcanza para completar una cuota y sigue
+    // sobrando para la siguiente — todas esas filas comparten el mismo
+    // numero_recibo. Tomar solo "la última fila" (como se hacía antes) muestra
+    // nada más el pedazo que cayó en la última cuota (ej. $8 de un abono de
+    // $10 real) en vez del monto total que el cliente entregó en ese ticket.
+    private function ultimoTicketPago(int $clienteId): ?array
+    {
+        $ultimaFila = \App\Models\PagoVenta::where('cliente_id', $clienteId)
+            ->whereNull('anulado_en')
+            ->orderByDesc('fecha_pago')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $ultimaFila) {
+            return null;
+        }
+
+        $montoTotal = \App\Models\PagoVenta::where('cliente_id', $clienteId)
+            ->where('numero_recibo', $ultimaFila->numero_recibo)
+            ->whereNull('anulado_en')
+            ->sum('monto');
+
+        return [
+            'fecha'         => $ultimaFila->fecha_pago->format('d/m/Y'),
+            'monto'         => (float) $montoTotal,
+            'numero_recibo' => $ultimaFila->numero_recibo,
+            'dias'          => $ultimaFila->fecha_pago->diffInDays(now()->startOfDay()),
+        ];
     }
 
     // ── GET /cobros/clientes/{id}/perfil ──────────────────────────────────────
@@ -1999,11 +2022,13 @@ class CobroController extends Controller
 
         // "Verificación interna BM" — nunca se confía en lo que mande la app
         // para estos tres campos, se recalculan siempre desde la fuente real.
-        $ultimoPago = PagoVenta::where('cliente_id', $cliente->id)
-            ->whereNull('anulado_en')
-            ->latest('fecha_pago')
-            ->first();
-        $pagoRegistradoBm = (float) ($ultimoPago->monto ?? 0);
+        // Se usa el TOTAL del ticket (todas las filas de pago_ventas con el
+        // mismo numero_recibo), no solo una fila — un abono puede repartirse
+        // en varias cuotas y antes esto comparaba solo el pedazo de la
+        // última, marcando "diferencia" falsa contra un cobrador que en
+        // realidad cobró bien.
+        $ultimoPago = $this->ultimoTicketPago($cliente->id);
+        $pagoRegistradoBm = (float) ($ultimoPago['monto'] ?? 0);
         $saldoRegistradoBm = (float) $cliente->saldo;
         // La diferencia que importa para detectar fraude: lo que el cliente
         // dice haber entregado vs. lo que el sistema realmente tiene
