@@ -453,8 +453,18 @@ class ClienteController extends Controller
     {
         $cliente = $this->scopeClientesDelUsuario(Cliente::query(), $request->user())->findOrFail($id);
 
+        // Un vinculado puede haber sido reasignado a otra ruta/cobrador
+        // después de vincularse — el grupo_id no se toca en ese caso, pero
+        // esa cuenta ya no es del cobrador que está viendo el detalle. Se
+        // filtra por el mismo scope para no mostrarle (ni permitirle
+        // gestionar) una cuenta que ya no le pertenece.
         $clientes = $cliente->grupo_id
-            ? collect([$cliente])->merge($cliente->vinculados)
+            ? collect([$cliente])->merge(
+                $this->scopeClientesDelUsuario(
+                    Cliente::where('grupo_id', $cliente->grupo_id)->whereKeyNot($cliente->id),
+                    $request->user()
+                )->get()
+            )
             : collect([$cliente]);
 
         $clientesData = $clientes->map(function (Cliente $c) {
