@@ -610,6 +610,28 @@ class ProductoResource extends Resource implements HasShieldPermissions
             ->actions([
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
+
+                // Para variantes que solo cambian en color/talla/etc: copia todo
+                // (precios, cuotas, categoría, componentes si es combo) menos el
+                // stock (arranca en 0, es una unidad física distinta) y el código
+                // (se genera uno nuevo). Redirige a editar para terminar de
+                // ajustar el nombre (ej. el color) antes de guardar.
+                Actions\ReplicateAction::make()
+                    ->label('Duplicar')
+                    ->icon('heroicon-m-document-duplicate')
+                    ->excludeAttributes(['codigo', 'stock'])
+                    ->beforeReplicaSaved(function (Producto $replica): void {
+                        $replica->stock = 0;
+                        $replica->nombre = "{$replica->nombre} (copia)";
+
+                        $max = Producto::where('codigo', 'like', 'PRODUC-%')
+                            ->get(['codigo'])
+                            ->map(fn ($p) => (int) substr($p->codigo, 7))
+                            ->max();
+                        $replica->codigo = 'PRODUC-' . str_pad(($max ?? 0) + 1, 3, '0', STR_PAD_LEFT);
+                    })
+                    ->successRedirectUrl(fn (Producto $replica): string => static::getUrl('edit', ['record' => $replica])),
+
                 Actions\DeleteAction::make(),
             ])
             ->bulkActions([
