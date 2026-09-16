@@ -182,6 +182,7 @@
                         <th>¿Nuevo?</th>
                         <th>Producto</th>
                         <th>Ubicación</th>
+                        <th>Ruta</th>
                         <th>Pagaré</th>
                         <th>Prima</th>
                         <th>Vendedor</th>
@@ -220,6 +221,19 @@
                                     </a>
                                 @else
                                     <span style="color:#9ca3af;font-size:0.75rem;font-style:italic">Sin ubicación</span>
+                                @endif
+                            </td>
+                            <td class="rv-td">
+                                @if($c)
+                                    <div style="color:#6b7280;font-size:0.75rem">{{ $c->rutaCobro?->nombre ?? '— Sin ruta —' }}</div>
+                                    <button
+                                        type="button"
+                                        wire:click="mountAction('asignarRuta', {{ Illuminate\Support\Js::from(['cliente_id' => $c->id]) }})"
+                                        class="rv-mapa-link"
+                                        style="background:none;border:none;padding:0;cursor:pointer;font:inherit"
+                                    >
+                                        {{ $c->ruta_cobro_id ? 'Cambiar ruta' : 'Asignar ruta' }}
+                                    </button>
                                 @endif
                             </td>
                             <td class="rv-td">
