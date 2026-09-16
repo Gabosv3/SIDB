@@ -56,7 +56,7 @@ class DetalleVenta extends Model
                 }
             }
 
-            $detalle->producto?->decrement('stock', $detalle->cantidad);
+            self::ajustarStock($detalle->producto, -$detalle->cantidad);
         });
 
         static::deleting(function (DetalleVenta $detalle): void {
@@ -75,8 +75,30 @@ class DetalleVenta extends Model
                 }
             }
 
-            $detalle->producto?->increment('stock', $detalle->cantidad);
+            self::ajustarStock($detalle->producto, $detalle->cantidad);
         });
+    }
+
+    /**
+     * Igual que en DetalleAsignacion::ajustarStock() -- si el producto
+     * vendido es un combo, el ajuste va sobre sus componentes en vez del
+     * combo mismo (su stock es calculado, no se suma/resta directamente).
+     */
+    private static function ajustarStock(?Producto $producto, int $delta): void
+    {
+        if (! $producto) {
+            return;
+        }
+
+        if (! $producto->es_combo) {
+            $producto->increment('stock', $delta);
+
+            return;
+        }
+
+        foreach ($producto->componentes as $componente) {
+            $componente->componente?->increment('stock', $delta * $componente->cantidad);
+        }
     }
 
     // ── Relationships ─────────────────────────────────────────────────────────

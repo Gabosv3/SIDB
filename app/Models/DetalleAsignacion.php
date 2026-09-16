@@ -38,7 +38,7 @@ class DetalleAsignacion extends Model
         static::creating(function (DetalleAsignacion $detalle): void {
             $producto = $detalle->producto;
             if ($producto && $detalle->cantidad_asignada > 0) {
-                $producto->decrement('stock', $detalle->cantidad_asignada);
+                self::ajustarStock($producto, -$detalle->cantidad_asignada);
             }
         });
 
@@ -50,11 +50,7 @@ class DetalleAsignacion extends Model
                 $producto = $detalle->producto;
 
                 if ($producto && $diferencia !== 0) {
-                    if ($diferencia > 0) {
-                        $producto->decrement('stock', $diferencia);
-                    } else {
-                        $producto->increment('stock', abs($diferencia));
-                    }
+                    self::ajustarStock($producto, -$diferencia);
                 }
             }
         });
@@ -62,9 +58,30 @@ class DetalleAsignacion extends Model
         static::deleting(function (DetalleAsignacion $detalle): void {
             $producto = $detalle->producto;
             if ($producto) {
-                $producto->increment('stock', max(0, $detalle->cantidad_asignada - $detalle->cantidad_vendida));
+                self::ajustarStock($producto, max(0, $detalle->cantidad_asignada - $detalle->cantidad_vendida));
             }
         });
+    }
+
+    /**
+     * Descuenta (delta negativo) o devuelve (delta positivo) stock al
+     * asignar/actualizar/eliminar un detalle. Si el producto es un combo,
+     * el ajuste real va sobre cada componente (proporcional a la cantidad
+     * de combos) en vez del combo mismo -- su stock es un valor calculado,
+     * no algo que se pueda sumar/restar directamente (ver
+     * Producto::recalcularStockCombo()).
+     */
+    private static function ajustarStock(Producto $producto, int $delta): void
+    {
+        if (! $producto->es_combo) {
+            $producto->increment('stock', $delta);
+
+            return;
+        }
+
+        foreach ($producto->componentes as $componente) {
+            $componente->componente?->increment('stock', $delta * $componente->cantidad);
+        }
     }
 
     // ── Relaciones ────────────────────────────────────────────────────────────

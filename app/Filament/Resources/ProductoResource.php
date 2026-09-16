@@ -286,6 +286,45 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->columnSpanFull(),
                                 ]),
 
+                            Section::make('Combo')
+                                ->description('Si este producto es un combo de varios productos (ej. mesa + sillas) con su propio precio')
+                                ->icon('heroicon-m-square-3-stack-3d')
+                                ->components([
+                                    Forms\Components\Toggle::make('es_combo')
+                                        ->label('Es un combo')
+                                        ->live()
+                                        ->helperText('Al activarlo, este producto no tiene stock propio: se calcula solo según el stock de sus componentes.'),
+
+                                    Forms\Components\Repeater::make('componentes')
+                                        ->relationship('componentes')
+                                        ->label('Componentes del combo')
+                                        ->visible(fn (Get $get) => (bool) $get('es_combo'))
+                                        ->columns(2)
+                                        ->addActionLabel('Agregar producto al combo')
+                                        ->minItems(1)
+                                        ->schema([
+                                            Forms\Components\Select::make('producto_componente_id')
+                                                ->label('Producto')
+                                                ->options(fn (?Producto $record) => Producto::where('activo', true)
+                                                    ->where('es_combo', false)
+                                                    ->when($record, fn ($q) => $q->whereKeyNot($record->id))
+                                                    ->orderBy('nombre')
+                                                    ->get()
+                                                    ->mapWithKeys(fn (Producto $p) => [(string) $p->id => "{$p->nombre} (stock: {$p->stock})"]))
+                                                ->searchable()
+                                                ->required(),
+
+                                            Forms\Components\TextInput::make('cantidad')
+                                                ->label('Cantidad')
+                                                ->numeric()
+                                                ->integer()
+                                                ->minValue(1)
+                                                ->default(1)
+                                                ->required(),
+                                        ])
+                                        ->columnSpanFull(),
+                                ]),
+
                             Section::make('Control de inventario')
                                 ->description('Niveles de stock del producto')
                                 ->icon('heroicon-m-clipboard-document-list')
@@ -298,7 +337,11 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->default(0)
                                         ->minValue(0)
                                         ->required()
-                                        ->helperText('Cantidad de unidades disponibles en bodega.'),
+                                        ->disabled(fn (Get $get) => (bool) $get('es_combo'))
+                                        ->dehydrated(fn (Get $get) => ! $get('es_combo'))
+                                        ->helperText(fn (Get $get) => $get('es_combo')
+                                            ? 'Se calcula solo a partir del stock de los componentes.'
+                                            : 'Cantidad de unidades disponibles en bodega.'),
 
                                     Forms\Components\TextInput::make('stock_minimo')
                                         ->label('Stock mínimo')
@@ -414,6 +457,15 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->toggleable()
                     ->color(fn (string $state): string => $state === 'excel' ? 'warning' : 'success')
                     ->formatStateUsing(fn (string $state): string => $state === 'excel' ? 'Excel' : 'Manual'),
+
+                Tables\Columns\IconColumn::make('es_combo')
+                    ->label('Combo')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-square-3-stack-3d')
+                    ->falseIcon('heroicon-o-minus')
+                    ->trueColor('warning')
+                    ->falseColor('gray')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('categoria.nombre')
                     ->label('Categoría')
