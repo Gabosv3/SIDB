@@ -87,7 +87,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
                             ->placeholder('Elige una ruta de cobro')
                             ->options(fn () => RutaCobro::where('activa', true)
                                 ->get()
-                                ->pluck('nombre_con_dia', 'id')
+                                ->mapWithKeys(fn (RutaCobro $r) => [(string) $r->id => $r->nombre_con_dia])
                             )
                             ->required(),
                     ])
@@ -99,8 +99,6 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
                             ->body("Ruta asignada a {$record->nombre}")
                             ->success()
                             ->send();
-
-                        $this->table->resetColumnOrder();
                     }),
             ])
             ->bulkActions([
@@ -113,7 +111,7 @@ class AsignarRutasClientes extends Page implements HasForms, HasTable
                             ->placeholder('Elige una ruta de cobro')
                             ->options(fn () => RutaCobro::where('activa', true)
                                 ->get()
-                                ->pluck('nombre_con_dia', 'id')
+                                ->mapWithKeys(fn (RutaCobro $r) => [(string) $r->id => $r->nombre_con_dia])
                             )
                             ->required(),
                     ])
