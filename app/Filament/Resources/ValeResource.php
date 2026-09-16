@@ -90,7 +90,7 @@ class ValeResource extends Resource
 
                     Forms\Components\Select::make('vehiculo_id')
                         ->label('Vehículo')
-                        ->options(fn () => Vehiculo::orderBy('placa')->pluck('placa', 'id'))
+                        ->options(fn () => Vehiculo::orderBy('placa')->get()->mapWithKeys(fn (Vehiculo $v) => [(string) $v->id => $v->placa]))
                         ->searchable()
                         ->visible(fn (Get $get) => $get('tipo') === 'vehiculo')
                         ->required(fn (Get $get) => $get('tipo') === 'vehiculo'),

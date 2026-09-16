@@ -25,7 +25,7 @@ class ListProductos extends ListRecords
                 ->schema([
                     Forms\Components\CheckboxList::make('categorias')
                         ->label('Categorías')
-                        ->options(fn () => Categoria::where('activo', true)->orderBy('nombre')->pluck('nombre', 'id'))
+                        ->options(fn () => Categoria::where('activo', true)->orderBy('nombre')->get()->mapWithKeys(fn (Categoria $c) => [(string) $c->id => $c->nombre]))
                         ->columns(2)
                         ->bulkToggleable(),
                 ])

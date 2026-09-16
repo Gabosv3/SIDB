@@ -120,7 +120,7 @@ class GarantiaResource extends Resource
 
                     Forms\Components\Select::make('asignado_a')
                         ->label('Asignado a (técnico/encargado)')
-                        ->options(fn () => User::orderBy('name')->pluck('name', 'id'))
+                        ->options(fn () => User::orderBy('name')->get()->mapWithKeys(fn (User $u) => [(string) $u->id => $u->name]))
                         ->searchable()
                         ->placeholder('Sin asignar todavía'),
 

@@ -59,7 +59,7 @@ class ImportarClientes extends Page implements HasForms
 
                 Select::make('sucursal_id')
                     ->label('Sucursal destino')
-                    ->options(\App\Models\Sucursal::orderBy('nombre')->pluck('nombre', 'id'))
+                    ->options(\App\Models\Sucursal::orderBy('nombre')->get()->mapWithKeys(fn ($s) => [(string) $s->id => $s->nombre]))
                     ->searchable()
                     ->required()
                     ->helperText('Los clientes y ventas quedarán asignados a esta sucursal.'),
