@@ -163,6 +163,8 @@ class ClienteController extends Controller
             'longitud'         => 'nullable|numeric|between:-180,180',
             'ruta_cobro_id'    => 'nullable|integer|exists:rutas_cobro,id',
             'foto_casa'        => 'nullable|image|mimes:jpeg,png,webp|max:4096',
+            'dui_foto_frente'  => 'nullable|image|mimes:jpeg,png,webp|max:4096',
+            'dui_foto_reverso' => 'nullable|image|mimes:jpeg,png,webp|max:4096',
             'ref_fam1_nombre'    => 'nullable|string|max:150',
             'ref_fam1_telefono'  => 'nullable|string|max:30',
             'ref_fam1_parentesco'=> 'nullable|string|max:60',
@@ -179,6 +181,12 @@ class ClienteController extends Controller
 
         if ($request->hasFile('foto_casa')) {
             $data['foto_casa'] = $request->file('foto_casa')->store('casas', 'public');
+        }
+        if ($request->hasFile('dui_foto_frente')) {
+            $data['dui_foto_frente'] = $request->file('dui_foto_frente')->store('dui', 'public');
+        }
+        if ($request->hasFile('dui_foto_reverso')) {
+            $data['dui_foto_reverso'] = $request->file('dui_foto_reverso')->store('dui', 'public');
         }
 
         $data['sucursal_id'] = $request->user()->vendedor?->sucursal_id ?? 1;
