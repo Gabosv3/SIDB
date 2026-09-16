@@ -688,6 +688,29 @@ class ProductoResource extends Resource implements HasShieldPermissions
                         ->deselectRecordsAfterCompletion()
                         ->successNotificationTitle('Precios asignados'),
 
+                    // No aplica a combos: su stock se calcula solo a partir de sus
+                    // componentes, ponerlo a mano ahí se pisaría en cuanto cambie el
+                    // stock de cualquier componente.
+                    Actions\BulkAction::make('asignarStock')
+                        ->label('Asignar stock')
+                        ->icon('heroicon-m-archive-box')
+                        ->color('warning')
+                        ->schema([
+                            Forms\Components\TextInput::make('stock')
+                                ->label('Stock')
+                                ->numeric()
+                                ->integer()
+                                ->minValue(0)
+                                ->required(),
+                        ])
+                        ->modalDescription('Los combos seleccionados se ignoran -- su stock se calcula solo a partir de sus componentes.')
+                        ->action(function (\Illuminate\Support\Collection $records, array $data): void {
+                            $records->reject(fn (Producto $p) => $p->es_combo)
+                                ->each(fn (Producto $producto) => $producto->update(['stock' => $data['stock']]));
+                        })
+                        ->deselectRecordsAfterCompletion()
+                        ->successNotificationTitle('Stock asignado'),
+
                     // Para variantes del mismo producto que solo cambian en color/talla/etc
                     // (ej. 10 sillas iguales, una por color) y necesitan las mismas
                     // opciones de pago a plazos sin editarlas una por una.
