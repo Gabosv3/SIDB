@@ -305,10 +305,10 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->schema([
                                             Forms\Components\Select::make('producto_componente_id')
                                                 ->label('Producto')
-                                                ->options(fn (?Producto $record) => Producto::where('activo', true)
+                                                ->options(fn (Get $get) => Producto::where('activo', true)
                                                     ->where('es_combo', false)
                                                     ->where('origen', 'manual')
-                                                    ->when($record, fn ($q) => $q->whereKeyNot($record->id))
+                                                    ->when($get('../../id'), fn ($q, $comboId) => $q->whereKeyNot($comboId))
                                                     ->orderBy('nombre')
                                                     ->get()
                                                     ->mapWithKeys(fn (Producto $p) => [(string) $p->id => "{$p->nombre} (stock: {$p->stock})"]))
