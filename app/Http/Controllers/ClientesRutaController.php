@@ -118,6 +118,7 @@ class ClientesRutaController extends Controller
             $clienteIds = Cliente::where('nombre', 'like', "%{$buscar}%")
                 ->orWhere('apellido', 'like', "%{$buscar}%")
                 ->orWhere('codigo_anterior', 'like', "%{$buscar}%")
+                ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$buscar}%"])
                 ->pluck('id');
             $query->whereIn('subject_id', $clienteIds);
         }
@@ -217,7 +218,8 @@ class ClientesRutaController extends Controller
             $query->where(function ($q) use ($buscar) {
                 $q->where('codigo_anterior', 'like', "%{$buscar}%")
                     ->orWhere('nombre', 'like', "%{$buscar}%")
-                    ->orWhere('apellido', 'like', "%{$buscar}%");
+                    ->orWhere('apellido', 'like', "%{$buscar}%")
+                    ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$buscar}%"]);
             });
         }
 
@@ -403,7 +405,8 @@ class ClientesRutaController extends Controller
             $query->where(function ($q) use ($buscar) {
                 $q->where('codigo_anterior', 'like', "%{$buscar}%")
                     ->orWhere('nombre', 'like', "%{$buscar}%")
-                    ->orWhere('apellido', 'like', "%{$buscar}%");
+                    ->orWhere('apellido', 'like', "%{$buscar}%")
+                    ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$buscar}%"]);
             });
         }
 
