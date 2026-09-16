@@ -437,7 +437,11 @@ class VentaController extends Controller
                 GestionCobro::insert($gestiones);
             }
 
-            return $venta->load('detalles.producto:id,nombre,codigo');
+            return $venta->load([
+                'detalles.producto:id,nombre,codigo',
+                'vendedor:id,nombre,apellido',
+                'user:id,name',
+            ]);
         });
 
         return response()->json($venta, 201);
