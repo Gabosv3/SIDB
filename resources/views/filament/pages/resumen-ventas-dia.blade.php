@@ -83,6 +83,7 @@
     $resumen = $this->getResumen();
     $totales = $this->getTotales($resumen);
     $vendedores = $this->getVendedores();
+    $clientesConPagareSuelto = $this->getClientesConPagareSuelto($resumen);
 
     $tipoPagoLabels = ['contado' => 'Contado', 'credito' => 'Crédito', 'mixta' => 'Mixta'];
     $estadoLabels = ['pendiente' => 'Pendiente', 'completada' => 'Completada', 'cancelada' => 'Cancelada', 'devuelta' => 'Devuelta'];
@@ -243,6 +244,17 @@
                                     </a>
                                 @else
                                     <span style="color:#9ca3af;font-size:0.75rem;font-style:italic">Sin pagaré</span>
+                                    @if($c && $clientesConPagareSuelto->contains($c->id))
+                                        <br>
+                                        <button
+                                            type="button"
+                                            wire:click="mountAction('enlazarPagare', {{ Illuminate\Support\Js::from(['venta_id' => $v->id]) }})"
+                                            class="rv-mapa-link"
+                                            style="background:none;border:none;padding:0;cursor:pointer;font:inherit"
+                                        >
+                                            Enlazar
+                                        </button>
+                                    @endif
                                 @endif
                             </td>
                             <td class="rv-td" style="color:#6b7280">

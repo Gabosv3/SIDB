@@ -3,8 +3,10 @@
 namespace App\Filament\Pages;
 
 use App\Models\Cliente;
+use App\Models\Pagare;
 use App\Models\RutaCobro;
 use App\Models\Vendedor;
+use App\Models\Venta;
 use App\Services\ResumenVentasDiaService;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -59,6 +61,21 @@ class ResumenVentasDia extends Page
         return ResumenVentasDiaService::totales($resumen);
     }
 
+    /** IDs de cliente (dentro de este resumen) que tienen algún pagaré firmado sin enlazar a una venta. */
+    public function getClientesConPagareSuelto(\Illuminate\Support\Collection $resumen): \Illuminate\Support\Collection
+    {
+        $clienteIds = $resumen->pluck('venta.cliente_id')->filter()->unique();
+
+        if ($clienteIds->isEmpty()) {
+            return collect();
+        }
+
+        return Pagare::whereIn('cliente_id', $clienteIds)
+            ->whereNull('venta_id')
+            ->pluck('cliente_id')
+            ->unique();
+    }
+
     /**
      * Asignar/cambiar la ruta de cobro del cliente sin salir de este resumen
      * -- mismo efecto que hacerlo desde "Clientes por Ruta".
@@ -85,6 +102,51 @@ class ResumenVentasDia extends Page
 
                 Notification::make()
                     ->title("Ruta asignada a {$cliente->nombre}")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Cuando la app sube el pagaré firmado antes de confirmar la venta y el
+     * segundo paso (enlazar venta_id) no llega, el pagaré queda suelto sin
+     * aparecer en este resumen -- mismo mecanismo de enlace manual que ya
+     * existe en la pestaña Pagarés del cliente, pero accesible desde acá
+     * directamente sobre la venta que le falta.
+     */
+    public function enlazarPagareAction(): Action
+    {
+        return Action::make('enlazarPagare')
+            ->label('Enlazar pagaré')
+            ->icon('heroicon-m-link')
+            ->modalHeading('Enlazar pagaré a esta venta')
+            ->schema([
+                Forms\Components\Select::make('pagare_id')
+                    ->label('Pagaré firmado (sin enlazar) de este cliente')
+                    ->placeholder('Elige un pagaré')
+                    ->options(function () {
+                        $ventaId = $this->getMountedAction()?->getArguments()['venta_id'] ?? null;
+                        $venta = Venta::findOrFail($ventaId);
+
+                        return Pagare::where('cliente_id', $venta->cliente_id)
+                            ->whereNull('venta_id')
+                            ->orderByDesc('created_at')
+                            ->get()
+                            ->mapWithKeys(fn (Pagare $p) => [(string) $p->id => sprintf(
+                                '%s — %s (financiado: $%s)',
+                                $p->nombre_deudor,
+                                $p->created_at->format('d/m/Y'),
+                                number_format((float) $p->monto_financiado, 2)
+                            )]);
+                    })
+                    ->required(),
+            ])
+            ->action(function (array $data, array $arguments): void {
+                $pagare = Pagare::findOrFail($data['pagare_id']);
+                $pagare->update(['venta_id' => $arguments['venta_id']]);
+
+                Notification::make()
+                    ->title('Pagaré enlazado a la venta')
                     ->success()
                     ->send();
             });
