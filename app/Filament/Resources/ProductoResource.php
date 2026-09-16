@@ -307,6 +307,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                 ->label('Producto')
                                                 ->options(fn (?Producto $record) => Producto::where('activo', true)
                                                     ->where('es_combo', false)
+                                                    ->where('origen', 'manual')
                                                     ->when($record, fn ($q) => $q->whereKeyNot($record->id))
                                                     ->orderBy('nombre')
                                                     ->get()
