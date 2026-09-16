@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActaDisciplinaria;
 use App\Models\AsignacionDiaria;
 use App\Models\Cobrador;
 use App\Models\ConfiguracionSistema;
@@ -63,12 +64,14 @@ class EmpleadoPerfilController extends Controller
         $rutasSupervisadasIds = $empleado->supervisor?->rutasSupervisadas()->pluck('rutas_cobro.id')->all() ?? [];
 
         $pagosEmpleado = EmployeePago::where('user_id', $empleado->id)->orderByDesc('fecha_pago')->get();
+        $actasEmpleado = ActaDisciplinaria::where('user_id', $empleado->id)->orderByDesc('fecha_hecho')->get();
 
         return view('empleados.perfil', compact(
             'tenant', 'empleado', 'perfilLaboral', 'employeeProfile', 'tipoPerfil', 'posDevice',
             'documentos', 'actividad', 'historial', 'asignacionHoy', 'ventasMes', 'cobrosMes',
             'clientesAsignados', 'clientesActivos', 'metaVentasPct', 'metaCobrosPct', 'supervisor',
-            'ventasSemana', 'cobrosSemana', 'rutasCobro', 'rutasSupervisadasIds', 'pagosEmpleado'
+            'ventasSemana', 'cobrosSemana', 'rutasCobro', 'rutasSupervisadasIds', 'pagosEmpleado',
+            'actasEmpleado'
         ));
     }
 
@@ -240,6 +243,67 @@ class EmpleadoPerfilController extends Controller
         $pago->delete();
 
         return redirect()->back()->with('success', 'Pago eliminado.');
+    }
+
+    /**
+     * Registra una falta injustificada en el expediente del empleado. Queda
+     * guardada como antecedente (no solo un PDF suelto) para poder consultar
+     * cuántas faltas acumula, de cara a una eventual terminación de contrato
+     * sin responsabilidad para el patrono por reincidencia.
+     */
+    public function registrarActa(Request $request, $tenant, $user)
+    {
+        $empleado = User::query()->findOrFail($user);
+
+        $data = $request->validate([
+            'fecha_hecho' => ['required', 'date'],
+            'descripcion' => ['required', 'string', 'max:2000'],
+            'observaciones' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $data['user_id'] = $empleado->id;
+        $data['generado_por'] = auth()->id();
+        $data['tipo'] = 'falta_injustificada';
+
+        ActaDisciplinaria::create($data);
+
+        return redirect()->back()->with('success', 'Acta de falta injustificada registrada.');
+    }
+
+    public function eliminarActa(Request $request, $tenant, $user, ActaDisciplinaria $acta)
+    {
+        if ($acta->user_id !== (int) $user) {
+            abort(404);
+        }
+
+        $acta->delete();
+
+        return redirect()->back()->with('success', 'Acta eliminada.');
+    }
+
+    /**
+     * Genera el PDF del acta ya registrada, con el mismo formato oficial
+     * (logo, datos del colaborador, firmas) que el resto de documentos del
+     * expediente.
+     */
+    public function generarActa(Request $request, $tenant, $user, ActaDisciplinaria $acta)
+    {
+        if ($acta->user_id !== (int) $user) {
+            abort(404);
+        }
+
+        $empleado = User::query()->findOrFail($user);
+        $config = ConfiguracionSistema::instance();
+
+        $pdf = Pdf::loadView('empleados.acta-falta-pdf', [
+            'empleado' => $empleado,
+            'acta' => $acta,
+            'config' => $config,
+            'lugar' => $config->direccion ? Str::before($config->direccion, ',') : 'El Salvador',
+            'fechaLetras' => $acta->fecha_hecho->translatedFormat('d \\d\\e F \\d\\e Y'),
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->stream("acta-falta-injustificada-{$empleado->name}-{$acta->fecha_hecho->format('Y-m-d')}.pdf");
     }
 
     /**

@@ -595,6 +595,57 @@
         @endif
     </div>
 
+    {{-- ── ACTAS DE FALTAS INJUSTIFICADAS ── --}}
+    <div x-show="tab === 'laboral'" class="pe-card">
+        <div class="pe-card-header">
+            <span class="pe-card-title">Actas de faltas injustificadas</span>
+        </div>
+
+        <form method="POST" action="{{ route('empleados.registrarActa', [$tenant, $empleado->id]) }}" style="padding:0 1.25rem 1.25rem;">
+            @csrf
+            <div class="pe-form-grid">
+                <div><label>Fecha de la falta</label><input type="date" name="fecha_hecho" class="pe-input" value="{{ today()->toDateString() }}" required></div>
+                <div style="grid-column:1/-1;"><label>Hechos / Descripción de la falta</label><input type="text" name="descripcion" class="pe-input" placeholder="Ej: No se presentó a laborar el día indicado sin avisar ni justificar la ausencia." required></div>
+                <div style="grid-column:1/-1;"><label>Observaciones</label><input type="text" name="observaciones" class="pe-input" placeholder="Opcional"></div>
+            </div>
+            <div class="pe-form-actions">
+                <button type="submit" class="pe-btn pe-btn-primary">Registrar acta</button>
+            </div>
+        </form>
+
+        @if($actasEmpleado->isEmpty())
+            <div class="pe-empty-hint" style="padding:0 1.25rem 1.25rem;">Todavía no hay actas registradas.</div>
+        @else
+            <table class="pe-table">
+                <thead>
+                    <tr>
+                        <th>Fecha de la falta</th>
+                        <th>Descripción</th>
+                        <th>Registrada por</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($actasEmpleado as $acta)
+                        <tr>
+                            <td>{{ $acta->fecha_hecho->format('d/m/Y') }}</td>
+                            <td style="max-width:320px;">{{ \Illuminate\Support\Str::limit($acta->descripcion, 80) }}</td>
+                            <td>{{ $acta->generadoPor?->name ?? '—' }}</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <a href="{{ route('empleados.generarActa', [$tenant, $empleado->id, $acta->id]) }}" target="_blank" class="pe-btn pe-btn-gray" style="padding:.25rem .6rem; font-size:.72rem;">Ver acta (PDF)</a>
+                                <form method="POST" action="{{ route('empleados.eliminarActa', [$tenant, $empleado->id, $acta->id]) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar esta acta?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="pe-btn pe-btn-danger" style="padding:.25rem .6rem; font-size:.72rem;">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
     {{-- ── ACCESO Y PERMISOS ── --}}
     <div x-show="tab === 'acceso'" class="pe-card">
         <div class="pe-card-header"><span class="pe-card-title">Cuenta del sistema</span></div>

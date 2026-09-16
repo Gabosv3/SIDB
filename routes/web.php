@@ -285,6 +285,15 @@ Route::middleware(['web', 'auth', 'can:View:PerfilEmpleado'])->prefix('empleados
     Route::get('{tenant}/{user}/pagos/{pago}/constancia', 'App\Http\Controllers\EmpleadoPerfilController@generarConstancia')
         ->name('constanciaPago')
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+', 'pago' => '[0-9]+']);
+    Route::post('{tenant}/{user}/actas', 'App\Http\Controllers\EmpleadoPerfilController@registrarActa')
+        ->name('registrarActa')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
+    Route::delete('{tenant}/{user}/actas/{acta}', 'App\Http\Controllers\EmpleadoPerfilController@eliminarActa')
+        ->name('eliminarActa')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+', 'acta' => '[0-9]+']);
+    Route::get('{tenant}/{user}/actas/{acta}/pdf', 'App\Http\Controllers\EmpleadoPerfilController@generarActa')
+        ->name('generarActa')
+        ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+', 'acta' => '[0-9]+']);
     Route::get('{tenant}/{user}/contrato', 'App\Http\Controllers\EmpleadoPerfilController@generarContrato')
         ->name('contrato')
         ->where(['tenant' => '[0-9]+', 'user' => '[0-9]+']);
