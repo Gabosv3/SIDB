@@ -86,6 +86,24 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->minLength(2)
                                         ->maxLength(255)
                                         ->helperText('Nombre completo tal como aparecerá en ventas y reportes.')
+                                        ->suffixAction(
+                                            Actions\Action::make('generarNombreCombo')
+                                                ->icon('heroicon-m-sparkles')
+                                                ->tooltip('Generar nombre a partir de los componentes del combo')
+                                                ->visible(fn (Get $get) => (bool) $get('es_combo') && collect($get('componentes'))->filter(fn ($i) => ! empty($i['producto_componente_id']))->isNotEmpty())
+                                                ->action(function (Set $set, Get $get): void {
+                                                    $items = collect($get('componentes'))->filter(fn ($i) => ! empty($i['producto_componente_id']));
+                                                    if ($items->isEmpty()) {
+                                                        return;
+                                                    }
+
+                                                    $nombresPorId = Producto::whereIn('id', $items->pluck('producto_componente_id'))->pluck('nombre', 'id');
+
+                                                    $set('nombre', $items
+                                                        ->map(fn ($i) => ($i['cantidad'] ?? 1).'x '.($nombresPorId[$i['producto_componente_id']] ?? '?'))
+                                                        ->implode(' + '));
+                                                })
+                                        )
                                         ->columnSpanFull(),
 
                                     Forms\Components\Select::make('categoria_id')
@@ -431,6 +449,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn ($query) => $query->with('componentes.componente'))
             ->columns([
                 Tables\Columns\ImageColumn::make('imagen')
                     ->label('Imagen')
@@ -459,13 +478,14 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->color(fn (string $state): string => $state === 'excel' ? 'warning' : 'success')
                     ->formatStateUsing(fn (string $state): string => $state === 'excel' ? 'Excel' : 'Manual'),
 
-                Tables\Columns\IconColumn::make('es_combo')
+                Tables\Columns\TextColumn::make('es_combo')
                     ->label('Combo')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-square-3-stack-3d')
-                    ->falseIcon('heroicon-o-minus')
-                    ->trueColor('warning')
-                    ->falseColor('gray')
+                    ->badge()
+                    ->color(fn (bool $state): string => $state ? 'warning' : 'gray')
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Combo' : 'Individual')
+                    ->tooltip(fn (Producto $record): ?string => $record->es_combo
+                        ? $record->componentes->map(fn ($c) => "{$c->cantidad}x {$c->componente?->nombre}")->implode(' + ')
+                        : null)
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('categoria.nombre')
