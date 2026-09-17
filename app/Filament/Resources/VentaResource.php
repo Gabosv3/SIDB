@@ -9,6 +9,7 @@ use App\Models\PagoVenta;
 use App\Models\Producto;
 use App\Models\Venta;
 use App\Models\Vendedor;
+use App\Services\AnularVentaService;
 use BezhanSalleh\FilamentShield\Contracts\HasShieldPermissions;
 use Carbon\Carbon;
 use Filament\Actions;
@@ -571,6 +572,33 @@ class VentaResource extends Resource implements HasShieldPermissions
                             ->title('Pago registrado correctamente')
                             ->success()
                             ->send();
+                    }),
+                Actions\Action::make('cancelar_venta')
+                    ->label('Cancelar')
+                    ->icon('heroicon-m-x-circle')
+                    ->color('danger')
+                    ->visible(fn (Venta $record): bool =>
+                        ! in_array($record->estado, ['cancelada', 'devuelta'], true) && (float) $record->monto_pagado === 0.0
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Cancelar venta')
+                    ->modalDescription('Se marca la venta como cancelada y se reintegra lo vendido: si el producto salió de una asignación diaria todavía activa, se le devuelve a esa asignación (para que el vendedor lo pueda revender hoy); si no, se reintegra al stock general.')
+                    ->form([
+                        Forms\Components\Textarea::make('motivo')
+                            ->label('Motivo de la cancelación')
+                            ->required()
+                            ->rows(2),
+                    ])
+                    ->action(function (Venta $record, array $data): void {
+                        $resultado = AnularVentaService::anular($record, $data['motivo']);
+
+                        if (isset($resultado['error'])) {
+                            Notification::make()->title('No se pudo cancelar')->body($resultado['error'])->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('Venta cancelada')->success()->send();
                     }),
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
