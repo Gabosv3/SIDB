@@ -253,6 +253,7 @@ class VentaController extends Controller
                 'tipoPagoVenta'  => $tipoPagoVenta,
                 'montoPagado'    => $montoPagado,
                 'saldoPendiente' => $saldoPendiente,
+                'totalCredito'   => $totalCredito,
             ] = VentaCorreccionService::calcularDetallesYTotales($data['detalles'], $descuentoPct, $prima, $asignacionDetalles);
 
             // ── Límite de crédito del cliente ─────────────────────────────────────
