@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // ── Solo VENDEDORES: crear ventas ────────────────────────────────────
         Route::middleware('solo.vendedor')->group(function () {
             Route::post('/ventas', [VentaController::class, 'store']);
+            Route::patch('/ventas/{id}', [VentaController::class, 'update']);
             Route::post('/ventas/{id}/anular', [VentaController::class, 'anular']);
             Route::post('/pagares', [PagareController::class, 'store']);
             Route::patch('/pagares/{id}/venta', [PagareController::class, 'vincularVenta']);
