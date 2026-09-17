@@ -75,12 +75,19 @@ class LiquidacionSemanalVentas extends Page
             ->get();
 
         return $vendedores->map(function (Vendedor $vendedor) use ($inicio, $fin) {
-            // Total vendido en la semana -- ventas canceladas/devueltas no cuentan
-            // ni para el total ni para la comisión.
-            $totalVendido = (float) Venta::where('vendedor_id', $vendedor->id)
+            // Ventas canceladas/devueltas no cuentan ni para el total ni para
+            // la comisión. El % de tramo se aplica POR VENTA individual (a
+            // mayor monto de esa venta, menor %), no sobre el total acumulado
+            // de la semana -- igual que la prima diaria de "Ventas del Día".
+            $ventasSemana = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
                 ->whereNotIn('estado', ['cancelada', 'devuelta'])
-                ->sum('total');
+                ->get(['id', 'total']);
+
+            $totalVendido = (float) $ventasSemana->sum('total');
+            $comision = round($ventasSemana->sum(
+                fn (Venta $v) => (float) $v->total * ComisionTramo::porcentajePara((float) $v->total) / 100
+            ), 2);
 
             $porDia = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
@@ -108,12 +115,9 @@ class LiquidacionSemanalVentas extends Page
             $modalidad = $perfil?->modalidad_pago ?? 'comision';
             $salarioBase = (float) ($perfil?->salario_base ?? 0);
 
-            // El % de comisión no es fijo por vendedor: depende de en qué
-            // tramo cae lo que vendió ESA semana (a mayor venta, menor %,
-            // configurable en Ventas > Tramos de Comisión). Todo el monto
-            // paga el % de su propio tramo, no es acumulado como el ISR.
-            $pct = ComisionTramo::porcentajePara($totalVendido);
-            $comision = round($totalVendido * $pct / 100, 2);
+            // % efectivo solo para mostrar en pantalla (comisión / vendido);
+            // cada venta ya pagó su propio tramo por separado arriba.
+            $pct = $totalVendido > 0 ? round($comision / $totalVendido * 100, 2) : 0.0;
 
             $aPagar = match ($modalidad) {
                 'salario_fijo' => $salarioBase,
