@@ -9,7 +9,13 @@
              lo resetea a 0 y el contenido queda pegado al borde. --}}
         *:not(html):not(body) { margin:0; padding:0; box-sizing:border-box; }
         @page { size: letter portrait; margin: 2.5cm; }
-        body { font-family: Helvetica, Arial, sans-serif; font-size:11pt; color:#111827; line-height:1.4; }
+        {{-- El original mezcla dos fuentes: la tabla de "Generales" (página 1)
+             está en Calibri, y todo el cuerpo del contrato desde "NOSOTROS"
+             en adelante (página 2+) está en Times New Roman. Calibri no está
+             disponible en dompdf, así que en esa página se usa Helvetica
+             como la alternativa más cercana; Times New Roman sí es nativa. --}}
+        body { font-family: 'Times New Roman', Times, serif; font-size:11pt; color:#111827; line-height:1.4; }
+        .pagina-generales { font-family: Helvetica, Arial, sans-serif; }
         .pagebreak { page-break-before: always; }
 
         .titulo { text-align:center; font-size:14pt; font-weight:700; letter-spacing:.5px; margin-bottom:16px; text-transform:uppercase; }
@@ -48,7 +54,7 @@
     };
     $medioPagoTxt = ['efectivo' => 'Efectivo', 'transferencia' => 'Transferencia bancaria', 'cheque' => 'Cheque', 'deposito' => 'Depósito bancario'][$perfil->medio_pago] ?? '____________';
 @endphp
-<div class="page">
+<div class="page pagina-generales">
 
     <div class="titulo">Contrato Individual de Trabajo</div>
 
