@@ -169,10 +169,23 @@ class ResumenVentasDia extends Page
     }
 
     /**
+     * El tramo de comisión se aplica por cada PRODUCTO de la venta (el
+     * subtotal de esa línea), no por el total de la venta -- una venta de
+     * $320 con dos productos de $200 y $120 paga el tramo de $200 y el de
+     * $120 por separado.
+     */
+    private function comisionDeVenta(Venta $venta): float
+    {
+        return round($venta->detalles->sum(
+            fn ($d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
+        ), 2);
+    }
+
+    /**
      * La prima que se le da al vendedor el mismo día de la venta no siempre
      * se la queda completa: se le tapa con lo que realmente le corresponde
-     * de comisión por esa venta (según el tramo de su precio). Si la prima
-     * ofrecida es menor a eso, se queda con la prima completa igual.
+     * de comisión por esa venta (según el tramo de cada producto). Si la
+     * prima ofrecida es menor a eso, se queda con la prima completa igual.
      */
     public function confirmarPrimaAction(): Action
     {
@@ -182,22 +195,20 @@ class ResumenVentasDia extends Page
             ->requiresConfirmation()
             ->modalHeading('Confirmar prima del vendedor')
             ->modalDescription(function (array $arguments): string {
-                $venta = Venta::findOrFail($arguments['venta_id']);
-                $pct = ComisionTramo::porcentajePara((float) $venta->total);
-                $tope = round((float) $venta->total * $pct / 100, 2);
+                $venta = Venta::with('detalles')->findOrFail($arguments['venta_id']);
+                $tope = $this->comisionDeVenta($venta);
                 $monto = min((float) $venta->prima, $tope);
 
                 return sprintf(
-                    'Venta: $%s (comisión %s%% = $%s). Prima ofrecida: $%s. Se registrará un anticipo de $%s.',
+                    'Venta: $%s (comisión por producto = $%s). Prima ofrecida: $%s. Se registrará un anticipo de $%s.',
                     number_format((float) $venta->total, 2),
-                    number_format($pct, 2),
                     number_format($tope, 2),
                     number_format((float) $venta->prima, 2),
                     number_format($monto, 2)
                 );
             })
             ->action(function (array $arguments): void {
-                $venta = Venta::findOrFail($arguments['venta_id']);
+                $venta = Venta::with('detalles')->findOrFail($arguments['venta_id']);
 
                 if (! $venta->vendedor_id) {
                     Notification::make()->title('Esta venta no tiene vendedor asignado')->danger()->send();
@@ -211,8 +222,7 @@ class ResumenVentasDia extends Page
                     return;
                 }
 
-                $pct = ComisionTramo::porcentajePara((float) $venta->total);
-                $tope = round((float) $venta->total * $pct / 100, 2);
+                $tope = $this->comisionDeVenta($venta);
                 $monto = min((float) $venta->prima, $tope);
 
                 $inicioSemana = Carbon::parse($venta->fecha_venta)->startOfWeek(Carbon::MONDAY);

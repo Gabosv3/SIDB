@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\AnticipoVendedor;
 use App\Models\ComisionTramo;
+use App\Models\DetalleVenta;
 use App\Models\Vale;
 use App\Models\Vendedor;
 use App\Models\Venta;
@@ -76,17 +77,19 @@ class LiquidacionSemanalVentas extends Page
 
         return $vendedores->map(function (Vendedor $vendedor) use ($inicio, $fin) {
             // Ventas canceladas/devueltas no cuentan ni para el total ni para
-            // la comisión. El % de tramo se aplica POR VENTA individual (a
-            // mayor monto de esa venta, menor %), no sobre el total acumulado
-            // de la semana -- igual que la prima diaria de "Ventas del Día".
+            // la comisión. El % de tramo se aplica POR PRODUCTO (el subtotal
+            // de cada línea de la venta), no por el total de la venta ni por
+            // el total de la semana -- una venta de $320 con dos productos de
+            // $200 y $120 paga el tramo de $200 y el de $120 por separado.
             $ventasSemana = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
                 ->whereNotIn('estado', ['cancelada', 'devuelta'])
-                ->get(['id', 'total']);
+                ->with('detalles')
+                ->get();
 
             $totalVendido = (float) $ventasSemana->sum('total');
-            $comision = round($ventasSemana->sum(
-                fn (Venta $v) => (float) $v->total * ComisionTramo::porcentajePara((float) $v->total) / 100
+            $comision = round($ventasSemana->flatMap->detalles->sum(
+                fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
             ), 2);
 
             $porDia = Venta::where('vendedor_id', $vendedor->id)
