@@ -328,6 +328,17 @@
                                     >
                                         ✏️ Corregir
                                     </button>
+                                    @if((float) $v->monto_pagado === 0.0)
+                                        <br>
+                                        <button
+                                            type="button"
+                                            wire:click="mountAction('cancelarVenta', {{ Illuminate\Support\Js::from(['venta_id' => $v->id]) }})"
+                                            class="rv-mapa-link"
+                                            style="background:none;border:none;padding:0;cursor:pointer;font:inherit;color:#dc2626"
+                                        >
+                                            ✕ Cancelar
+                                        </button>
+                                    @endif
                                 @endif
                             </td>
                         </tr>

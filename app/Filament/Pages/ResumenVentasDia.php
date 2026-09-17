@@ -9,6 +9,7 @@ use App\Models\Pagare;
 use App\Models\RutaCobro;
 use App\Models\Vendedor;
 use App\Models\Venta;
+use App\Services\AnularVentaService;
 use App\Services\ResumenVentasDiaService;
 use App\Services\VentaCorreccionService;
 use Filament\Actions\Action;
@@ -393,6 +394,40 @@ class ResumenVentasDia extends Page
                 }
 
                 Notification::make()->title('Venta corregida correctamente')->success()->send();
+            });
+    }
+
+    /**
+     * Cancela una venta sin salir de este resumen -- mismo comportamiento
+     * que el botón "Cancelar" de Ventas (reintegra a la asignación diaria
+     * activa si aplica, o al stock general si no).
+     */
+    public function cancelarVentaAction(): Action
+    {
+        return Action::make('cancelarVenta')
+            ->label('Cancelar')
+            ->icon('heroicon-m-x-circle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Cancelar venta')
+            ->modalDescription('Se marca la venta como cancelada y se reintegra lo vendido: si el producto salió de una asignación diaria todavía activa, se le devuelve a esa asignación; si no, se reintegra al stock general.')
+            ->schema([
+                Forms\Components\Textarea::make('motivo')
+                    ->label('Motivo de la cancelación')
+                    ->required()
+                    ->rows(2),
+            ])
+            ->action(function (array $data, array $arguments): void {
+                $venta = Venta::findOrFail($arguments['venta_id']);
+                $resultado = AnularVentaService::anular($venta, $data['motivo']);
+
+                if (isset($resultado['error'])) {
+                    Notification::make()->title('No se pudo cancelar')->body($resultado['error'])->danger()->send();
+
+                    return;
+                }
+
+                Notification::make()->title('Venta cancelada')->success()->send();
             });
     }
 }
