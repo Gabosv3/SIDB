@@ -49,7 +49,12 @@ class VentaController extends Controller
     )]
     public function index(Request $request): JsonResponse
     {
-        $query = Venta::with('cliente:id,nombre,apellido')
+        $query = Venta::with([
+            'cliente:id,nombre,apellido,telefono_normal,telefono_whatsapp',
+            'detalles.producto:id,nombre,codigo',
+            'vendedor:id,nombre,apellido',
+            'user:id,name',
+        ])
             ->where('user_id', $request->user()->id);
 
         if ($request->filled('sucursal_id')) {
