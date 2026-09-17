@@ -192,6 +192,7 @@
                         <th>Tipo pago</th>
                         <th>Estado</th>
                         <th style="text-align:right">Total</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -287,6 +288,18 @@
                                 <span class="rv-badge rv-badge-{{ $v->estado }}">{{ $estadoLabels[$v->estado] ?? $v->estado }}</span>
                             </td>
                             <td class="rv-td" style="text-align:right;font-weight:700;color:inherit">${{ number_format((float) $v->total, 2) }}</td>
+                            <td class="rv-td">
+                                @if(! in_array($v->estado, ['cancelada', 'devuelta']))
+                                    <button
+                                        type="button"
+                                        wire:click="mountAction('corregirVenta', {{ Illuminate\Support\Js::from(['venta_id' => $v->id]) }})"
+                                        class="rv-mapa-link"
+                                        style="background:none;border:none;padding:0;cursor:pointer;font:inherit;color:#b45309"
+                                    >
+                                        ✏️ Corregir
+                                    </button>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

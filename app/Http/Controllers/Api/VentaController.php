@@ -9,6 +9,7 @@ use App\Models\GestionCobro;
 use App\Models\Producto;
 use App\Models\Venta;
 use App\Services\IdempotencyService;
+use App\Services\VentaCorreccionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -189,79 +190,6 @@ class VentaController extends Controller
         );
     }
 
-    // Procesa las líneas de detalle (precios, cuotas, subtotal) y calcula los
-    // totales de la venta. Compartido entre crearVenta() y editarVenta() para
-    // no duplicar la lógica de precios — sobre todo la de crédito, que ya se
-    // rompió una vez por estar calculada en dos lugares distintos.
-    private function calcularDetallesYTotales(array $detallesInput, float $descuentoPct, float $prima, $asignacionDetalles): array
-    {
-        $subtotal     = 0;
-        $detallesPrep = [];
-
-        foreach ($detallesInput as $item) {
-            $detalleAsignado = $asignacionDetalles->get((int) $item['producto_id']);
-            $tipoPagoLinea    = $item['tipo_pago'] ?? null;
-            $precioCuota      = null;
-
-            if ($tipoPagoLinea === 'credito' && isset($item['cuotas'])) {
-                $producto     = Producto::find($item['producto_id']);
-                $planCatalogo = collect($producto?->precios_cuotas ?? [])
-                    ->first(fn ($p) => (int) ($p['cuotas'] ?? 0) === (int) $item['cuotas']);
-
-                $precioCuota = $planCatalogo
-                    ? (float) ($planCatalogo['precio_cuota'] ?? $planCatalogo['precio'] ?? 0)
-                    : (float) ($item['precio_cuota'] ?? 0);
-
-                $precioUnitario = round((int) $item['cuotas'] * $precioCuota, 2);
-            } else {
-                $precioUnitario = $detalleAsignado?->precio_venta ?? $item['precio_unitario'];
-            }
-
-            $dto   = (float) ($item['descuento_porcentaje'] ?? 0);
-            $linea = round($item['cantidad'] * $precioUnitario * (1 - $dto / 100), 2);
-            $subtotal += $linea;
-
-            if (isset($item['cuotas']) && $precioCuota === null) {
-                $precioCuota = $linea / $item['cuotas'];
-            }
-
-            $detallesPrep[] = [
-                'producto_id'          => $item['producto_id'],
-                'cantidad'             => $item['cantidad'],
-                'precio_unitario'      => $precioUnitario,
-                'descuento_porcentaje' => $dto,
-                'subtotal'             => $linea,
-                'tipo_pago'            => $tipoPagoLinea,
-                'cuotas'               => $item['cuotas'] ?? null,
-                'precio_cuota'         => $precioCuota !== null ? round($precioCuota, 2) : null,
-            ];
-        }
-
-        $descuentoMonto = round($subtotal * $descuentoPct / 100, 2);
-        $total          = round($subtotal - $descuentoMonto, 2);
-
-        $tiposLinea = collect($detallesPrep)->pluck('tipo_pago')->filter()->unique()->values();
-        $tipoPagoVenta = $tiposLinea->count() > 1 ? 'mixta' : ($tiposLinea->first() ?? 'contado');
-
-        $detallesPrep = array_map(function ($d) use ($tipoPagoVenta) {
-            if ($d['tipo_pago'] === null) {
-                $d['tipo_pago'] = $tipoPagoVenta === 'mixta' ? 'contado' : $tipoPagoVenta;
-            }
-            return $d;
-        }, $detallesPrep);
-
-        $totalContado = collect($detallesPrep)->where('tipo_pago', 'contado')->sum('subtotal');
-        $totalCredito = collect($detallesPrep)->where('tipo_pago', 'credito')->sum('subtotal');
-
-        // La prima no se recorta al total a crédito — el cliente puede dar más
-        // de lo que debía y queda registrado tal cual. El saldo pendiente sí
-        // se detiene en 0, nunca queda negativo aunque la prima lo supere.
-        $montoPagado    = round($totalContado + $prima, 2);
-        $saldoPendiente = max(0, round($totalCredito - $prima, 2));
-
-        return compact('detallesPrep', 'subtotal', 'descuentoMonto', 'total', 'tipoPagoVenta', 'montoPagado', 'saldoPendiente', 'totalCredito');
-    }
-
     private function crearVenta(Request $request, array $data): JsonResponse
     {
         $vendedor = $request->user()->vendedor;
@@ -325,7 +253,7 @@ class VentaController extends Controller
                 'tipoPagoVenta'  => $tipoPagoVenta,
                 'montoPagado'    => $montoPagado,
                 'saldoPendiente' => $saldoPendiente,
-            ] = $this->calcularDetallesYTotales($data['detalles'], $descuentoPct, $prima, $asignacionDetalles);
+            ] = VentaCorreccionService::calcularDetallesYTotales($data['detalles'], $descuentoPct, $prima, $asignacionDetalles);
 
             // ── Límite de crédito del cliente ─────────────────────────────────────
             // Si tiene un límite configurado (>0), esta venta no puede dejarlo con
@@ -493,192 +421,49 @@ class VentaController extends Controller
             return response()->json(['mensaje' => 'No se encontró perfil de vendedor.'], 403);
         }
 
-        $resultado = DB::transaction(function () use ($request, $id, $data, $vendedor) {
-            $venta = Venta::where('id', $id)
-                ->where('user_id', $request->user()->id)
-                ->lockForUpdate()
-                ->first();
+        $venta = Venta::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->with('detalles')
+            ->first();
 
-            if (! $venta) {
-                return ['error' => 'not_found'];
-            }
+        if (! $venta) {
+            return response()->json(['mensaje' => 'Venta no encontrada.'], 404);
+        }
 
-            if (! $venta->fecha_venta->isToday()) {
-                return ['error' => 'Solo puedes corregir ventas del mismo día. Para una venta de un día anterior, pide a un administrador que la corrija desde el panel.'];
-            }
+        if (! $venta->fecha_venta->isToday()) {
+            return response()->json(['mensaje' => 'Solo puedes corregir ventas del mismo día. Para una venta de un día anterior, pide a un administrador que la corrija desde el panel.'], 422);
+        }
 
-            if (in_array($venta->estado, ['cancelada', 'devuelta'], true)) {
-                return ['error' => 'Esta venta está anulada y no se puede corregir.'];
-            }
+        $asignacion = AsignacionDiaria::with('detalles')
+            ->where('vendedor_id', $vendedor->id)
+            ->where('fecha', today())
+            ->where('estado', 'activa')
+            ->first();
 
-            $hayAbonosPosteriores = PagoVenta::where('venta_id', $id)->whereNull('anulado_en')->exists();
-            if ($hayAbonosPosteriores) {
-                return ['error' => 'Esta venta ya tiene abonos registrados aparte de la prima inicial; no se puede corregir desde la app. Contacta al administrador.'];
-            }
+        if (! $asignacion) {
+            return response()->json(['mensaje' => 'No tienes una asignación activa hoy — no se puede recalcular el stock para corregir la venta.'], 422);
+        }
 
-            $asignacion = AsignacionDiaria::with('detalles')
-                ->where('vendedor_id', $vendedor->id)
-                ->where('fecha', today())
-                ->where('estado', 'activa')
-                ->first();
+        $nuevosDetalles = $data['detalles'] ?? $venta->detalles->map(fn ($d) => [
+            'producto_id'          => $d->producto_id,
+            'cantidad'             => $d->cantidad,
+            'precio_unitario'      => (float) $d->precio_unitario,
+            'descuento_porcentaje' => (float) $d->descuento_porcentaje,
+            'tipo_pago'            => $d->tipo_pago,
+            'cuotas'               => $d->cuotas,
+            'precio_cuota'         => $d->precio_cuota !== null ? (float) $d->precio_cuota : null,
+        ])->toArray();
 
-            if (! $asignacion) {
-                return ['error' => 'No tienes una asignación activa hoy — no se puede recalcular el stock para corregir la venta.'];
-            }
+        $descuentoPct = array_key_exists('descuento_porcentaje', $data) ? (float) $data['descuento_porcentaje'] : (float) $venta->descuento_porcentaje;
+        $prima        = array_key_exists('prima', $data) ? (float) $data['prima'] : (float) $venta->prima;
+        $clienteId    = $data['cliente_id'] ?? $venta->cliente_id;
 
-            $asignacionDetalles = $asignacion->detalles->keyBy('producto_id');
-
-            // Se revierte lo que esta venta ya había descontado de la
-            // asignación, ANTES de revalidar — si no, se contaría dos veces
-            // a sí misma y bloquearía una corrección que en realidad cabe.
-            foreach ($venta->detalles as $detalleViejo) {
-                $detalleAsignado = $asignacionDetalles->get($detalleViejo->producto_id);
-                if ($detalleAsignado) {
-                    $detalleAsignado->decrement('cantidad_vendida', $detalleViejo->cantidad);
-                    $detalleAsignado->refresh();
-                    $detalleAsignado->update([
-                        'cantidad_devuelta' => max(0, $detalleAsignado->cantidad_asignada - $detalleAsignado->cantidad_vendida),
-                    ]);
-                }
-            }
-
-            $nuevosDetalles = $data['detalles'] ?? $venta->detalles->map(fn ($d) => [
-                'producto_id'          => $d->producto_id,
-                'cantidad'             => $d->cantidad,
-                'precio_unitario'      => (float) $d->precio_unitario,
-                'descuento_porcentaje' => (float) $d->descuento_porcentaje,
-                'tipo_pago'            => $d->tipo_pago,
-                'cuotas'               => $d->cuotas,
-                'precio_cuota'         => $d->precio_cuota !== null ? (float) $d->precio_cuota : null,
-            ])->toArray();
-
-            $cantidadesSolicitadas = collect($nuevosDetalles)->groupBy('producto_id')->map(fn ($items) => $items->sum('cantidad'));
-            foreach ($cantidadesSolicitadas as $productoId => $cantidadSolicitada) {
-                $detalleAsignado = $asignacionDetalles->get((int) $productoId);
-                if (! $detalleAsignado) {
-                    return ['error' => 'Uno de los productos no está incluido en tu asignación de hoy.'];
-                }
-                $cantidadVendidaHoy = DetalleVenta::where('producto_id', $productoId)
-                    ->whereHas('venta', function ($query) use ($vendedor, $id) {
-                        $query->where('vendedor_id', $vendedor->id)
-                            ->whereDate('fecha_venta', today())
-                            ->whereIn('estado', ['pendiente', 'completada'])
-                            ->where('id', '!=', $id);
-                    })
-                    ->sum('cantidad');
-                if (($cantidadVendidaHoy + $cantidadSolicitada) > $detalleAsignado->cantidad_asignada) {
-                    return ['error' => "La cantidad solicitada supera lo asignado para el producto {$detalleAsignado->producto_id}."];
-                }
-            }
-
-            $descuentoPct = array_key_exists('descuento_porcentaje', $data) ? (float) $data['descuento_porcentaje'] : (float) $venta->descuento_porcentaje;
-            $prima        = array_key_exists('prima', $data) ? (float) $data['prima'] : (float) $venta->prima;
-            $clienteId    = $data['cliente_id'] ?? $venta->cliente_id;
-
-            [
-                'detallesPrep'   => $detallesPrep,
-                'subtotal'       => $subtotal,
-                'descuentoMonto' => $descuentoMonto,
-                'total'          => $total,
-                'tipoPagoVenta'  => $tipoPagoVenta,
-                'montoPagado'    => $montoPagado,
-                'saldoPendiente' => $saldoPendiente,
-            ] = $this->calcularDetallesYTotales($nuevosDetalles, $descuentoPct, $prima, $asignacionDetalles);
-
-            if ($saldoPendiente > 0) {
-                $cliente = \App\Models\Cliente::find($clienteId);
-                if ($cliente && (float) $cliente->limite_credito > 0) {
-                    // Sin contar el saldo que esta misma venta ya traía, para
-                    // no comparar el límite contra un saldo inflado por sí misma.
-                    $saldoSinEstaVenta = (float) $cliente->saldo - (float) $venta->saldo_pendiente;
-                    $saldoResultante   = $saldoSinEstaVenta + $saldoPendiente;
-
-                    if ($saldoResultante > (float) $cliente->limite_credito) {
-                        return ['error' => sprintf(
-                            'El cliente supera su límite de crédito ($%s) con esta corrección.',
-                            number_format((float) $cliente->limite_credito, 2)
-                        )];
-                    }
-                }
-            }
-
-            $viejoClienteId = $venta->cliente_id;
-            $estaCompletada = $saldoPendiente <= 0;
-
-            $venta->update([
-                'cliente_id'           => $clienteId,
-                'tipo_pago'            => $tipoPagoVenta,
-                'prima'                => $prima,
-                'subtotal'             => $subtotal,
-                'descuento_porcentaje' => $descuentoPct,
-                'descuento_monto'      => $descuentoMonto,
-                'total'                => $total,
-                'monto_pagado'         => $montoPagado,
-                'saldo_pendiente'      => $saldoPendiente,
-                'estado'               => $estaCompletada ? 'completada' : 'pendiente',
-                'observaciones'        => trim(($venta->observaciones ? $venta->observaciones . ' | ' : '') . 'Corregida: ' . $data['motivo']),
-            ]);
-
-            $venta->detalles()->delete();
-            GestionCobro::where('venta_id', $venta->id)->delete();
-
-            foreach ($detallesPrep as $d) {
-                DetalleVenta::create(array_merge(['venta_id' => $venta->id], $d));
-
-                $detalleAsignado = $asignacionDetalles->get((int) $d['producto_id']);
-                if ($detalleAsignado) {
-                    $detalleAsignado->increment('cantidad_vendida', $d['cantidad']);
-                    $detalleAsignado->refresh();
-                    $detalleAsignado->update([
-                        'cantidad_devuelta' => max(0, $detalleAsignado->cantidad_asignada - $detalleAsignado->cantidad_vendida),
-                    ]);
-                }
-            }
-
-            $lineasCredito = collect($detallesPrep)->where('tipo_pago', 'credito');
-            if ($lineasCredito->isNotEmpty() && $saldoPendiente > 0) {
-                $numeroCuotas = $lineasCredito->filter(fn ($d) => $d['cuotas'])->first()['cuotas']
-                    ?? $lineasCredito->first()['cuotas']
-                    ?? 1;
-
-                $montoBase = floor($saldoPendiente / $numeroCuotas * 100) / 100;
-                $residuo   = round($saldoPendiente - ($montoBase * $numeroCuotas), 2);
-
-                $gestiones = [];
-                for ($i = 1; $i <= $numeroCuotas; $i++) {
-                    $gestiones[] = [
-                        'venta_id'          => $venta->id,
-                        'cliente_id'        => $clienteId,
-                        'numero_cuota'      => $i,
-                        'total_cuotas'      => $numeroCuotas,
-                        'monto_cuota'       => $i === $numeroCuotas ? round($montoBase + $residuo, 2) : $montoBase,
-                        'monto_pagado'      => 0,
-                        'fecha_vencimiento' => now()->addMonths($i)->toDateString(),
-                        'estado'            => 'pendiente',
-                        'created_at'        => now(),
-                        'updated_at'        => now(),
-                    ];
-                }
-
-                GestionCobro::insert($gestiones);
-            }
-
-            \App\Models\Cliente::recalcularSaldo($clienteId);
-            if ($viejoClienteId !== $clienteId) {
-                \App\Models\Cliente::recalcularSaldo($viejoClienteId);
-            }
-
-            return ['venta' => $venta->load([
-                'detalles.producto:id,nombre,codigo',
-                'vendedor:id,nombre,apellido',
-                'user:id,name',
-            ])];
-        });
+        $resultado = VentaCorreccionService::aplicarCorreccion(
+            $venta, $nuevosDetalles, $prima, $descuentoPct, $clienteId, $asignacion, $data['motivo'], $id
+        );
 
         if (isset($resultado['error'])) {
-            return $resultado['error'] === 'not_found'
-                ? response()->json(['mensaje' => 'Venta no encontrada.'], 404)
-                : response()->json(['mensaje' => $resultado['error']], 422);
+            return response()->json(['mensaje' => $resultado['error']], 422);
         }
 
         return response()->json($resultado['venta']);

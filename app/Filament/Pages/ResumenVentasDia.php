@@ -10,6 +10,7 @@ use App\Models\RutaCobro;
 use App\Models\Vendedor;
 use App\Models\Venta;
 use App\Services\ResumenVentasDiaService;
+use App\Services\VentaCorreccionService;
 use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -232,6 +233,116 @@ class ResumenVentasDia extends Page
                     ->title("Prima confirmada: $".number_format($monto, 2))
                     ->success()
                     ->send();
+            });
+    }
+
+    /**
+     * Corregir una venta ya hecha (producto de más/de menos, cantidad
+     * equivocada, prima con el monto incorrecto) — sin límite de tiempo,
+     * a diferencia de la corrección que puede hacer el vendedor desde la
+     * app (solo el mismo día y solo si todavía no tiene abonos). Bloqueada
+     * igual si ya tiene abonos registrados, porque tocar los productos o la
+     * prima en ese caso dejaría las cuotas ya cobradas inconsistentes.
+     */
+    public function corregirVentaAction(): Action
+    {
+        return Action::make('corregirVenta')
+            ->label('Corregir')
+            ->icon('heroicon-m-pencil-square')
+            ->color('warning')
+            ->modalHeading('Corregir venta')
+            ->modalDescription('Ajusta cantidades, quita un producto de más, o corrige la prima. No se pueden agregar productos nuevos aquí — para eso, usa el formulario de edición completo en Ventas.')
+            ->modalWidth('lg')
+            ->fillForm(function (array $arguments): array {
+                $venta = Venta::with('detalles.producto')->findOrFail($arguments['venta_id']);
+
+                return [
+                    'prima' => (float) $venta->prima,
+                    'detalles' => $venta->detalles->map(fn ($d) => [
+                        'producto_id'          => $d->producto_id,
+                        'nombre'               => $d->producto?->nombre ?? "Producto #{$d->producto_id}",
+                        'cantidad'             => $d->cantidad,
+                        'precio_unitario'      => (float) $d->precio_unitario,
+                        'descuento_porcentaje' => (float) $d->descuento_porcentaje,
+                        'tipo_pago'            => $d->tipo_pago,
+                        'cuotas'               => $d->cuotas,
+                        'precio_cuota'         => $d->precio_cuota !== null ? (float) $d->precio_cuota : null,
+                    ])->toArray(),
+                ];
+            })
+            ->schema([
+                Forms\Components\Repeater::make('detalles')
+                    ->label('Productos')
+                    ->schema([
+                        Forms\Components\Hidden::make('producto_id'),
+                        Forms\Components\Hidden::make('precio_unitario'),
+                        Forms\Components\Hidden::make('descuento_porcentaje'),
+                        Forms\Components\Hidden::make('tipo_pago'),
+                        Forms\Components\Hidden::make('cuotas'),
+                        Forms\Components\Hidden::make('precio_cuota'),
+                        Forms\Components\TextInput::make('nombre')
+                            ->label('Producto')
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->columnSpan(2),
+                        Forms\Components\TextInput::make('cantidad')
+                            ->label('Cantidad')
+                            ->numeric()
+                            ->minValue(1)
+                            ->required(),
+                    ])
+                    ->columns(3)
+                    ->deletable(true)
+                    ->addable(false)
+                    ->reorderable(false)
+                    ->required(),
+                Forms\Components\TextInput::make('prima')
+                    ->label('Prima inicial')
+                    ->numeric()
+                    ->prefix('$')
+                    ->minValue(0),
+                Forms\Components\Textarea::make('motivo')
+                    ->label('Motivo de la corrección')
+                    ->placeholder('Ej: Se quitó una silla que sobraba, prima corregida a $10')
+                    ->rows(2)
+                    ->required(),
+            ])
+            ->action(function (array $data, array $arguments): void {
+                $venta = Venta::with('detalles')->findOrFail($arguments['venta_id']);
+
+                if (empty($data['detalles'])) {
+                    Notification::make()->title('La venta debe tener al menos un producto')->danger()->send();
+
+                    return;
+                }
+
+                $nuevosDetalles = collect($data['detalles'])->map(fn ($d) => [
+                    'producto_id'          => $d['producto_id'],
+                    'cantidad'             => (int) $d['cantidad'],
+                    'precio_unitario'      => (float) $d['precio_unitario'],
+                    'descuento_porcentaje' => (float) ($d['descuento_porcentaje'] ?? 0),
+                    'tipo_pago'            => $d['tipo_pago'] ?? null,
+                    'cuotas'               => $d['cuotas'] ?? null,
+                    'precio_cuota'         => $d['precio_cuota'] ?? null,
+                ])->toArray();
+
+                $resultado = VentaCorreccionService::aplicarCorreccion(
+                    $venta,
+                    $nuevosDetalles,
+                    (float) $data['prima'],
+                    (float) $venta->descuento_porcentaje,
+                    $venta->cliente_id,
+                    null, // el panel no valida contra la asignación diaria del vendedor
+                    $data['motivo']
+                );
+
+                if (isset($resultado['error'])) {
+                    Notification::make()->title('No se pudo corregir')->body($resultado['error'])->danger()->send();
+
+                    return;
+                }
+
+                Notification::make()->title('Venta corregida correctamente')->success()->send();
             });
     }
 }
