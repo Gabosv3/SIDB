@@ -20,7 +20,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EmpleadoPerfilController extends Controller
 {
@@ -473,33 +472,51 @@ class EmpleadoPerfilController extends Controller
         return redirect()->back()->with('success', 'Documento eliminado.');
     }
 
-    public function descargarExpediente(Request $request, $tenant, $user): StreamedResponse
+    public function descargarExpediente(Request $request, $tenant, $user)
     {
+        if (! class_exists(\ZipArchive::class)) {
+            abort(500, 'La extensión ZipArchive de PHP no está habilitada en el servidor.');
+        }
+
         $empleado = User::query()->findOrFail($user);
         $documentos = EmployeeDocument::where('user_id', $empleado->id)->get();
 
+        if ($documentos->isEmpty()) {
+            abort(404, 'Este empleado no tiene documentos subidos.');
+        }
+
         $tmpDir = storage_path('app/tmp');
-        if (! is_dir($tmpDir)) {
-            mkdir($tmpDir, 0755, true);
+        if (! is_dir($tmpDir) && ! mkdir($tmpDir, 0755, true) && ! is_dir($tmpDir)) {
+            abort(500, 'No se pudo crear el directorio temporal para el expediente.');
         }
 
         $zipPath = $tmpDir.'/expediente_'.$empleado->id.'_'.time().'.zip';
 
         $zip = new \ZipArchive;
-        $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            abort(500, 'No se pudo generar el archivo .zip del expediente.');
+        }
+
+        $agregados = 0;
         foreach ($documentos as $doc) {
             $fullPath = Storage::disk('public')->path($doc->archivo);
             if (file_exists($fullPath)) {
                 $zip->addFile($fullPath, $doc->tipo.'_'.basename($doc->archivo));
+                $agregados++;
             }
         }
         $zip->close();
+
+        if ($agregados === 0 || ! file_exists($zipPath)) {
+            @unlink($zipPath);
+            abort(404, 'Los documentos registrados de este empleado ya no están disponibles en el servidor.');
+        }
 
         $nombre = $empleado->vendedor?->nombre_completo ?? $empleado->cobrador?->nombre_completo ?? $empleado->name;
 
         return response()->streamDownload(function () use ($zipPath) {
             readfile($zipPath);
-            unlink($zipPath);
+            @unlink($zipPath);
         }, 'expediente_'.Str::slug($nombre).'.zip');
     }
 
