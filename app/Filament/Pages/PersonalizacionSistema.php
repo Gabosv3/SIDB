@@ -459,6 +459,13 @@ class PersonalizacionSistema extends Page
                         Forms\Components\TextInput::make('patrono_actividad_economica')
                             ->label('Actividad económica de la empresa')
                             ->maxLength(255),
+
+                        Forms\Components\Textarea::make('contrato_clausulas_generales')
+                            ->label('Cláusulas / estipulaciones generales adicionales')
+                            ->helperText('Se agregan automáticamente a TODOS los contratos que se generen, después de las estipulaciones propias de cada empleado. Útil para algo que aplique a todos (ej. una cláusula de confidencialidad o de reglamento interno) sin repetirlo empleado por empleado.')
+                            ->rows(4)
+                            ->maxLength(3000)
+                            ->columnSpanFull(),
                     ]),
 
                 // ── Ciclo quincenal de rutas ────────────────────────────────────

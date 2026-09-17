@@ -47,6 +47,7 @@ class ConfiguracionSistema extends Model
         'patrono_razon_social',
         'patrono_nit',
         'patrono_actividad_economica',
+        'contrato_clausulas_generales',
     ];
 
     protected $casts = [

@@ -201,6 +201,10 @@
         anterior y que no consten en el presente.
     </p>
 
+    @if($config->contrato_clausulas_generales)
+        <p>{{ $config->contrato_clausulas_generales }}</p>
+    @endif
+
     <p style="margin-top:12px;">
         En {{ $lugar }}, a los {{ $fechaLetras }}, leído que fue el presente contrato y enteradas ambas partes
         de su contenido, alcance y efectos legales, lo aceptan y ratifican en todas sus partes, firmándolo en dos
