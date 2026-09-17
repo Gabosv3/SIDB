@@ -80,7 +80,11 @@ class AuthController extends Controller
             'token' => $token,
             'user'  => [
                 'id'     => $user->id,
-                'name'   => $user->name,
+                // Si tiene alias configurado, la app lo ve como su nombre en
+                // todos lados (saludo, tickets, etc.) — el nombre real de la
+                // cuenta sigue intacto en la base, solo cambia lo que se
+                // muestra.
+                'name'   => $user->alias ?: $user->name,
                 'email'  => $user->email,
                 'roles'  => $user->getRoleNames(),
             ],
@@ -123,10 +127,14 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         $user = $request->user()->load('sucursales', 'vendedor', 'cobrador', 'supervisor');
+        $nombreMostrado = $user->alias ?: $user->name;
 
         return response()->json([
             'id'        => $user->id,
-            'name'      => $user->name,
+            // Si tiene alias, la app lo usa como su nombre en todos lados
+            // (saludo, tickets, etc.) — el nombre real de la cuenta sigue
+            // intacto en la base, esto solo cambia lo que se muestra.
+            'name'      => $nombreMostrado,
             'email'     => $user->email,
             'roles'     => $user->getRoleNames(),
             'permisos'  => $user->getAllPermissions()->pluck('name'),
@@ -138,18 +146,18 @@ class AuthController extends Controller
                 'vendedor'     => $user->vendedor ? [
                     'id'          => $user->vendedor->id,
                     'codigo'      => $user->vendedor->codigo,
-                    'nombre'      => $user->vendedor->nombre_completo,
+                    'nombre'      => $nombreMostrado,
                     'sucursal_id' => $user->vendedor->sucursal_id,
                     'es_cobrador' => $user->vendedor->es_cobrador,
                 ] : null,
                 'cobrador'     => $user->cobrador ? [
                     'id'          => $user->cobrador->id,
-                    'nombre'      => $user->cobrador->nombre_completo,
+                    'nombre'      => $nombreMostrado,
                     'sucursal_id' => $user->cobrador->sucursal_id,
                 ] : null,
                 'supervisor'   => $user->supervisor ? [
                     'id'          => $user->supervisor->id,
-                    'nombre'      => $user->supervisor->nombre_completo,
+                    'nombre'      => $nombreMostrado,
                     'sucursal_id' => $user->supervisor->sucursal_id,
                 ] : null,
             ],

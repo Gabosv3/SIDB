@@ -65,10 +65,32 @@ class VentaController extends Controller
             $query->where('estado', $request->estado);
         }
 
-        return response()->json(
-            $query->latest('fecha_venta')
-                ->paginate($request->integer('per_page', 20))
-        );
+        // Todas las ventas de este listado son del mismo vendedor (filtrado
+        // arriba por user_id), así que si tiene alias configurado se aplica
+        // igual a todas — sustituye el nombre que ve el ticket sin tocar el
+        // nombre real de la cuenta.
+        $alias = $request->user()->alias;
+        $ventas = $query->latest('fecha_venta')->paginate($request->integer('per_page', 20));
+
+        if ($alias) {
+            $ventas->getCollection()->each(fn (Venta $v) => self::aplicarAliasVendedor($v, $alias));
+        }
+
+        return response()->json($ventas);
+    }
+
+    // Sustituye el nombre del vendedor/usuario en la venta cargada por su
+    // alias, si tiene uno — solo afecta lo que devuelve esta respuesta, no
+    // toca la base de datos.
+    private static function aplicarAliasVendedor(Venta $venta, string $alias): void
+    {
+        if ($venta->relationLoaded('vendedor') && $venta->vendedor) {
+            $venta->vendedor->setAttribute('nombre', $alias);
+            $venta->vendedor->setAttribute('apellido', '');
+        }
+        if ($venta->relationLoaded('user') && $venta->user) {
+            $venta->user->setAttribute('name', $alias);
+        }
     }
 
     #[OA\Get(
@@ -363,6 +385,10 @@ class VentaController extends Controller
             ]);
         });
 
+        if ($request->user()->alias) {
+            self::aplicarAliasVendedor($venta, $request->user()->alias);
+        }
+
         return response()->json($venta, 201);
     }
 
@@ -470,6 +496,10 @@ class VentaController extends Controller
 
         if (isset($resultado['error'])) {
             return response()->json(['mensaje' => $resultado['error']], 422);
+        }
+
+        if ($request->user()->alias) {
+            self::aplicarAliasVendedor($resultado['venta'], $request->user()->alias);
         }
 
         return response()->json($resultado['venta']);

@@ -85,6 +85,13 @@ class UserResource extends Resource implements HasShieldPermissions
                                         ->maxLength(255)
                                         ->columnSpanFull(),
 
+                                    Forms\Components\TextInput::make('alias')
+                                        ->label('Alias (opcional)')
+                                        ->placeholder('Ej: Juanito')
+                                        ->helperText('Si lo llenas, la app le muestra este nombre en vez del nombre completo — en tickets, saludo, menú, etc. El nombre completo de arriba no cambia, solo lo que ve en la app.')
+                                        ->maxLength(255)
+                                        ->columnSpanFull(),
+
                                     Forms\Components\TextInput::make('email')
                                         ->label('Correo electrónico')
                                         ->placeholder('usuario@example.com')
