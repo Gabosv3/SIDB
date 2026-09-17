@@ -5,8 +5,8 @@
     <title>Contrato Individual de Trabajo</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
+        @page { size: letter portrait; margin: 1in; }
         body { font-family: 'DejaVu Sans', sans-serif; font-size:10.5px; color:#111827; line-height:1.55; }
-        .page { margin:26px 48px; }
         .pagebreak { page-break-before: always; }
 
         .titulo { text-align:center; font-size:14px; font-weight:700; letter-spacing:.5px; margin-bottom:16px; text-transform:uppercase; }
@@ -21,7 +21,7 @@
         .g-fila { border-bottom:1px solid #9ca3af; padding:3px 0 3px; font-size:10px; }
         .g-label { font-weight:700; }
 
-        .cuerpo { text-align:justify; white-space:pre-line; }
+        .cuerpo { text-align:justify; }
 
         table.firmas { width:100%; border-collapse:collapse; margin-top:46px; }
         table.firmas td { width:50%; text-align:center; padding-top:34px; }
@@ -112,7 +112,9 @@
             <td></td>
         </tr>
     </table>
+</div>
 
+<div class="page pagebreak">
     <div class="cuerpo">@include('empleados._contrato-cuerpo-pdf')</div>
 
     <table class="firmas">
