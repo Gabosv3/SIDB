@@ -77,13 +77,19 @@ class LiquidacionSemanalVentas extends Page
 
         return $vendedores->map(function (Vendedor $vendedor) use ($inicio, $fin) {
             // Ventas canceladas/devueltas no cuentan ni para el total ni para
-            // la comisión. El % de tramo se aplica POR PRODUCTO (el subtotal
-            // de cada línea de la venta), no por el total de la venta ni por
-            // el total de la semana -- una venta de $320 con dos productos de
-            // $200 y $120 paga el tramo de $200 y el de $120 por separado.
+            // la comisión. Las ventas AL CONTADO tampoco entran aquí: para
+            // esas el vendedor ya se queda con su margen (precio_venta menos
+            // "se le recibe al vendedor" de cada producto) y entrega ese
+            // monto fijo + el ajuste de su prima el mismo día -- meterlas
+            // otra vez en la semanal sería pagarle dos veces. El % de tramo
+            // se aplica POR PRODUCTO (el subtotal de cada línea de la
+            // venta), no por el total de la venta ni por el total de la
+            // semana -- una venta de $320 con dos productos de $200 y $120
+            // paga el tramo de $200 y el de $120 por separado.
             $ventasSemana = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
                 ->whereNotIn('estado', ['cancelada', 'devuelta'])
+                ->where('tipo_pago', '!=', 'contado')
                 ->with('detalles')
                 ->get();
 
@@ -95,14 +101,19 @@ class LiquidacionSemanalVentas extends Page
             $porDia = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
                 ->whereNotIn('estado', ['cancelada', 'devuelta'])
+                ->where('tipo_pago', '!=', 'contado')
                 ->selectRaw('DATE(fecha_venta) as dia, SUM(total) as total, COUNT(*) as ventas')
                 ->groupBy('dia')
                 ->orderBy('dia')
                 ->get();
 
-            // Anticipos de la semana
+            // Anticipos de la semana -- excluye los que vienen de "Confirmar
+            // prima" de una venta al contado, porque esa prima ya no está
+            // ligada a ninguna comisión de esta liquidación (se resolvió el
+            // mismo día).
             $anticipos = AnticipoVendedor::where('vendedor_id', $vendedor->id)
                 ->where('semana_inicio', $inicio->toDateString())
+                ->whereDoesntHave('venta', fn ($q) => $q->where('tipo_pago', 'contado'))
                 ->get();
             $totalAnticipos = (float) $anticipos->sum('monto');
 
