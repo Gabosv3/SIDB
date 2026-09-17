@@ -255,6 +255,7 @@ class EmpleadoPerfilController extends Controller
         $empleado = User::query()->findOrFail($user);
 
         $data = $request->validate([
+            'tipo' => ['required', 'in:falta_injustificada,permiso'],
             'fecha_hecho' => ['required', 'date'],
             'descripcion' => ['required', 'string', 'max:2000'],
             'observaciones' => ['nullable', 'string', 'max:1000'],
@@ -262,11 +263,12 @@ class EmpleadoPerfilController extends Controller
 
         $data['user_id'] = $empleado->id;
         $data['generado_por'] = auth()->id();
-        $data['tipo'] = 'falta_injustificada';
 
         ActaDisciplinaria::create($data);
 
-        return redirect()->back()->with('success', 'Acta de falta injustificada registrada.');
+        $mensaje = $data['tipo'] === 'permiso' ? 'Permiso registrado.' : 'Acta de falta injustificada registrada.';
+
+        return redirect()->back()->with('success', $mensaje);
     }
 
     public function eliminarActa(Request $request, $tenant, $user, ActaDisciplinaria $acta)
@@ -294,15 +296,18 @@ class EmpleadoPerfilController extends Controller
         $empleado = User::query()->findOrFail($user);
         $config = ConfiguracionSistema::instance();
 
-        $pdf = Pdf::loadView('empleados.acta-falta-pdf', [
+        $vista = $acta->tipo === 'permiso' ? 'empleados.acta-permiso-pdf' : 'empleados.acta-falta-pdf';
+        $prefijoArchivo = $acta->tipo === 'permiso' ? 'acta-permiso' : 'acta-falta-injustificada';
+
+        $pdf = Pdf::loadView($vista, [
             'empleado' => $empleado,
             'acta' => $acta,
             'config' => $config,
-            'lugar' => $config->direccion ? Str::before($config->direccion, ',') : 'El Salvador',
+            'lugar' => $this->lugarDesdeDireccion($config->direccion),
             'fechaLetras' => $acta->fecha_hecho->translatedFormat('d \\d\\e F \\d\\e Y'),
         ])->setPaper('letter', 'portrait');
 
-        return $pdf->stream("acta-falta-injustificada-{$empleado->name}-{$acta->fecha_hecho->format('Y-m-d')}.pdf");
+        return $pdf->stream("{$prefijoArchivo}-{$empleado->name}-{$acta->fecha_hecho->format('Y-m-d')}.pdf");
     }
 
     /**
@@ -387,7 +392,7 @@ class EmpleadoPerfilController extends Controller
             'tipoContratoLabel' => $tipoContratoLabel,
             'modalidadPagoLabel' => $modalidadPagoLabel,
             'comisionBase' => $comisionBase,
-            'lugar' => $config->direccion ? \Illuminate\Support\Str::before($config->direccion, ',') : 'El Salvador',
+            'lugar' => $this->lugarDesdeDireccion($config->direccion),
             'fechaLetras' => now()->translatedFormat('d \\d\\e F \\d\\e Y'),
         ])->setPaper('letter', 'portrait');
 
@@ -521,6 +526,24 @@ class EmpleadoPerfilController extends Controller
     }
 
     // ── Helpers privados ────────────────────────────────────────────────────
+
+    /**
+     * "Lugar" para actas/contratos, a partir de la dirección configurada del
+     * negocio. La dirección suele guardarse con el código Plus de Google
+     * Maps al inicio (ej. "8HWV+G8R, Col. X, Ciudad") -- eso no sirve como
+     * lugar legible en un documento oficial, así que se quita y se usa el
+     * resto de la dirección completa.
+     */
+    private function lugarDesdeDireccion(?string $direccion): string
+    {
+        if (! $direccion) {
+            return 'El Salvador';
+        }
+
+        $sinCodigoPlus = preg_replace('/^[A-Z0-9]{4,8}\+[A-Z0-9]{2,3}\s*,?\s*/', '', trim($direccion));
+
+        return $sinCodigoPlus !== '' ? $sinCodigoPlus : $direccion;
+    }
 
     private function tipoPerfil(User $empleado): ?string
     {
