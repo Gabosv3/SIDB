@@ -55,7 +55,7 @@
     <div class="subtitulo-acta">Levantada de conformidad con el Código de Trabajo de la República de El Salvador</div>
 
     <div class="intro">
-        En {{ $lugar }}, siendo las {{ now()->format('h:i A') }} del día {{ $fechaLetras }}, se hace constar que el/la
+        En {{ $lugar }}, el día {{ $fechaLetras }}, se hace constar que el/la
         colaborador(a) que se identifica a continuación incurrió en una falta injustificada de asistencia, conforme a
         los hechos que se describen en la presente acta.
     </div>

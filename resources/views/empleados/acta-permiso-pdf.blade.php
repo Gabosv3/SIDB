@@ -55,7 +55,7 @@
     <div class="subtitulo-acta">Autorización de ausencia conforme al Código de Trabajo de la República de El Salvador</div>
 
     <div class="intro">
-        En {{ $lugar }}, siendo las {{ now()->format('h:i A') }} del día {{ $fechaLetras }}, se hace constar que se
+        En {{ $lugar }}, el día {{ $fechaLetras }}, se hace constar que se
         autorizó al/a la colaborador(a) que se identifica a continuación un permiso de ausencia, conforme a los
         términos que se describen en la presente acta.
     </div>
