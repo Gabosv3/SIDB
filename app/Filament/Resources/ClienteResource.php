@@ -570,6 +570,11 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->label('Estado')
                     ->trueLabel('Solo activos')
                     ->falseLabel('Solo inactivos'),
+
+                Tables\Filters\Filter::make('creados_hoy')
+                    ->label('Creados hoy')
+                    ->toggle()
+                    ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereDate('created_at', today())),
             ])
             ->actions([
                 // Botón WhatsApp — enlace directo a wa.me con el número del cliente.
