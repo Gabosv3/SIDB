@@ -44,6 +44,15 @@ class ResumenGarantias extends Page
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('imprimirSemana')
+                ->label('Imprimir semana')
+                ->icon('heroicon-m-printer')
+                ->color('success')
+                ->url(fn () => route('reporte.garantias-semana', [
+                    'tenant' => \Filament\Facades\Filament::getTenant()?->id ?? 1,
+                    'fecha'  => $this->fecha,
+                ]))
+                ->openUrlInNewTab(),
             Action::make('gestionar')
                 ->label('Gestionar garantías')
                 ->icon('heroicon-m-cog-6-tooth')

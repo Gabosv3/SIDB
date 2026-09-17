@@ -103,6 +103,9 @@ Route::middleware(['web', 'auth', 'can:View:Reportes'])->prefix('reportes')->nam
     Route::get('liquidados/{tenant}', 'App\Http\Controllers\ReporteController@reporteLiquidados')
         ->name('liquidados')
         ->where('tenant', '[0-9]+');
+    Route::get('garantias-semana/{tenant}', 'App\Http\Controllers\ReporteController@reporteGarantiasSemana')
+        ->name('garantias-semana')
+        ->where('tenant', '[0-9]+');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
