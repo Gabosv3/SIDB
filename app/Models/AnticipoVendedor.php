@@ -18,6 +18,7 @@ class AnticipoVendedor extends Model
         'semana_fin',
         'descripcion',
         'estado',
+        'venta_id',
     ];
 
     protected $casts = [
@@ -35,5 +36,10 @@ class AnticipoVendedor extends Model
     public function autorizadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'autorizado_por');
+    }
+
+    public function venta(): BelongsTo
+    {
+        return $this->belongsTo(Venta::class);
     }
 }

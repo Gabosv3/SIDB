@@ -87,6 +87,7 @@
 
     $tipoPagoLabels = ['contado' => 'Contado', 'credito' => 'Crédito', 'mixta' => 'Mixta'];
     $estadoLabels = ['pendiente' => 'Pendiente', 'completada' => 'Completada', 'cancelada' => 'Cancelada', 'devuelta' => 'Devuelta'];
+    $primasConfirmadas = $this->getPrimasConfirmadas($resumen);
 @endphp
 
 {{-- Filtros --}}
@@ -259,6 +260,21 @@
                             </td>
                             <td class="rv-td" style="color:#6b7280">
                                 {{ (float) $v->prima > 0 ? '$'.number_format((float) $v->prima, 2) : '—' }}
+                                @if((float) $v->prima > 0 && $v->vendedor_id)
+                                    @if($primasConfirmadas->has($v->id))
+                                        <br><span style="color:#16a34a;font-size:0.72rem;font-weight:600">Confirmada: ${{ number_format((float) $primasConfirmadas[$v->id], 2) }}</span>
+                                    @else
+                                        <br>
+                                        <button
+                                            type="button"
+                                            wire:click="mountAction('confirmarPrima', {{ Illuminate\Support\Js::from(['venta_id' => $v->id]) }})"
+                                            class="rv-mapa-link"
+                                            style="background:none;border:none;padding:0;cursor:pointer;font:inherit"
+                                        >
+                                            Confirmar
+                                        </button>
+                                    @endif
+                                @endif
                             </td>
                             <td class="rv-td" style="color:#6b7280">
                                 {{ $v->vendedor ? "{$v->vendedor->nombre} {$v->vendedor->apellido}" : '—' }}

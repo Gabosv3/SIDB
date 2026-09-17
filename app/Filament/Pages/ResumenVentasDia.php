@@ -2,7 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\AnticipoVendedor;
 use App\Models\Cliente;
+use App\Models\ComisionTramo;
 use App\Models\Pagare;
 use App\Models\RutaCobro;
 use App\Models\Vendedor;
@@ -13,6 +15,7 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use Illuminate\Support\Carbon;
 
 class ResumenVentasDia extends Page
 {
@@ -74,6 +77,18 @@ class ResumenVentasDia extends Page
             ->whereNull('venta_id')
             ->pluck('cliente_id')
             ->unique();
+    }
+
+    /** monto de anticipo ya confirmado, indexado por venta_id, para las ventas de este resumen. */
+    public function getPrimasConfirmadas(\Illuminate\Support\Collection $resumen): \Illuminate\Support\Collection
+    {
+        $ventaIds = $resumen->pluck('venta.id')->filter()->unique();
+
+        if ($ventaIds->isEmpty()) {
+            return collect();
+        }
+
+        return AnticipoVendedor::whereIn('venta_id', $ventaIds)->pluck('monto', 'venta_id');
     }
 
     /**
@@ -147,6 +162,74 @@ class ResumenVentasDia extends Page
 
                 Notification::make()
                     ->title('Pagaré enlazado a la venta')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * La prima que se le da al vendedor el mismo día de la venta no siempre
+     * se la queda completa: se le tapa con lo que realmente le corresponde
+     * de comisión por esa venta (según el tramo de su precio). Si la prima
+     * ofrecida es menor a eso, se queda con la prima completa igual.
+     */
+    public function confirmarPrimaAction(): Action
+    {
+        return Action::make('confirmarPrima')
+            ->label('Confirmar')
+            ->icon('heroicon-m-check-circle')
+            ->requiresConfirmation()
+            ->modalHeading('Confirmar prima del vendedor')
+            ->modalDescription(function (array $arguments): string {
+                $venta = Venta::findOrFail($arguments['venta_id']);
+                $pct = ComisionTramo::porcentajePara((float) $venta->total);
+                $tope = round((float) $venta->total * $pct / 100, 2);
+                $monto = min((float) $venta->prima, $tope);
+
+                return sprintf(
+                    'Venta: $%s (comisión %s%% = $%s). Prima ofrecida: $%s. Se registrará un anticipo de $%s.',
+                    number_format((float) $venta->total, 2),
+                    number_format($pct, 2),
+                    number_format($tope, 2),
+                    number_format((float) $venta->prima, 2),
+                    number_format($monto, 2)
+                );
+            })
+            ->action(function (array $arguments): void {
+                $venta = Venta::findOrFail($arguments['venta_id']);
+
+                if (! $venta->vendedor_id) {
+                    Notification::make()->title('Esta venta no tiene vendedor asignado')->danger()->send();
+
+                    return;
+                }
+
+                if (AnticipoVendedor::where('venta_id', $venta->id)->exists()) {
+                    Notification::make()->title('Esta venta ya tiene su prima confirmada')->warning()->send();
+
+                    return;
+                }
+
+                $pct = ComisionTramo::porcentajePara((float) $venta->total);
+                $tope = round((float) $venta->total * $pct / 100, 2);
+                $monto = min((float) $venta->prima, $tope);
+
+                $inicioSemana = Carbon::parse($venta->fecha_venta)->startOfWeek(Carbon::MONDAY);
+
+                AnticipoVendedor::create([
+                    'vendedor_id'    => $venta->vendedor_id,
+                    'autorizado_por' => auth()->id(),
+                    'monto'          => $monto,
+                    'fecha'          => $venta->fecha_venta->toDateString(),
+                    'semana_inicio'  => $inicioSemana->toDateString(),
+                    'semana_fin'     => $inicioSemana->copy()->endOfWeek(Carbon::SUNDAY)->toDateString(),
+                    'descripcion'    => "Prima venta #{$venta->numero_venta}",
+                    'estado'         => 'pendiente',
+                    'venta_id'       => $venta->id,
+                ]);
+
+                Notification::make()
+                    ->title("Prima confirmada: $".number_format($monto, 2))
                     ->success()
                     ->send();
             });
