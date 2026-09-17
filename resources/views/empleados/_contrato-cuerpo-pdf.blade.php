@@ -21,15 +21,19 @@ primeros treinta días serán de prueba y dentro de ese término cualquiera de l
 expresión de causa.
 C) LUGAR DE PRESTACIÓN DE SERVICIOS Y DE ALOJAMIENTO:
 El lugar de prestación de los servicios será: {{ $lugar ?: '____________' }}
-D) HORARIO DE TRABAJO: {{ $perfil->horario_laboral ?: '____________________________________________' }}
+D) HORARIO DE TRABAJO: @if($perfil->horario_laboral){{ $perfil->horario_laboral }}@else Del día ________________ al día _________________, de _____________, a _______________
+Y de __________________, a ________________. El día _____________________ de ______________ a __________________.
+De las ___________________ a las _____________________, para la toma de alimentos. Cumpliendo con la semana Laboral ________________________ horas.@endif {{ '' }}
 E) SALARIO: FORMA, PERÍODO Y LUGAR DEL PAGO: El salario que recibirá el trabajador, por sus servicios, será la suma de
-{!! $remuneracionTexto !!}. Se pagará en dólares de los Estados Unidos de América. El pago se efectuará por medio de: {{ $medioPagoTxt }}.
-En la Dirección: {{ $lugar ?: '____________' }}. La operación del pago principiará y se continuará sin interrupción, a más tardar a la
-Terminación de la jornada de trabajo correspondiente a la respectiva fecha, en caso de reclamo de la persona trabajadora, se estará a
-lo dispuesto en el artículo seiscientos trece del Código de Trabajo.
+{!! $remuneracionTexto !!}. Se pagará en dólares de los Estados Unidos de América de la siguiente forma: ____________; El pago se efectuará por
+medio de: {{ $medioPagoTxt }}. En la Dirección: {{ $lugar ?: '____________' }}. Dicho pago se efectuará de la manera siguiente: ____________. La
+operación del pago principiará y se continuará sin interrupción, a más tardar a la Terminación de la jornada de trabajo correspondiente
+a la respectiva fecha, en caso de reclamo de la persona trabajadora, se estará a lo dispuesto en el artículo seiscientos trece del Código
+de Trabajo.
 F) HERRAMIENTAS Y MATERIALES: El patrono suministrará al trabajador las herramientas y materiales siguientes: {{ rtrim($perfil->herramientas_material ?: '____________', '.') }}.
-Que deben ser devueltos así por el trabajador, cuando sea requerida al efecto por sus jefes inmediatos, salvo la disminución o
-deterioro causados por caso fortuito o fuerza mayor, o por la acción del tiempo o por el consumo y uso normal de los mismos.
+Que se entregan en ___________________________ y deben ser devueltos así por el trabajador, cuando sea requerida al efecto por sus
+jefes inmediatos, salvo la disminución o deterioro causados por caso fortuito o fuerza mayor, o por la acción del tiempo o por el
+consumo y uso normal de los mismos.
 G) PERSONAS QUE DEPENDEN ECONÓMICAMENTE DEL TRABAJADOR: {{ rtrim($perfil->personas_dependientes ?: '____________', '.') }}.
 H) OTRAS ESTIPULACIONES: {{ rtrim($perfil->otras_estipulaciones ?: '____________', '.') }}.
 I) En el presente Contrato Individual de Trabajo se entenderán incluidos, según el caso, los derechos y deberes laborales

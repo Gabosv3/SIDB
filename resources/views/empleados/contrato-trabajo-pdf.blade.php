@@ -4,28 +4,31 @@
     <meta charset="UTF-8">
     <title>Contrato Individual de Trabajo</title>
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
+        {{-- :not(html):not(body) evita pisar el margen de página que dompdf
+             inyecta en <body> a partir de @page -- un simple "* { margin:0 }"
+             lo resetea a 0 y el contenido queda pegado al borde. --}}
+        *:not(html):not(body) { margin:0; padding:0; box-sizing:border-box; }
         @page { size: letter portrait; margin: 2.5cm; }
-        body { font-family: 'DejaVu Sans', sans-serif; font-size:10.5px; color:#111827; line-height:1.55; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size:11pt; color:#111827; line-height:1.4; }
         .pagebreak { page-break-before: always; }
 
-        .titulo { text-align:center; font-size:14px; font-weight:700; letter-spacing:.5px; margin-bottom:16px; text-transform:uppercase; }
+        .titulo { text-align:center; font-size:14pt; font-weight:700; letter-spacing:.5px; margin-bottom:16px; text-transform:uppercase; }
 
         table.generales { width:100%; border-collapse:collapse; margin-bottom:20px; }
         table.generales col { width:50%; }
-        table.generales th { font-size:10px; font-weight:700; text-transform:uppercase; text-align:left; padding:0 10px 6px; }
+        table.generales th { font-size:11pt; font-weight:700; text-transform:uppercase; text-align:left; padding:0 10px 6px; }
         table.generales th:first-child { padding-left:0; }
         table.generales td { vertical-align:top; padding:0 10px; }
         table.generales td:first-child { padding-left:0; }
         table.generales td:last-child { padding-right:0; }
-        .g-fila { border-bottom:1px solid #9ca3af; padding:3px 0 3px; font-size:10px; }
+        .g-fila { border-bottom:1px solid #9ca3af; padding:3px 0 3px; font-size:11pt; }
         .g-label { font-weight:700; }
 
         .cuerpo { text-align:justify; }
 
         table.firmas { width:100%; border-collapse:collapse; margin-top:46px; }
         table.firmas td { width:50%; text-align:center; padding-top:34px; }
-        table.firmas .linea { border-top:1px solid #111827; padding-top:6px; font-size:9.5px; font-weight:700; text-transform:uppercase; color:#111827; }
+        table.firmas .linea { border-top:1px solid #111827; padding-top:6px; font-size:10.5pt; font-weight:700; text-transform:uppercase; color:#111827; }
 
         .notarial p { text-align:justify; margin-bottom:11px; }
         .blanco { display:inline-block; border-bottom:1px solid #111827; min-width:110px; }
@@ -157,8 +160,8 @@
     <p>
         YO LA NOTARIO DOY FE, que las firmas que calzan tal documento, las reconocen como suyas las comparecientes
         las cuales son auténticas por haber sido puestas a mi presencia y de su puño y letra. Así se expresaron las
-        comparecientes a quienes leí integro el contenido de esta acta notarial, leída que se las hube en un solo
-        acto, la ratifican y firman.- DOY FE.-
+        comparecientes a quienes leí integro el contenido de esta acta notarial que consta de dos hojas útiles,
+        leída que se las hube en un solo, acto la ratifican y firmamos.- DOY FE.-
     </p>
 
     <table class="firmas">
