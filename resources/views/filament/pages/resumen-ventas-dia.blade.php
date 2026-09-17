@@ -54,6 +54,13 @@
     .rv-mapa-link          { color:#0369a1; font-size:0.75rem; font-weight:600; text-decoration:none; white-space:nowrap; }
     .rv-mapa-link:hover    { text-decoration:underline; }
 
+    .rv-entrega-item {
+        display:flex; justify-content:space-between; align-items:center;
+        padding:0.6rem 0.85rem; background:#f9fafb; border-radius:0.5rem; border:1px solid #e5e7eb;
+    }
+    .rv-entrega-nombre { font-size:0.825rem; font-weight:500; color:#374151; }
+    .rv-entrega-monto  { font-size:0.95rem; font-weight:700; color:#166534; }
+
     /* ── Dark mode ── */
     .dark .rv-input         { background: #2a2a35; border-color: #3f3f50; color: #f3f4f6; }
     .dark .rv-input:focus   { border-color: #818cf8; box-shadow: 0 0 0 2px rgba(129,140,248,.25); }
@@ -77,6 +84,9 @@
     .dark .rv-badge-cancelada  { background:rgba(225,29,72,.18);  color:#fb7185; }
     .dark .rv-badge-devuelta   { background:rgba(225,29,72,.18);  color:#fb7185; }
     .dark .rv-mapa-link        { color:#38bdf8; }
+    .dark .rv-entrega-item     { background:#252530; border-color:#2e2e3a; }
+    .dark .rv-entrega-nombre   { color:#d1d5db; }
+    .dark .rv-entrega-monto    { color:#86efac; }
 </style>
 
 @php
@@ -88,6 +98,7 @@
     $tipoPagoLabels = ['contado' => 'Contado', 'credito' => 'Crédito', 'mixta' => 'Mixta'];
     $estadoLabels = ['pendiente' => 'Pendiente', 'completada' => 'Completada', 'cancelada' => 'Cancelada', 'devuelta' => 'Devuelta'];
     $primasConfirmadas = $this->getPrimasConfirmadas($resumen);
+    $entregaPorVendedor = $this->getEntregaPorVendedor($resumen);
 @endphp
 
 {{-- Filtros --}}
@@ -171,6 +182,21 @@
     @endif
 </div>
 
+{{-- A entregar por vendedor (solo ventas al contado) --}}
+@if($entregaPorVendedor->isNotEmpty())
+    <div class="rv-card" style="padding:1.25rem;margin-bottom:1.75rem">
+        <p class="rv-stat-label" style="margin-bottom:0.75rem">A entregar hoy por vendedor (ventas al contado)</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem">
+            @foreach($entregaPorVendedor as $g)
+                <div class="rv-entrega-item">
+                    <span class="rv-entrega-nombre">{{ $g['vendedor']->nombre }} {{ $g['vendedor']->apellido }}</span>
+                    <span class="rv-entrega-monto">${{ number_format($g['total'], 2) }}</span>
+                </div>
+            @endforeach
+        </div>
+    </div>
+@endif
+
 {{-- Tabla de ventas --}}
 @if($resumen->isNotEmpty())
     <div class="rv-card" style="overflow:hidden">
@@ -192,6 +218,7 @@
                         <th>Tipo pago</th>
                         <th>Estado</th>
                         <th style="text-align:right">Total</th>
+                        <th style="text-align:right">A entregar</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -288,6 +315,9 @@
                                 <span class="rv-badge rv-badge-{{ $v->estado }}">{{ $estadoLabels[$v->estado] ?? $v->estado }}</span>
                             </td>
                             <td class="rv-td" style="text-align:right;font-weight:700;color:inherit">${{ number_format((float) $v->total, 2) }}</td>
+                            <td class="rv-td rv-entrega-monto" style="text-align:right;font-weight:700">
+                                {{ $v->tipo_pago === 'contado' ? '$'.number_format($this->entregaDeVenta($v), 2) : '—' }}
+                            </td>
                             <td class="rv-td">
                                 @if(! in_array($v->estado, ['cancelada', 'devuelta']))
                                     <button

@@ -93,6 +93,46 @@ class ResumenVentasDia extends Page
     }
 
     /**
+     * Cuánto debe entregar el vendedor en efectivo por ESTA venta: solo
+     * aplica a ventas AL CONTADO -- lo que le corresponde a la empresa es
+     * "se le recibe al vendedor" de cada producto (su ganancia es la
+     * diferencia con el precio de venta), más lo que sobre de la prima si
+     * se le dio de más de lo que le corresponde de comisión por esa venta.
+     */
+    public function entregaDeVenta(Venta $venta): float
+    {
+        if ($venta->tipo_pago !== 'contado') {
+            return 0.0;
+        }
+
+        $porProductos = (float) $venta->detalles->sum(
+            fn ($d) => $d->cantidad * (float) ($d->producto?->precio_vendedor ?? 0)
+        );
+
+        $excedentePrima = max((float) $venta->prima - $this->comisionDeVenta($venta), 0);
+
+        return round($porProductos + $excedentePrima, 2);
+    }
+
+    /** Total a entregar hoy por cada vendedor, sumando sus ventas al contado. */
+    public function getEntregaPorVendedor(\Illuminate\Support\Collection $resumen): \Illuminate\Support\Collection
+    {
+        return $resumen
+            ->filter(fn ($r) => $r->venta->tipo_pago === 'contado' && $r->venta->vendedor)
+            ->groupBy(fn ($r) => $r->venta->vendedor_id)
+            ->map(function ($grupo) {
+                $vendedor = $grupo->first()->venta->vendedor;
+
+                return [
+                    'vendedor' => $vendedor,
+                    'total' => round($grupo->sum(fn ($r) => $this->entregaDeVenta($r->venta)), 2),
+                ];
+            })
+            ->sortBy(fn ($g) => $g['vendedor']->nombre)
+            ->values();
+    }
+
+    /**
      * Asignar/cambiar la ruta de cobro del cliente sin salir de este resumen
      * -- mismo efecto que hacerlo desde "Clientes por Ruta".
      */
