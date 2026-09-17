@@ -124,7 +124,6 @@
         </tr>
     </table>
 
-    <div class="pie">Documento generado el {{ now()->format('d/m/Y H:i') }} por {{ $acta->generadoPor?->name ?? 'Sistema' }} — {{ $config->app_name ?? 'SIDB' }}</div>
 
 </div>
 </body>
