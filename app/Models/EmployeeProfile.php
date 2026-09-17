@@ -18,16 +18,19 @@ class EmployeeProfile extends Model
         'user_id', 'foto', 'dui', 'nit', 'fecha_nacimiento', 'genero', 'estado_civil', 'tipo_sangre',
         'telefono_whatsapp', 'direccion', 'departamento', 'municipio', 'nacionalidad', 'numero_afiliacion',
         'contacto_emergencia_nombre', 'contacto_emergencia_telefono',
-        'codigo_empleado', 'codigo_asistencia', 'cargo', 'tipo_empleado', 'fecha_ingreso', 'fecha_salida',
+        'codigo_empleado', 'codigo_asistencia', 'cargo', 'profesion_oficio', 'tipo_empleado', 'fecha_ingreso', 'fecha_salida',
         'salario_base', 'modalidad_pago', 'porcentaje_comision', 'meta_ventas_mensual', 'meta_cobros_mensual', 'tipo_contrato', 'horario_laboral',
         'hora_entrada_esperada', 'hora_salida_esperada', 'estado_laboral',
         'supervisor_id', 'puede_usar_pos_movil',
+        'residencia', 'dui_lugar_expedicion', 'dui_fecha_expedicion',
+        'medio_pago', 'herramientas_material', 'personas_dependientes', 'otras_estipulaciones',
     ];
 
     protected $casts = [
         'fecha_nacimiento' => 'date',
         'fecha_ingreso' => 'date',
         'fecha_salida' => 'date',
+        'dui_fecha_expedicion' => 'date',
         'salario_base' => 'decimal:2',
         'porcentaje_comision' => 'decimal:2',
         'meta_ventas_mensual' => 'decimal:2',

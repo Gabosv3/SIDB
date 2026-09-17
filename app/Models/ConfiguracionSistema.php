@@ -33,10 +33,26 @@ class ConfiguracionSistema extends Model
         'apk_url',
         'apk_notas',
         'semana1_fecha_ancla',
+        'patrono_nombre',
+        'patrono_sexo',
+        'patrono_fecha_nacimiento',
+        'patrono_profesion',
+        'patrono_estado_civil',
+        'patrono_domicilio',
+        'patrono_residencia',
+        'patrono_nacionalidad',
+        'patrono_dui',
+        'patrono_dui_lugar_expedicion',
+        'patrono_dui_fecha_expedicion',
+        'patrono_razon_social',
+        'patrono_nit',
+        'patrono_actividad_economica',
     ];
 
     protected $casts = [
         'semana1_fecha_ancla' => 'date',
+        'patrono_fecha_nacimiento' => 'date',
+        'patrono_dui_fecha_expedicion' => 'date',
     ];
 
     /** Devuelve la única instancia (cacheada 1 hora). */
@@ -81,5 +97,10 @@ class ConfiguracionSistema extends Model
     public function semanaActual(): ?int
     {
         return $this->semanaParaFecha(today());
+    }
+
+    public function getPatronoEdadAttribute(): ?int
+    {
+        return $this->patrono_fecha_nacimiento?->age;
     }
 }

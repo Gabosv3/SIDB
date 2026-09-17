@@ -427,8 +427,11 @@
                 <div><label>Departamento</label><input type="text" name="departamento" value="{{ old('departamento', $employeeProfile?->departamento) }}" class="pe-input"></div>
                 <div><label>Teléfono de emergencia</label><input type="text" name="contacto_emergencia_telefono" value="{{ old('contacto_emergencia_telefono', $employeeProfile?->contacto_emergencia_telefono) }}" class="pe-input"></div>
                 <div><label>Municipio</label><input type="text" name="municipio" value="{{ old('municipio', $employeeProfile?->municipio) }}" class="pe-input"></div>
-                <div></div>
-                <div style="grid-column:1/-1;"><label>Dirección</label><input type="text" name="direccion" value="{{ old('direccion', $employeeProfile?->direccion) }}" class="pe-input"></div>
+                <div><label>Profesión u oficio</label><input type="text" name="profesion_oficio" value="{{ old('profesion_oficio', $employeeProfile?->profesion_oficio) }}" class="pe-input" placeholder="Ej: Comerciante"></div>
+                <div style="grid-column:1/-1;"><label>Dirección (domicilio)</label><input type="text" name="direccion" value="{{ old('direccion', $employeeProfile?->direccion) }}" class="pe-input"></div>
+                <div style="grid-column:1/-1;"><label>Residencia</label><input type="text" name="residencia" value="{{ old('residencia', $employeeProfile?->residencia) }}" class="pe-input" placeholder="Solo si es distinta al domicilio, para el contrato"></div>
+                <div><label>DUI — lugar de expedición</label><input type="text" name="dui_lugar_expedicion" value="{{ old('dui_lugar_expedicion', $employeeProfile?->dui_lugar_expedicion) }}" class="pe-input" placeholder="Ej: San Salvador"></div>
+                <div><label>DUI — fecha de expedición</label><input type="date" name="dui_fecha_expedicion" value="{{ old('dui_fecha_expedicion', $employeeProfile?->dui_fecha_expedicion?->format('Y-m-d')) }}" class="pe-input"></div>
             </div>
             <div class="pe-form-actions">
                 <button type="submit" class="pe-btn pe-btn-primary">Guardar información personal</button>
@@ -482,7 +485,31 @@
                 </div>
                 <div><label>Meta de ventas mensual</label><input type="number" step="0.01" name="meta_ventas_mensual" value="{{ old('meta_ventas_mensual', $employeeProfile?->meta_ventas_mensual) }}" class="pe-input"></div>
                 <div><label>Meta de cobros mensual</label><input type="number" step="0.01" name="meta_cobros_mensual" value="{{ old('meta_cobros_mensual', $employeeProfile?->meta_cobros_mensual) }}" class="pe-input"></div>
-                <div style="grid-column:1/-1;"><label>Horario laboral</label><input type="text" name="horario_laboral" value="{{ old('horario_laboral', $employeeProfile?->horario_laboral) }}" class="pe-input"></div>
+                <div style="grid-column:1/-1;">
+                    <label>Horario laboral <span style="font-weight:400;color:var(--muted,#6b7280);">(se usa tal cual en el contrato de trabajo)</span></label>
+                    <textarea name="horario_laboral" rows="2" class="pe-input" placeholder="Ej: Lunes a viernes de 8:00am a 5:00pm, con una hora de almuerzo de 12:00pm a 1:00pm. Sábado de 8:00am a 12:00pm. Semana laboral de 44 horas.">{{ old('horario_laboral', $employeeProfile?->horario_laboral) }}</textarea>
+                </div>
+                <div>
+                    <label>Forma de pago del salario</label>
+                    <select name="medio_pago" class="pe-input">
+                        <option value="">—</option>
+                        @foreach(['efectivo'=>'Efectivo','transferencia'=>'Transferencia','cheque'=>'Cheque','deposito'=>'Depósito'] as $val => $lbl)
+                            <option value="{{ $val }}" {{ old('medio_pago', $employeeProfile?->medio_pago) === $val ? 'selected' : '' }}>{{ $lbl }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label>Herramientas y materiales que se le entregan <span style="font-weight:400;color:var(--muted,#6b7280);">(opcional, para el contrato)</span></label>
+                    <textarea name="herramientas_material" rows="2" class="pe-input">{{ old('herramientas_material', $employeeProfile?->herramientas_material) }}</textarea>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label>Personas que dependen económicamente del trabajador <span style="font-weight:400;color:var(--muted,#6b7280);">(opcional, para el contrato)</span></label>
+                    <textarea name="personas_dependientes" rows="2" class="pe-input">{{ old('personas_dependientes', $employeeProfile?->personas_dependientes) }}</textarea>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label>Otras estipulaciones <span style="font-weight:400;color:var(--muted,#6b7280);">(opcional, para el contrato)</span></label>
+                    <textarea name="otras_estipulaciones" rows="2" class="pe-input">{{ old('otras_estipulaciones', $employeeProfile?->otras_estipulaciones) }}</textarea>
+                </div>
                 <div>
                     <label>Hora de entrada esperada <span style="font-weight:400;color:var(--muted,#6b7280);">(para asistencia)</span></label>
                     <input type="time" name="hora_entrada_esperada" value="{{ old('hora_entrada_esperada', $employeeProfile?->hora_entrada_esperada ? substr($employeeProfile->hora_entrada_esperada, 0, 5) : '') }}" class="pe-input">

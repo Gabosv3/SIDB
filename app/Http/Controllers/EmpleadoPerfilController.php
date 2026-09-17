@@ -94,6 +94,10 @@ class EmpleadoPerfilController extends Controller
             'numero_afiliacion' => ['nullable', 'string', 'max:50'],
             'contacto_emergencia_nombre' => ['nullable', 'string', 'max:150'],
             'contacto_emergencia_telefono' => ['nullable', 'string', 'max:20'],
+            'profesion_oficio' => ['nullable', 'string', 'max:150'],
+            'residencia' => ['nullable', 'string', 'max:255'],
+            'dui_lugar_expedicion' => ['nullable', 'string', 'max:150'],
+            'dui_fecha_expedicion' => ['nullable', 'date', 'before_or_equal:today'],
         ]);
 
         if ($request->hasFile('foto')) {
@@ -123,7 +127,11 @@ class EmpleadoPerfilController extends Controller
             'tipo_contrato' => ['nullable', 'in:indefinido,temporal,por_obra,practica'],
             'modalidad_pago' => ['nullable', 'in:salario_fijo,comision,mixto'],
             'porcentaje_comision' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'horario_laboral' => ['nullable', 'string', 'max:150'],
+            'horario_laboral' => ['nullable', 'string', 'max:1000'],
+            'medio_pago' => ['nullable', 'in:efectivo,transferencia,cheque,deposito'],
+            'herramientas_material' => ['nullable', 'string', 'max:1000'],
+            'personas_dependientes' => ['nullable', 'string', 'max:1000'],
+            'otras_estipulaciones' => ['nullable', 'string', 'max:2000'],
             'codigo_asistencia' => ['nullable', 'string', 'max:50', 'unique:employee_profiles,codigo_asistencia,'.$user.',user_id'],
             'hora_entrada_esperada' => ['nullable', 'date_format:H:i'],
             'hora_salida_esperada' => ['nullable', 'date_format:H:i'],

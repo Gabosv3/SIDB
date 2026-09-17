@@ -389,6 +389,78 @@ class PersonalizacionSistema extends Page
                             ->columnSpanFull(),
                     ]),
 
+                // ── Datos del patrono (para contratos) ───────────────────────────
+                Section::make('Datos legales del patrono')
+                    ->description('Datos de quien firma como "EL EMPLEADOR" en los Contratos Individuales de Trabajo. Se llenan una sola vez.')
+                    ->icon('heroicon-m-user')
+                    ->columns(2)
+                    ->components([
+                        Forms\Components\TextInput::make('patrono_nombre')
+                            ->label('Nombre completo')
+                            ->maxLength(150)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Select::make('patrono_sexo')
+                            ->label('Sexo')
+                            ->options(['masculino' => 'Masculino', 'femenino' => 'Femenino']),
+
+                        Forms\Components\DatePicker::make('patrono_fecha_nacimiento')
+                            ->label('Fecha de nacimiento')
+                            ->native(false),
+
+                        Forms\Components\TextInput::make('patrono_profesion')
+                            ->label('Profesión u oficio')
+                            ->placeholder('Ej: Comerciante')
+                            ->maxLength(150),
+
+                        Forms\Components\Select::make('patrono_estado_civil')
+                            ->label('Estado civil')
+                            ->options([
+                                'soltero' => 'Soltero(a)', 'casado' => 'Casado(a)', 'divorciado' => 'Divorciado(a)',
+                                'viudo' => 'Viudo(a)', 'acompanado' => 'Acompañado(a)',
+                            ]),
+
+                        Forms\Components\TextInput::make('patrono_domicilio')
+                            ->label('Domicilio (distrito, municipio, departamento)')
+                            ->maxLength(255)
+                            ->columnSpanFull(),
+
+                        Forms\Components\TextInput::make('patrono_residencia')
+                            ->label('Residencia (si es distinta al domicilio)')
+                            ->maxLength(255)
+                            ->columnSpanFull(),
+
+                        Forms\Components\TextInput::make('patrono_nacionalidad')
+                            ->label('Nacionalidad')
+                            ->maxLength(100),
+
+                        Forms\Components\TextInput::make('patrono_dui')
+                            ->label('DUI')
+                            ->maxLength(10),
+
+                        Forms\Components\TextInput::make('patrono_dui_lugar_expedicion')
+                            ->label('DUI — lugar de expedición')
+                            ->maxLength(150),
+
+                        Forms\Components\DatePicker::make('patrono_dui_fecha_expedicion')
+                            ->label('DUI — fecha de expedición')
+                            ->native(false),
+
+                        Forms\Components\TextInput::make('patrono_razon_social')
+                            ->label('En representación de (razón social)')
+                            ->helperText('Dejar en blanco si actúa a título personal, sin razón social distinta.')
+                            ->maxLength(255)
+                            ->columnSpanFull(),
+
+                        Forms\Components\TextInput::make('patrono_nit')
+                            ->label('NIT')
+                            ->maxLength(20),
+
+                        Forms\Components\TextInput::make('patrono_actividad_economica')
+                            ->label('Actividad económica de la empresa')
+                            ->maxLength(255),
+                    ]),
+
                 // ── Ciclo quincenal de rutas ────────────────────────────────────
                 Section::make('Ciclo quincenal de rutas (Semana 1 / Semana 2)')
                     ->description('Fecha de referencia desde la que se alternan la semana 1 y la semana 2 cada 7 días. El POS solo muestra a cada cobrador las rutas clasificadas en la semana que corresponda a la fecha de hoy.')
