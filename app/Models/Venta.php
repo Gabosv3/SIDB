@@ -206,6 +206,11 @@ class Venta extends Model
         return $this->hasMany(DetalleVenta::class, 'venta_id');
     }
 
+    public function anticipoVendedor(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AnticipoVendedor::class, 'venta_id');
+    }
+
     public function pagos(): HasMany
     {
         return $this->hasMany(PagoVenta::class, 'venta_id');

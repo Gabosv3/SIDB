@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Cobrador;
+use App\Models\ComisionTramo;
+use App\Models\DetalleVenta;
 use App\Models\EmployeeProfile;
 use App\Models\PagoVenta;
 use App\Models\Vendedor;
@@ -53,14 +55,26 @@ class ReporteComisionesService
 
             $baseVendido = 0.0;
             $baseCobrado = 0.0;
+            $comisionVendedor = 0.0;
 
             if (in_array('vendedor', $tipos, true)) {
                 $vendedorId = Vendedor::where('user_id', $perfil->user_id)->value('id');
                 if ($vendedorId) {
-                    $baseVendido = (float) Venta::where('vendedor_id', $vendedorId)
+                    $ventas = Venta::where('vendedor_id', $vendedorId)
                         ->whereBetween('fecha_venta', [$inicioStr, $finStr])
                         ->whereNotIn('estado', ['cancelada', 'devuelta'])
-                        ->sum('total');
+                        ->with('detalles')
+                        ->get();
+
+                    $baseVendido = (float) $ventas->sum('total');
+
+                    // El tramo de comisión se aplica por cada PRODUCTO (el
+                    // subtotal de esa línea), no por el total de la venta ni
+                    // por un % fijo del perfil -- igual que en la Liquidación
+                    // Semanal de Ventas y en "Confirmar prima".
+                    $comisionVendedor = round($ventas->flatMap->detalles->sum(
+                        fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
+                    ), 2);
                 }
             }
 
@@ -71,8 +85,9 @@ class ReporteComisionesService
                     ->sum('monto');
             }
 
+            $comisionCobrador = round($baseCobrado * $pct / 100, 2);
+            $comision = round($comisionVendedor + $comisionCobrador, 2);
             $baseComision = $baseVendido + $baseCobrado;
-            $comision = round($baseComision * $pct / 100, 2);
             $salarioBase = (float) ($perfil->salario_base ?? 0);
 
             $totalAPagar = match ($perfil->modalidad_pago) {
@@ -82,11 +97,15 @@ class ReporteComisionesService
                 default => 0.0,
             };
 
+            // % efectivo solo para mostrar en pantalla; para vendedores cada
+            // venta ya pagó el tramo de su propio producto por separado.
+            $pctEfectivo = $baseComision > 0 ? round($comision / $baseComision * 100, 2) : $pct;
+
             return [
                 'empleado' => trim(($perfil->user->name ?? $perfil->codigo_empleado ?? 'Sin nombre')),
                 'cargo' => $perfil->cargo,
                 'modalidad_pago' => $perfil->modalidad_pago,
-                'porcentaje_comision' => $pct,
+                'porcentaje_comision' => $pctEfectivo,
                 'base_vendido' => round($baseVendido, 2),
                 'base_cobrado' => round($baseCobrado, 2),
                 'comision' => $comision,
