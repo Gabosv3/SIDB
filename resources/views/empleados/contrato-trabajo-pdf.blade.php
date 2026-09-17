@@ -5,7 +5,7 @@
     <title>Contrato Individual de Trabajo</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        @page { size: letter portrait; margin: 1in; }
+        @page { size: letter portrait; margin: 2.5cm; }
         body { font-family: 'DejaVu Sans', sans-serif; font-size:10.5px; color:#111827; line-height:1.55; }
         .pagebreak { page-break-before: always; }
 
@@ -92,12 +92,12 @@
             <td><div class="g-fila"><span class="g-label">DUI:</span> {{ $perfil->dui ?: '—' }}</div></td>
         </tr>
         <tr>
-            <td><div class="g-fila"><span class="g-label">Expedido en:</span> {{ $config->patrono_dui_lugar_expedicion ?: '—' }}</div></td>
-            <td><div class="g-fila"><span class="g-label">Expedido en:</span> {{ $perfil->dui_lugar_expedicion ?: '—' }}</div></td>
+            <td><div class="g-fila"><span class="g-label">Expedido en</span> {{ $config->patrono_dui_lugar_expedicion ?: '—' }}</div></td>
+            <td><div class="g-fila"><span class="g-label">Expedido en</span> {{ $perfil->dui_lugar_expedicion ?: '—' }}</div></td>
         </tr>
         <tr>
-            <td><div class="g-fila"><span class="g-label">El:</span> {{ $config->patrono_dui_fecha_expedicion?->format('d/m/Y') ?? '—' }}</div></td>
-            <td><div class="g-fila"><span class="g-label">El:</span> {{ $perfil->dui_fecha_expedicion?->format('d/m/Y') ?? '—' }}</div></td>
+            <td><div class="g-fila">el {{ $config->patrono_dui_fecha_expedicion?->format('d') ?? '____' }} de {{ $config->patrono_dui_fecha_expedicion?->translatedFormat('F \\d\\e Y') ?? '____' }}</div></td>
+            <td><div class="g-fila">el {{ $perfil->dui_fecha_expedicion?->format('d') ?? '____' }} de {{ $perfil->dui_fecha_expedicion?->translatedFormat('F \\d\\e Y') ?? '____' }}</div></td>
         </tr>
         <tr>
             <td><div class="g-fila"><span class="g-label">En Representación de (Razón Social):</span> {{ $config->patrono_razon_social ?: '—' }}</div></td>
