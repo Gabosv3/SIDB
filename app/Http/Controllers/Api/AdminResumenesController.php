@@ -30,8 +30,8 @@ class AdminResumenesController extends Controller
     )]
     public function resumenesDia(Request $request): JsonResponse
     {
-        if (! $request->user()->hasRole('super_admin')) {
-            return response()->json(['mensaje' => 'No autorizado.'], 403);
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
         }
 
         $fecha = $request->query('fecha') ?: today()->toDateString();
@@ -87,5 +87,185 @@ class AdminResumenesController extends Controller
                 'rechazadas'  => $totalesGarantias['rechazadas'] ?? 0,
             ],
         ]);
+    }
+
+    #[OA\Get(
+        path: '/admin/resumenes-dia/ventas',
+        summary: 'Detalle de ventas del día, igual al panel administrativo (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+    )]
+    public function ventasDetalle(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $fecha = $request->query('fecha') ?: today()->toDateString();
+        $resumen = ResumenVentasDiaService::resumen($fecha);
+
+        return response()->json([
+            'fecha' => $fecha,
+            'totales' => ResumenVentasDiaService::totales($resumen),
+            'items' => $resumen->map(fn ($r) => [
+                'id'              => $r->venta->id,
+                'cliente'         => $r->venta->cliente ? $r->venta->cliente->nombre_completo : 'Consumidor Final',
+                'vendedor'        => $r->venta->vendedor ? trim($r->venta->vendedor->nombre . ' ' . $r->venta->vendedor->apellido) : ($r->venta->user?->name ?? '—'),
+                'total'           => (float) $r->venta->total,
+                'tipo_pago'       => $r->venta->tipo_pago,
+                'estado'          => $r->venta->estado,
+                'es_cliente_nuevo'=> $r->es_cliente_nuevo,
+                'hora'            => optional($r->venta->fecha_venta)->format('H:i'),
+                'productos'       => $r->venta->detalles->map(fn ($d) => $d->producto?->nombre)->filter()->values(),
+            ])->values(),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/admin/resumenes-dia/cobros',
+        summary: 'Detalle de cobros del día por cobrador/ruta, igual al panel administrativo (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+    )]
+    public function cobrosDetalle(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $fecha = $request->query('fecha') ?: today()->toDateString();
+        $resumen = ResumenCobrosDiaService::resumen($fecha);
+
+        return response()->json([
+            'fecha' => $fecha,
+            'totales' => ResumenCobrosDiaService::totales($resumen),
+            'grupos' => collect($resumen)->map(fn ($r) => [
+                'cobrador'            => trim(($r['cobrador']->nombre ?? '') . ' ' . ($r['cobrador']->apellido ?? '')) ?: ($r['cobrador']->user?->name ?? '—'),
+                'ruta'                => $r['ruta']?->nombre,
+                'total_cobrado'       => (float) $r['total_cobrado'],
+                'total_pagos'         => $r['total_pagos'],
+                'clientes_visitados'  => $r['clientes_visitados'],
+                'clientes_ruta_inicio'=> $r['clientes_ruta_inicio'],
+                'ventas_canceladas'   => $r['ventas_canceladas'],
+                'reintegros_enviados' => $r['reintegros_enviados'],
+                'por_metodo'          => collect($r['por_metodo'])->values(),
+                'pagos'               => collect($r['detalle'])->map(fn ($p) => [
+                    'cliente'   => $p->cliente ? trim($p->cliente->nombre . ' ' . $p->cliente->apellido) : '—',
+                    'codigo'    => $p->cliente?->codigo_anterior,
+                    'monto'     => (float) $p->monto,
+                    'metodo'    => $p->metodo_pago,
+                    'anulado'   => (bool) $p->anulado_en,
+                ])->values(),
+                'visitas_sin_cobro'   => collect($r['visitas_sin_cobro'])->map(fn ($v) => [
+                    'cliente' => $v->cliente ? trim($v->cliente->nombre . ' ' . $v->cliente->apellido) : '—',
+                ])->values(),
+                'pendientes_visitar'  => collect($r['no_visitados'])->map(fn ($c) => [
+                    'id'       => $c->id,
+                    'nombre'   => trim($c->nombre . ' ' . $c->apellido),
+                    'telefono' => $c->telefono_normal,
+                    'codigo'   => $c->codigo_anterior,
+                ])->values(),
+            ])->values(),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/admin/resumenes-dia/encuestas',
+        summary: 'Detalle de encuestas de cliente del día (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+    )]
+    public function encuestasDetalle(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $fecha = $request->query('fecha') ?: today()->toDateString();
+        $resumen = ResumenEncuestasClienteService::resumen($fecha);
+
+        return response()->json([
+            'fecha' => $fecha,
+            'totales' => ResumenEncuestasClienteService::totales($resumen),
+            'items' => $resumen->map(fn ($e) => [
+                'cliente'    => $e->cliente ? trim($e->cliente->nombre . ' ' . $e->cliente->apellido) : '—',
+                'cobrador'   => $e->cobrador ? trim($e->cobrador->nombre . ' ' . $e->cobrador->apellido) : '—',
+                'supervisor' => $e->supervisor ? trim($e->supervisor->nombre . ' ' . $e->supervisor->apellido) : null,
+                'resultado'  => $e->resultado,
+                'diferencia' => (float) $e->diferencia,
+                'hora'       => optional($e->created_at)->format('H:i'),
+            ])->values(),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/admin/resumenes-dia/reintegros',
+        summary: 'Detalle de reintegros del día (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+    )]
+    public function reintegrosDetalle(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $fecha = $request->query('fecha') ?: today()->toDateString();
+        $resumen = ResumenReintegrosService::resumen($fecha);
+
+        return response()->json([
+            'fecha' => $fecha,
+            'totales' => ResumenReintegrosService::totales($resumen),
+            'items' => $resumen->map(fn ($r) => [
+                'cliente'        => $r->cliente ? trim($r->cliente->nombre . ' ' . $r->cliente->apellido) : '—',
+                'vendedor'       => $r->vendedor ? trim($r->vendedor->nombre . ' ' . $r->vendedor->apellido) : 'Sin asignar',
+                'ruta_origen'    => $r->rutaCobroOriginal?->nombre,
+                'venta'          => $r->venta?->numero_venta,
+                'estado'         => $r->estado,
+                'monto_adeudado' => (float) $r->monto_adeudado,
+            ])->values(),
+        ]);
+    }
+
+    #[OA\Get(
+        path: '/admin/resumenes-dia/garantias',
+        summary: 'Detalle de garantías del día (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+    )]
+    public function garantiasDetalle(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $fecha = $request->query('fecha') ?: today()->toDateString();
+        $resumen = ResumenGarantiasService::resumen($fecha);
+
+        return response()->json([
+            'fecha' => $fecha,
+            'totales' => ResumenGarantiasService::totales($resumen),
+            'items' => $resumen->map(fn ($g) => [
+                'cliente'      => $g->cliente ? trim($g->cliente->nombre . ' ' . $g->cliente->apellido) : '—',
+                'venta'        => $g->venta?->numero_venta,
+                'asignado_a'   => $g->asignadoA?->name,
+                'reportado_por'=> $g->reportadoPor?->name,
+                'estado'       => $g->estado,
+            ])->values(),
+        ]);
+    }
+
+    private function autorizar(Request $request): ?JsonResponse
+    {
+        if (! $request->user()->hasRole('super_admin')) {
+            return response()->json(['mensaje' => 'No autorizado.'], 403);
+        }
+
+        return null;
     }
 }
