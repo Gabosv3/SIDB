@@ -30,6 +30,7 @@ class LiquidacionSemanalVentas extends Page
     public ?int    $anticipo_vendedor_id  = null;
     public ?float  $anticipo_monto        = null;
     public ?string $anticipo_descripcion  = null;
+    public ?int    $anticipo_editando_id  = null;
 
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
@@ -166,6 +167,24 @@ class LiquidacionSemanalVentas extends Page
             'anticipo_monto'       => 'required|numeric|min:0.01',
         ]);
 
+        if ($this->anticipo_editando_id) {
+            $anticipo = AnticipoVendedor::find($this->anticipo_editando_id);
+
+            if ($anticipo) {
+                $anticipo->update([
+                    'vendedor_id' => $this->anticipo_vendedor_id,
+                    'monto'       => $this->anticipo_monto,
+                    'descripcion' => $this->anticipo_descripcion,
+                ]);
+
+                Notification::make()->title('Anticipo actualizado')->success()->send();
+            }
+
+            $this->cancelarEdicionAnticipo();
+
+            return;
+        }
+
         $inicio = Carbon::parse($this->semana_inicio)->startOfWeek(Carbon::MONDAY);
 
         AnticipoVendedor::create([
@@ -184,6 +203,57 @@ class LiquidacionSemanalVentas extends Page
         $this->anticipo_descripcion = null;
 
         Notification::make()->title('Anticipo registrado')->success()->send();
+    }
+
+    /** Precarga el formulario de arriba con los datos de un anticipo para editarlo. */
+    public function editarAnticipo(int $anticipoId): void
+    {
+        $anticipo = AnticipoVendedor::find($anticipoId);
+
+        if (! $anticipo) {
+            return;
+        }
+
+        $this->anticipo_editando_id  = $anticipo->id;
+        $this->anticipo_vendedor_id  = $anticipo->vendedor_id;
+        $this->anticipo_monto        = (float) $anticipo->monto;
+        $this->anticipo_descripcion  = $anticipo->descripcion;
+    }
+
+    public function cancelarEdicionAnticipo(): void
+    {
+        $this->anticipo_editando_id = null;
+        $this->anticipo_vendedor_id = null;
+        $this->anticipo_monto       = null;
+        $this->anticipo_descripcion = null;
+    }
+
+    /**
+     * Solo se puede borrar un anticipo mientras siga "pendiente" -- si ya
+     * está "descontado" es porque la semana ya se liquidó con ese monto
+     * restado, y borrarlo ahora dejaría el neto ya pagado descuadrado.
+     */
+    public function eliminarAnticipo(int $anticipoId): void
+    {
+        $anticipo = AnticipoVendedor::find($anticipoId);
+
+        if (! $anticipo) {
+            return;
+        }
+
+        if ($anticipo->estado !== 'pendiente') {
+            Notification::make()->title('Este anticipo ya fue descontado, no se puede eliminar')->warning()->send();
+
+            return;
+        }
+
+        if ($this->anticipo_editando_id === $anticipo->id) {
+            $this->cancelarEdicionAnticipo();
+        }
+
+        $anticipo->delete();
+
+        Notification::make()->title('Anticipo eliminado')->success()->send();
     }
 
     public function liquidarSemana(int $vendedorId): void

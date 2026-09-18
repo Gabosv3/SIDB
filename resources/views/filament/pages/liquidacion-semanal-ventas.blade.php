@@ -138,7 +138,7 @@
 {{-- Registrar anticipo --}}
 <div class="lqv-card" style="margin-bottom:1.5rem">
     <div style="padding:0.875rem 1.25rem;font-size:0.82rem;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0">
-        Registrar anticipo de sueldo
+        {{ $anticipo_editando_id ? 'Editando anticipo' : 'Registrar anticipo de sueldo' }}
     </div>
     <div class="lqv-anticipo-form">
         <div style="flex:1;min-width:160px">
@@ -160,8 +160,13 @@
         </div>
         <button wire:click="registrarAnticipo" class="lqv-btn lqv-btn-green">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            Agregar
+            {{ $anticipo_editando_id ? 'Guardar cambios' : 'Agregar' }}
         </button>
+        @if($anticipo_editando_id)
+            <button wire:click="cancelarEdicionAnticipo" type="button" class="lqv-btn" style="background:#f1f5f9;color:#475569">
+                Cancelar
+            </button>
+        @endif
     </div>
 </div>
 
@@ -258,10 +263,29 @@
                             {{ $ant->fecha->format('d/m') }}
                             @if($ant->descripcion) — {{ $ant->descripcion }} @endif
                         </span>
-                        <span class="lqv-anticipo" style="font-weight:700">
-                            ${{ number_format($ant->monto, 2) }}
-                            @if($ant->estado === 'descontado')
-                                <span class="lqv-descontado">✓ descontado</span>
+                        <span style="display:flex;align-items:center;gap:0.5rem">
+                            <span class="lqv-anticipo" style="font-weight:700">
+                                ${{ number_format($ant->monto, 2) }}
+                                @if($ant->estado === 'descontado')
+                                    <span class="lqv-descontado">✓ descontado</span>
+                                @endif
+                            </span>
+                            @if($ant->estado === 'pendiente')
+                                <button
+                                    type="button"
+                                    wire:click="editarAnticipo({{ $ant->id }})"
+                                    style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#0369a1"
+                                >
+                                    Editar
+                                </button>
+                                <button
+                                    type="button"
+                                    wire:click="eliminarAnticipo({{ $ant->id }})"
+                                    wire:confirm="¿Eliminar este anticipo de ${{ number_format($ant->monto, 2) }}?"
+                                    style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#dc2626"
+                                >
+                                    Eliminar
+                                </button>
                             @endif
                         </span>
                     </div>
