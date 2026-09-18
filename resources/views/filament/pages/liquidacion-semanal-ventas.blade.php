@@ -158,9 +158,15 @@
             <label class="lqv-stat-label" style="display:block;margin-bottom:0.25rem">Descripción</label>
             <input type="text" wire:model="anticipo_descripcion" class="lqv-input" placeholder="Ej: Vale lunes" />
         </div>
+        @if($anticipo_requiere_password)
+            <div style="flex:1;min-width:160px">
+                <label class="lqv-stat-label" style="display:block;margin-bottom:0.25rem;color:#dc2626">Tu contraseña (supera lo ganado)</label>
+                <input type="password" wire:model="anticipo_password" class="lqv-input" placeholder="••••••••" style="border-color:#dc2626" />
+            </div>
+        @endif
         <button wire:click="registrarAnticipo" class="lqv-btn lqv-btn-green">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            {{ $anticipo_editando_id ? 'Guardar cambios' : 'Agregar' }}
+            {{ $anticipo_requiere_password ? 'Confirmar' : ($anticipo_editando_id ? 'Guardar cambios' : 'Agregar') }}
         </button>
         @if($anticipo_editando_id)
             <button wire:click="cancelarEdicionAnticipo" type="button" class="lqv-btn" style="background:#f1f5f9;color:#475569">
@@ -168,6 +174,11 @@
             </button>
         @endif
     </div>
+    @if($anticipo_requiere_password)
+        <div style="padding:0 1.25rem 0.875rem;font-size:0.75rem;color:#dc2626">
+            ⚠ Este anticipo es mayor a lo que el vendedor lleva ganado esa semana. Ingresa tu contraseña para confirmarlo.
+        </div>
+    @endif
 </div>
 
 {{-- Cards por vendedor --}}
