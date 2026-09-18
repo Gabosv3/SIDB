@@ -82,9 +82,10 @@ class ClienteController extends Controller
     )]
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
         $query = Cliente::query()->where('activo', true);
 
-        $this->scopeClientesDelUsuario($query, $request->user());
+        $this->scopeClientesDelUsuario($query, $user);
 
         if ($request->filled('q')) {
             $q = $request->q;
@@ -96,6 +97,21 @@ class ClienteController extends Controller
                     ->orWhere('telefono_normal', 'like', "%{$q}%")
                     ->orWhere('telefono_whatsapp', 'like', "%{$q}%");
             });
+        } elseif ($vendedor = $user->vendedor) {
+            // Sin texto de búsqueda: el vendedor quiere ver primero a quién
+            // ya le vendió HOY (lo más probable que esté buscando: un cliente
+            // recurrente de la misma jornada), no un listado genérico de la
+            // sucursal. Si todavía no ha vendido nada hoy, se deja el scope
+            // normal (clientes de su sucursal) para no mostrar una lista vacía.
+            $clienteIdsHoy = Venta::where('vendedor_id', $vendedor->id)
+                ->whereDate('fecha_venta', today())
+                ->pluck('cliente_id')
+                ->filter()
+                ->unique();
+
+            if ($clienteIdsHoy->isNotEmpty()) {
+                $query->whereIn('id', $clienteIdsHoy);
+            }
         }
 
         $porPagina = min($request->integer('per_page', 50), 100);
