@@ -77,6 +77,19 @@ class PreventaResource extends Resource
                         ->label('Cliente')
                         ->relationship('cliente', 'nombre')
                         ->getOptionLabelFromRecordUsing(fn ($record) => $record->nombre_completo)
+                        ->visible(fn ($record) => $record?->cliente_id)
+                        ->disabled()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('nombre_no_registrado')
+                        ->label('Nombre (no quiso registrarse)')
+                        ->visible(fn ($record) => $record && ! $record->cliente_id)
+                        ->disabled()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('telefono_no_registrado')
+                        ->label('Teléfono')
+                        ->visible(fn ($record) => $record && ! $record->cliente_id)
                         ->disabled()
                         ->dehydrated(),
 
@@ -167,11 +180,16 @@ class PreventaResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('cliente.nombre')
                     ->label('Cliente')
-                    ->formatStateUsing(fn ($record) => $record->cliente?->nombre_completo)
-                    ->searchable(query: fn ($query, string $search) => $query->whereHas('cliente', fn ($q) => $q
-                        ->where('nombre', 'like', "%{$search}%")
-                        ->orWhere('apellido', 'like', "%{$search}%")
-                    )),
+                    ->formatStateUsing(fn ($record) => $record->cliente
+                        ? $record->cliente->nombre_completo
+                        : trim(($record->nombre_no_registrado ?? '—') . ($record->telefono_no_registrado ? " ({$record->telefono_no_registrado})" : '')))
+                    ->description(fn ($record) => $record->cliente ? null : 'No quiso registrarse')
+                    ->searchable(query: fn ($query, string $search) => $query
+                        ->where(fn ($q) => $q
+                            ->whereHas('cliente', fn ($qc) => $qc
+                                ->where('nombre', 'like', "%{$search}%")
+                                ->orWhere('apellido', 'like', "%{$search}%"))
+                            ->orWhere('nombre_no_registrado', 'like', "%{$search}%"))),
 
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Cobrador')

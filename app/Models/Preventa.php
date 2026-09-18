@@ -14,6 +14,8 @@ class Preventa extends Model
 
     protected $fillable = [
         'cliente_id',
+        'nombre_no_registrado',
+        'telefono_no_registrado',
         'user_id',
         'vendedor_id',
         'sucursal_id',

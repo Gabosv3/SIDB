@@ -65,6 +65,13 @@ class PreventaController extends Controller
                 'codigo_anterior' => $p->cliente->codigo_anterior,
                 'telefono'        => $p->cliente->telefono_normal,
             ] : null,
+            // Cuando no hay cliente registrado, esto trae el nombre y
+            // teléfono que sí se anotaron — la UI debe mostrar esto en vez
+            // de "cliente" cuando "cliente" venga null.
+            'no_registrado'  => $p->cliente ? null : [
+                'nombre'   => $p->nombre_no_registrado,
+                'telefono' => $p->telefono_no_registrado,
+            ],
             'vendedor'       => $p->vendedor ? [
                 'id'     => $p->vendedor->id,
                 'nombre' => $p->vendedor->nombre . ' ' . $p->vendedor->apellido,
@@ -123,7 +130,11 @@ class PreventaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'cliente_id'              => 'required|exists:clientes,id',
+            // Un cliente registrado, O el nombre de alguien que no quiere
+            // que lo registren — uno de los dos es obligatorio.
+            'cliente_id'              => 'nullable|required_without:nombre_no_registrado|exists:clientes,id',
+            'nombre_no_registrado'    => 'nullable|required_without:cliente_id|string|max:150',
+            'telefono_no_registrado'  => 'nullable|string|max:30',
             'observaciones'           => 'nullable|string|max:500',
             'detalles'                => 'required|array|min:1',
             'detalles.*.producto_id'  => 'required|integer|exists:productos,id',
@@ -177,7 +188,9 @@ class PreventaController extends Controller
             }
 
             $preventa = Preventa::create([
-                'cliente_id'     => $data['cliente_id'],
+                'cliente_id'             => $data['cliente_id'] ?? null,
+                'nombre_no_registrado'   => $data['nombre_no_registrado'] ?? null,
+                'telefono_no_registrado' => $data['telefono_no_registrado'] ?? null,
                 'user_id'        => $request->user()->id,
                 'sucursal_id'    => $cobrador->sucursal_id,
                 'estado'         => 'pendiente',
