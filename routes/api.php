@@ -79,6 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // ── Consulta de ventas (solo del propio usuario) ──────────────────────
         Route::get('/ventas', [VentaController::class, 'index']);
+        // Antes de {id} — si no, Laravel toma "desempeno" como si fuera un id.
+        Route::get('/ventas/desempeno', [VentaController::class, 'desempeno']);
         Route::get('/ventas/{id}', [VentaController::class, 'show']);
         Route::get('/ventas/{venta}/pagos', [PagoVentaController::class, 'index']);
         Route::post('/ventas/{venta}/pagos', [PagoVentaController::class, 'store']);

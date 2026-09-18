@@ -604,4 +604,62 @@ class VentaController extends Controller
             ],
         ]);
     }
+
+    #[OA\Get(
+        path: '/ventas/desempeno',
+        summary: 'Desempeño de ventas del vendedor autenticado',
+        security: [['sanctum' => []]],
+        tags: ['Ventas'],
+        responses: [
+            new OA\Response(response: 200, description: 'Métricas de desempeño'),
+            new OA\Response(response: 403, description: 'No es vendedor'),
+        ],
+    )]
+    public function desempeno(Request $request): JsonResponse
+    {
+        $vendedor = $request->user()->vendedor;
+        if (! $vendedor) {
+            return response()->json(['mensaje' => 'No se encontró perfil de vendedor.'], 403);
+        }
+
+        $userId = $request->user()->id;
+
+        $inicioSemana = now()->startOfWeek();
+        $inicioSemanaPasada = (clone $inicioSemana)->subWeek();
+        $finSemanaPasada = (clone $inicioSemana)->subSecond();
+        $inicioMes = now()->startOfMonth();
+        $inicioMesPasado = (clone $inicioMes)->subMonthNoOverflow();
+        $finMesPasado = (clone $inicioMes)->subSecond();
+
+        $vendidoEntre = fn ($desde, $hasta) => (float) Venta::where('user_id', $userId)
+            ->whereNotIn('estado', ['cancelada', 'devuelta'])
+            ->whereBetween('fecha_venta', [$desde, $hasta])
+            ->sum('total');
+
+        $ventasEntre = fn ($desde, $hasta) => Venta::where('user_id', $userId)
+            ->whereNotIn('estado', ['cancelada', 'devuelta'])
+            ->whereBetween('fecha_venta', [$desde, $hasta])
+            ->count();
+
+        // Cuánto le queda por vender de lo que trae asignado hoy — mismo
+        // dato que ya usa el catálogo de Nueva Venta, aquí resumido.
+        $asignacion = AsignacionDiaria::with('detalles')
+            ->where('vendedor_id', $vendedor->id)
+            ->where('fecha', today())
+            ->where('estado', 'activa')
+            ->first();
+
+        $unidadesAsignadasHoy = $asignacion ? $asignacion->detalles->sum('cantidad_asignada') : 0;
+        $unidadesVendidasHoy  = $asignacion ? $asignacion->detalles->sum('cantidad_vendida') : 0;
+
+        return response()->json([
+            'vendido_semana_actual'  => $vendidoEntre($inicioSemana, now()),
+            'vendido_semana_pasada'  => $vendidoEntre($inicioSemanaPasada, $finSemanaPasada),
+            'vendido_mes_actual'     => $vendidoEntre($inicioMes, now()),
+            'vendido_mes_pasado'     => $vendidoEntre($inicioMesPasado, $finMesPasado),
+            'ventas_hoy'             => $ventasEntre(today(), now()),
+            'unidades_asignadas_hoy' => $unidadesAsignadasHoy,
+            'unidades_vendidas_hoy'  => $unidadesVendidasHoy,
+        ]);
+    }
 }
