@@ -63,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/resumenes-dia/encuestas', [AdminResumenesController::class, 'encuestasDetalle']);
     Route::get('/admin/resumenes-dia/reintegros', [AdminResumenesController::class, 'reintegrosDetalle']);
     Route::get('/admin/resumenes-dia/garantias', [AdminResumenesController::class, 'garantiasDetalle']);
+    Route::get('/admin/cobradores', [AdminResumenesController::class, 'cobradores']);
     Route::get('/admin/vendedores', [AdminAsignacionesController::class, 'vendedores']);
     Route::get('/admin/productos-catalogo', [AdminAsignacionesController::class, 'productos']);
     Route::get('/admin/asignaciones', [AdminAsignacionesController::class, 'index']);

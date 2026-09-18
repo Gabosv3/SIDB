@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cobrador;
 use App\Services\ResumenCobrosDiaService;
 use App\Services\ResumenEncuestasClienteService;
 use App\Services\ResumenGarantiasService;
@@ -14,6 +15,46 @@ use OpenApi\Attributes as OA;
 
 class AdminResumenesController extends Controller
 {
+    /** "3,7,12" → [3,7,12]. Vacío si no viene el parámetro. */
+    private function idsDeQuery(Request $request, string $param): array
+    {
+        $raw = $request->query($param);
+
+        if (! $raw) {
+            return [];
+        }
+
+        return collect(explode(',', (string) $raw))
+            ->map(fn ($v) => (int) trim($v))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    #[OA\Get(
+        path: '/admin/cobradores',
+        summary: 'Cobradores activos, para filtrar los resúmenes (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+    )]
+    public function cobradores(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $cobradores = Cobrador::where('activo', true)
+            ->where('excluir_reportes', false)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'apellido', 'sucursal_id']);
+
+        return response()->json($cobradores->map(fn ($c) => [
+            'id'          => $c->id,
+            'nombre'      => trim($c->nombre . ' ' . $c->apellido),
+            'sucursal_id' => $c->sucursal_id,
+        ]));
+    }
+
     #[OA\Get(
         path: '/admin/resumenes-dia',
         summary: 'Resúmenes del día (solo super admin)',
@@ -94,7 +135,10 @@ class AdminResumenesController extends Controller
         summary: 'Detalle de ventas del día, igual al panel administrativo (solo super admin)',
         security: [['sanctum' => []]],
         tags: ['Admin'],
-        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+        parameters: [
+            new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'vendedor_id', in: 'query', required: false, schema: new OA\Schema(type: 'string'), description: 'IDs de vendedor separados por coma'),
+        ],
     )]
     public function ventasDetalle(Request $request): JsonResponse
     {
@@ -103,7 +147,7 @@ class AdminResumenesController extends Controller
         }
 
         $fecha = $request->query('fecha') ?: today()->toDateString();
-        $resumen = ResumenVentasDiaService::resumen($fecha);
+        $resumen = ResumenVentasDiaService::resumen($fecha, $this->idsDeQuery($request, 'vendedor_id'));
 
         return response()->json([
             'fecha' => $fecha,
@@ -127,7 +171,10 @@ class AdminResumenesController extends Controller
         summary: 'Detalle de cobros del día por cobrador/ruta, igual al panel administrativo (solo super admin)',
         security: [['sanctum' => []]],
         tags: ['Admin'],
-        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+        parameters: [
+            new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'cobrador_id', in: 'query', required: false, schema: new OA\Schema(type: 'string'), description: 'IDs de cobrador separados por coma'),
+        ],
     )]
     public function cobrosDetalle(Request $request): JsonResponse
     {
@@ -136,7 +183,7 @@ class AdminResumenesController extends Controller
         }
 
         $fecha = $request->query('fecha') ?: today()->toDateString();
-        $resumen = ResumenCobrosDiaService::resumen($fecha);
+        $resumen = ResumenCobrosDiaService::resumen($fecha, $this->idsDeQuery($request, 'cobrador_id'));
 
         return response()->json([
             'fecha' => $fecha,
@@ -176,7 +223,10 @@ class AdminResumenesController extends Controller
         summary: 'Detalle de encuestas de cliente del día (solo super admin)',
         security: [['sanctum' => []]],
         tags: ['Admin'],
-        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+        parameters: [
+            new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'cobrador_id', in: 'query', required: false, schema: new OA\Schema(type: 'string'), description: 'IDs de cobrador separados por coma'),
+        ],
     )]
     public function encuestasDetalle(Request $request): JsonResponse
     {
@@ -185,7 +235,7 @@ class AdminResumenesController extends Controller
         }
 
         $fecha = $request->query('fecha') ?: today()->toDateString();
-        $resumen = ResumenEncuestasClienteService::resumen($fecha);
+        $resumen = ResumenEncuestasClienteService::resumen($fecha, $this->idsDeQuery($request, 'cobrador_id'));
 
         return response()->json([
             'fecha' => $fecha,
@@ -206,7 +256,11 @@ class AdminResumenesController extends Controller
         summary: 'Detalle de reintegros del día (solo super admin)',
         security: [['sanctum' => []]],
         tags: ['Admin'],
-        parameters: [new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date'))],
+        parameters: [
+            new OA\Parameter(name: 'fecha', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'vendedor_id', in: 'query', required: false, schema: new OA\Schema(type: 'string'), description: 'IDs de vendedor separados por coma'),
+            new OA\Parameter(name: 'cobrador_id', in: 'query', required: false, schema: new OA\Schema(type: 'string'), description: 'IDs de cobrador separados por coma'),
+        ],
     )]
     public function reintegrosDetalle(Request $request): JsonResponse
     {
@@ -215,7 +269,20 @@ class AdminResumenesController extends Controller
         }
 
         $fecha = $request->query('fecha') ?: today()->toDateString();
-        $resumen = ResumenReintegrosService::resumen($fecha);
+
+        // El servicio filtra reintegros por vendedor.user_id / cobrador.user_id
+        // (quien lo asignó), no por el id del cobrador en sí — misma
+        // traducción que hace el panel web antes de llamar al servicio.
+        $cobradorIds = $this->idsDeQuery($request, 'cobrador_id');
+        $cobradorUserIds = ! empty($cobradorIds)
+            ? Cobrador::whereIn('id', $cobradorIds)->pluck('user_id')->filter()->values()->all()
+            : [];
+
+        $resumen = ResumenReintegrosService::resumen(
+            $fecha,
+            $this->idsDeQuery($request, 'vendedor_id'),
+            $cobradorUserIds
+        );
 
         return response()->json([
             'fecha' => $fecha,
