@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminAsignacionesController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminResumenesController;
 use App\Http\Controllers\Api\AppVersionController;
@@ -57,6 +58,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Admin (solo rol super_admin, validado dentro del controlador) ────────
     Route::get('/admin/kpis', [AdminController::class, 'kpis']);
     Route::get('/admin/resumenes-dia', [AdminResumenesController::class, 'resumenesDia']);
+    Route::get('/admin/vendedores', [AdminAsignacionesController::class, 'vendedores']);
+    Route::get('/admin/productos-catalogo', [AdminAsignacionesController::class, 'productos']);
+    Route::get('/admin/asignaciones', [AdminAsignacionesController::class, 'index']);
+    Route::post('/admin/asignaciones', [AdminAsignacionesController::class, 'store']);
+    Route::post('/admin/asignaciones/{id}/liquidar', [AdminAsignacionesController::class, 'liquidar']);
 
     // ── Push notifications ───────────────────────────────────────────────────
     Route::post('/push-tokens', [PushTokenController::class, 'store']);
