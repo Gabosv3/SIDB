@@ -198,13 +198,28 @@ class AdminResumenesController extends Controller
                 'ventas_canceladas'   => $r['ventas_canceladas'],
                 'reintegros_enviados' => $r['reintegros_enviados'],
                 'por_metodo'          => collect($r['por_metodo'])->values(),
-                'pagos'               => collect($r['detalle'])->map(fn ($p) => [
-                    'cliente'   => $p->cliente ? trim($p->cliente->nombre . ' ' . $p->cliente->apellido) : '—',
-                    'codigo'    => $p->cliente?->codigo_anterior,
-                    'monto'     => (float) $p->monto,
-                    'metodo'    => $p->metodo_pago,
-                    'anulado'   => (bool) $p->anulado_en,
-                ])->values(),
+                // Un mismo cobro puede quedar partido en varios PagoVenta
+                // (ej. abono a más de una cuota en la misma visita), pero
+                // todos comparten el mismo numero_recibo — se agrupan por
+                // ahí para que salga como un solo ticket (el mismo recibo
+                // que se le entrega al cliente), en vez de una línea por cuota.
+                'pagos'               => collect($r['detalle'])
+                    ->groupBy(fn ($p) => $p->numero_recibo ?? "sin-recibo-{$p->id}")
+                    ->map(function ($pagosDelTicket) {
+                        $primero = $pagosDelTicket->first();
+                        $validos = $pagosDelTicket->whereNull('anulado_en');
+
+                        return [
+                            'cliente'       => $primero->cliente ? trim($primero->cliente->nombre . ' ' . $primero->cliente->apellido) : '—',
+                            'codigo'        => $primero->cliente?->codigo_anterior,
+                            'numero_recibo' => $primero->numero_recibo,
+                            'monto'         => (float) $validos->sum('monto'),
+                            'cuotas'        => $pagosDelTicket->count(),
+                            'metodos'       => $pagosDelTicket->pluck('metodo_pago')->unique()->values(),
+                            'anulado'       => $validos->isEmpty() && $pagosDelTicket->isNotEmpty(),
+                        ];
+                    })
+                    ->values(),
                 'visitas_sin_cobro'   => collect($r['visitas_sin_cobro'])->map(fn ($v) => [
                     'cliente' => $v->cliente ? trim($v->cliente->nombre . ' ' . $v->cliente->apellido) : '—',
                 ])->values(),
