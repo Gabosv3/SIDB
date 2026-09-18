@@ -58,6 +58,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Admin (solo rol super_admin, validado dentro del controlador) ────────
     Route::get('/admin/kpis', [AdminController::class, 'kpis']);
     Route::get('/admin/resumenes-dia', [AdminResumenesController::class, 'resumenesDia']);
+    Route::get('/admin/resumenes-dia/ventas', [AdminResumenesController::class, 'ventasDetalle']);
+    Route::get('/admin/resumenes-dia/cobros', [AdminResumenesController::class, 'cobrosDetalle']);
+    Route::get('/admin/resumenes-dia/encuestas', [AdminResumenesController::class, 'encuestasDetalle']);
+    Route::get('/admin/resumenes-dia/reintegros', [AdminResumenesController::class, 'reintegrosDetalle']);
+    Route::get('/admin/resumenes-dia/garantias', [AdminResumenesController::class, 'garantiasDetalle']);
     Route::get('/admin/vendedores', [AdminAsignacionesController::class, 'vendedores']);
     Route::get('/admin/productos-catalogo', [AdminAsignacionesController::class, 'productos']);
     Route::get('/admin/asignaciones', [AdminAsignacionesController::class, 'index']);
