@@ -65,9 +65,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/resumenes-dia/garantias', [AdminResumenesController::class, 'garantiasDetalle']);
     Route::get('/admin/cobradores', [AdminResumenesController::class, 'cobradores']);
     Route::get('/admin/vendedores', [AdminAsignacionesController::class, 'vendedores']);
+    Route::get('/admin/categorias', [AdminAsignacionesController::class, 'categorias']);
     Route::get('/admin/productos-catalogo', [AdminAsignacionesController::class, 'productos']);
     Route::get('/admin/asignaciones', [AdminAsignacionesController::class, 'index']);
     Route::post('/admin/asignaciones', [AdminAsignacionesController::class, 'store']);
+    Route::get('/admin/asignaciones/{id}', [AdminAsignacionesController::class, 'show']);
+    Route::patch('/admin/asignaciones/{id}', [AdminAsignacionesController::class, 'update']);
     Route::post('/admin/asignaciones/{id}/liquidar', [AdminAsignacionesController::class, 'liquidar']);
 
     // ── Push notifications ───────────────────────────────────────────────────

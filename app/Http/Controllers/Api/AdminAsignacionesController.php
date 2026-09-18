@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AsignacionDiaria;
+use App\Models\Categoria;
 use App\Models\DetalleAsignacion;
 use App\Models\Producto;
 use App\Models\Vendedor;
@@ -49,12 +50,30 @@ class AdminAsignacionesController extends Controller
     }
 
     #[OA\Get(
+        path: '/admin/categorias',
+        summary: 'Categorías de producto activas, para filtrar el catálogo (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+    )]
+    public function categorias(Request $request): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        return response()->json(
+            Categoria::orderBy('nombre')->get(['id', 'nombre'])
+        );
+    }
+
+    #[OA\Get(
         path: '/admin/productos-catalogo',
         summary: 'Catálogo de productos activos, para armar una asignación (solo super admin)',
         security: [['sanctum' => []]],
         tags: ['Admin'],
         parameters: [
             new OA\Parameter(name: 'buscar', in: 'query', required: false, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'categoria_id', in: 'query', required: false, schema: new OA\Schema(type: 'integer')),
         ],
     )]
     public function productos(Request $request): JsonResponse
@@ -64,14 +83,16 @@ class AdminAsignacionesController extends Controller
         }
 
         $buscar = trim((string) $request->query('buscar', ''));
+        $categoriaId = $request->query('categoria_id');
 
         $productos = Producto::where('activo', true)
             ->when($buscar !== '', fn ($q) => $q->where(fn ($qq) => $qq
                 ->where('nombre', 'like', "%{$buscar}%")
                 ->orWhere('codigo', 'like', "%{$buscar}%")))
+            ->when($categoriaId, fn ($q) => $q->where('categoria_id', $categoriaId))
             ->orderBy('nombre')
-            ->limit(60)
-            ->get(['id', 'nombre', 'codigo', 'stock', 'precio_venta']);
+            ->limit(120)
+            ->get(['id', 'nombre', 'codigo', 'stock', 'precio_venta', 'categoria_id']);
 
         return response()->json($productos);
     }
@@ -217,6 +238,145 @@ class AdminAsignacionesController extends Controller
                 ])->values(),
             ],
         ], 201);
+    }
+
+    #[OA\Get(
+        path: '/admin/asignaciones/{id}',
+        summary: 'Detalle de una asignación, con precios editables (solo super admin)',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+    )]
+    public function show(Request $request, int $id): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $asignacion = AsignacionDiaria::with(['vendedor:id,nombre,apellido', 'detalles.producto:id,nombre,codigo,stock'])
+            ->findOrFail($id);
+
+        return response()->json([
+            'id'           => $asignacion->id,
+            'fecha'        => $asignacion->fecha->toDateString(),
+            'estado'       => $asignacion->estado,
+            'vendedor_id'  => $asignacion->vendedor_id,
+            'vendedor'     => $asignacion->vendedor ? trim($asignacion->vendedor->nombre . ' ' . $asignacion->vendedor->apellido) : '—',
+            'sucursal_id'  => $asignacion->sucursal_id,
+            'observaciones'=> $asignacion->observaciones,
+            'detalles'     => $asignacion->detalles->map(fn (DetalleAsignacion $d) => [
+                'producto_id'       => $d->producto_id,
+                'nombre'            => $d->producto?->nombre,
+                'codigo'            => $d->producto?->codigo,
+                'stock'             => $d->producto?->stock,
+                'cantidad_asignada' => $d->cantidad_asignada,
+                'precio_venta'      => (float) $d->precio_venta,
+            ])->values(),
+        ]);
+    }
+
+    #[OA\Patch(
+        path: '/admin/asignaciones/{id}',
+        summary: 'Editar los productos de una asignación activa (solo super admin)',
+        description: 'Reemplaza la lista de productos asignados (agregar, quitar, cambiar cantidad o precio). Solo funciona mientras la asignación siga "activa" — una vez liquidada no se puede editar.',
+        security: [['sanctum' => []]],
+        tags: ['Admin'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['detalles'],
+                properties: [
+                    new OA\Property(property: 'observaciones', type: 'string', nullable: true),
+                    new OA\Property(
+                        property: 'detalles',
+                        type: 'array',
+                        minItems: 1,
+                        items: new OA\Items(properties: [
+                            new OA\Property(property: 'producto_id', type: 'integer'),
+                            new OA\Property(property: 'cantidad_asignada', type: 'number'),
+                            new OA\Property(property: 'precio_venta', type: 'number', nullable: true),
+                        ]),
+                    ),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Asignación actualizada'),
+            new OA\Response(response: 422, description: 'Validación fallida o ya no está activa'),
+        ],
+    )]
+    public function update(Request $request, int $id): JsonResponse
+    {
+        if ($resp = $this->autorizar($request)) {
+            return $resp;
+        }
+
+        $data = $request->validate([
+            'observaciones'                => 'nullable|string|max:500',
+            'detalles'                     => 'required|array|min:1',
+            'detalles.*.producto_id'       => 'required|exists:productos,id',
+            'detalles.*.cantidad_asignada' => 'required|numeric|min:1',
+            'detalles.*.precio_venta'      => 'nullable|numeric|min:0',
+        ]);
+
+        $asignacion = DB::transaction(function () use ($id, $data) {
+            $asignacion = AsignacionDiaria::lockForUpdate()->with('detalles')->findOrFail($id);
+
+            if (! $asignacion->estaActiva()) {
+                return null;
+            }
+
+            $productos = Producto::whereIn('id', collect($data['detalles'])->pluck('producto_id'))
+                ->get()->keyBy('id');
+
+            $detallesActuales = $asignacion->detalles->keyBy('producto_id');
+            $idsNuevos = collect($data['detalles'])->pluck('producto_id');
+
+            // Los que ya no vienen en el nuevo listado se eliminan (el boot
+            // hook del modelo devuelve su stock automáticamente).
+            $asignacion->detalles->whereNotIn('producto_id', $idsNuevos)->each->delete();
+
+            foreach ($data['detalles'] as $item) {
+                $producto = $productos->get($item['producto_id']);
+                $precio = $item['precio_venta'] ?? $producto?->precio_venta ?? 0;
+                $existente = $detallesActuales->get($item['producto_id']);
+
+                if ($existente) {
+                    $existente->update([
+                        'cantidad_asignada' => $item['cantidad_asignada'],
+                        'precio_venta'      => $precio,
+                    ]);
+                } else {
+                    DetalleAsignacion::create([
+                        'asignacion_id'     => $asignacion->id,
+                        'producto_id'       => $item['producto_id'],
+                        'cantidad_asignada' => $item['cantidad_asignada'],
+                        'precio_venta'      => $precio,
+                    ]);
+                }
+            }
+
+            if (array_key_exists('observaciones', $data)) {
+                $asignacion->update(['observaciones' => $data['observaciones']]);
+            }
+
+            return $asignacion->fresh(['detalles.producto:id,nombre,codigo', 'vendedor:id,nombre,apellido']);
+        });
+
+        if (! $asignacion) {
+            return response()->json(['mensaje' => 'Esta asignación ya fue liquidada y no se puede editar.'], 422);
+        }
+
+        return response()->json([
+            'mensaje'    => 'Asignación actualizada.',
+            'asignacion' => [
+                'id'        => $asignacion->id,
+                'vendedor'  => trim($asignacion->vendedor->nombre . ' ' . $asignacion->vendedor->apellido),
+                'productos' => $asignacion->detalles->map(fn ($d) => [
+                    'nombre'            => $d->producto?->nombre,
+                    'cantidad_asignada' => $d->cantidad_asignada,
+                ])->values(),
+            ],
+        ]);
     }
 
     #[OA\Post(
