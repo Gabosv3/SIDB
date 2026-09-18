@@ -269,7 +269,7 @@
             <div class="lqv-anticipo-section">
                 <p class="lqv-anticipo-title">Anticipos esta semana</p>
                 @foreach($r['anticipos'] as $ant)
-                    <div style="padding:0.2rem 0">
+                    <div wire:key="anticipo-row-{{ $ant->id }}" style="padding:0.2rem 0">
                         <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem">
                             <span class="lqv-anticipo-desc">
                                 {{ $ant->fecha->format('d/m') }}
@@ -298,13 +298,21 @@
                                     >
                                         Eliminar
                                     </button>
+                                @elseif($forzar_eliminar_id === $ant->id)
+                                    <button
+                                        type="button"
+                                        wire:key="forzar-eliminar-activo-{{ $ant->id }}"
+                                        wire:click="eliminarAnticipo({{ $ant->id }})"
+                                        style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#dc2626"
+                                    >
+                                        Forzar eliminar
+                                    </button>
                                 @else
                                     <button
                                         type="button"
+                                        wire:key="forzar-eliminar-{{ $ant->id }}"
                                         wire:click="eliminarAnticipo({{ $ant->id }})"
-                                        @if($forzar_eliminar_id !== $ant->id)
-                                            wire:confirm="Este anticipo ya fue descontado (la semana ya se liquidó con él). ¿Seguro que quieres forzar su eliminación? Esto es solo para corregir errores o pruebas."
-                                        @endif
+                                        wire:confirm="Este anticipo ya fue descontado (la semana ya se liquidó con él). ¿Seguro que quieres forzar su eliminación? Esto es solo para corregir errores o pruebas."
                                         style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#dc2626"
                                     >
                                         Forzar eliminar
