@@ -192,7 +192,10 @@ class VentaController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'cliente_id'                     => 'required|exists:clientes,id',
+            // 0 = "Consumidor Final" (venta al contado sin registrar al
+            // cliente) — se valida como cliente real más abajo, solo si no
+            // es ese caso especial.
+            'cliente_id'                     => 'required|integer|min:0',
             'sucursal_id'                    => 'required|exists:sucursales,id',
             'prima'                          => 'nullable|numeric|min:0',
             'dias_credito'                   => 'nullable|integer|min:1',
@@ -282,6 +285,30 @@ class VentaController extends Controller
                 'saldoPendiente' => $saldoPendiente,
                 'totalCredito'   => $totalCredito,
             ] = VentaCorreccionService::calcularDetallesYTotales($data['detalles'], $descuentoPct, $prima, $asignacionDetalles);
+
+            // ── Consumidor Final (cliente_id = 0) ─────────────────────────────────
+            // Solo válido al contado — a crédito se necesita un cliente real
+            // (con DUI) para poder cobrarle las cuotas después.
+            $clienteId = (int) $data['cliente_id'];
+
+            if ($clienteId === 0) {
+                if ($tipoPagoVenta !== 'contado') {
+                    throw ValidationException::withMessages([
+                        'cliente_id' => 'Una venta a crédito necesita un cliente registrado (con DUI) — "Consumidor Final" solo aplica a ventas al contado.',
+                    ]);
+                }
+
+                $clienteId = \App\Models\Cliente::firstOrCreate(
+                    ['sucursal_id' => $data['sucursal_id'], 'es_consumidor_final' => true],
+                    ['nombre' => 'Consumidor', 'apellido' => 'Final', 'activo' => true]
+                )->id;
+            } elseif (! \App\Models\Cliente::where('id', $clienteId)->exists()) {
+                throw ValidationException::withMessages([
+                    'cliente_id' => 'El cliente seleccionado no existe.',
+                ]);
+            }
+
+            $data['cliente_id'] = $clienteId;
 
             // ── Límite de crédito del cliente ─────────────────────────────────────
             // Si tiene un límite configurado (>0), esta venta no puede dejarlo con

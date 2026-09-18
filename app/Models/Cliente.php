@@ -45,6 +45,7 @@ class Cliente extends Model
         'ruta_cobro_id',
         'orden',
         'activo',
+        'es_consumidor_final',
         'grupo_id',
         'revisado_en',
         // Referencias familiares
