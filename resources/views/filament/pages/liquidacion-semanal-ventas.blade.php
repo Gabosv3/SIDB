@@ -269,36 +269,61 @@
             <div class="lqv-anticipo-section">
                 <p class="lqv-anticipo-title">Anticipos esta semana</p>
                 @foreach($r['anticipos'] as $ant)
-                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;padding:0.2rem 0">
-                        <span class="lqv-anticipo-desc">
-                            {{ $ant->fecha->format('d/m') }}
-                            @if($ant->descripcion) — {{ $ant->descripcion }} @endif
-                        </span>
-                        <span style="display:flex;align-items:center;gap:0.5rem">
-                            <span class="lqv-anticipo" style="font-weight:700">
-                                ${{ number_format($ant->monto, 2) }}
-                                @if($ant->estado === 'descontado')
-                                    <span class="lqv-descontado">✓ descontado</span>
+                    <div style="padding:0.2rem 0">
+                        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem">
+                            <span class="lqv-anticipo-desc">
+                                {{ $ant->fecha->format('d/m') }}
+                                @if($ant->descripcion) — {{ $ant->descripcion }} @endif
+                            </span>
+                            <span style="display:flex;align-items:center;gap:0.5rem">
+                                <span class="lqv-anticipo" style="font-weight:700">
+                                    ${{ number_format($ant->monto, 2) }}
+                                    @if($ant->estado === 'descontado')
+                                        <span class="lqv-descontado">✓ descontado</span>
+                                    @endif
+                                </span>
+                                @if($ant->estado === 'pendiente')
+                                    <button
+                                        type="button"
+                                        wire:click="editarAnticipo({{ $ant->id }})"
+                                        style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#0369a1"
+                                    >
+                                        Editar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        wire:click="eliminarAnticipo({{ $ant->id }})"
+                                        wire:confirm="¿Eliminar este anticipo de ${{ number_format($ant->monto, 2) }}?"
+                                        style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#dc2626"
+                                    >
+                                        Eliminar
+                                    </button>
+                                @else
+                                    <button
+                                        type="button"
+                                        wire:click="eliminarAnticipo({{ $ant->id }})"
+                                        @if($forzar_eliminar_id !== $ant->id)
+                                            wire:confirm="Este anticipo ya fue descontado (la semana ya se liquidó con él). ¿Seguro que quieres forzar su eliminación? Esto es solo para corregir errores o pruebas."
+                                        @endif
+                                        style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#dc2626"
+                                    >
+                                        Forzar eliminar
+                                    </button>
                                 @endif
                             </span>
-                            @if($ant->estado === 'pendiente')
-                                <button
-                                    type="button"
-                                    wire:click="editarAnticipo({{ $ant->id }})"
-                                    style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#0369a1"
-                                >
-                                    Editar
+                        </div>
+                        @if($forzar_eliminar_id === $ant->id)
+                            <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.35rem;padding:0.5rem;background:#fef2f2;border:1px solid #fecaca;border-radius:0.375rem">
+                                <span style="font-size:0.72rem;color:#991b1b">Confirma con tu contraseña para borrar este anticipo ya descontado:</span>
+                                <input type="password" wire:model="forzar_eliminar_password" class="lqv-input" style="max-width:140px;border-color:#dc2626" placeholder="••••••••" />
+                                <button type="button" wire:click="eliminarAnticipo({{ $ant->id }})" class="lqv-btn" style="background:#dc2626;color:#fff;padding:0.3rem 0.6rem;font-size:0.72rem">
+                                    Confirmar
                                 </button>
-                                <button
-                                    type="button"
-                                    wire:click="eliminarAnticipo({{ $ant->id }})"
-                                    wire:confirm="¿Eliminar este anticipo de ${{ number_format($ant->monto, 2) }}?"
-                                    style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#dc2626"
-                                >
-                                    Eliminar
+                                <button type="button" wire:click="cancelarForzarEliminar" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem;color:#6b7280">
+                                    Cancelar
                                 </button>
-                            @endif
-                        </span>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

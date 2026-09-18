@@ -35,6 +35,10 @@ class LiquidacionSemanalVentas extends Page
     public ?string $anticipo_password     = null;
     public bool    $anticipo_requiere_password = false;
 
+    // Forzar eliminar un anticipo ya "descontado"
+    public ?int    $forzar_eliminar_id       = null;
+    public ?string $forzar_eliminar_password = null;
+
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-banknotes';
@@ -305,9 +309,11 @@ class LiquidacionSemanalVentas extends Page
     }
 
     /**
-     * Solo se puede borrar un anticipo mientras siga "pendiente" -- si ya
-     * está "descontado" es porque la semana ya se liquidó con ese monto
-     * restado, y borrarlo ahora dejaría el neto ya pagado descuadrado.
+     * Un anticipo "pendiente" se borra directo. Uno ya "descontado" es
+     * porque la semana ya se liquidó con ese monto restado -- borrarlo
+     * dejaría el neto ya pagado descuadrado, así que solo se permite
+     * "forzándolo" con la contraseña del usuario (para corregir errores o
+     * limpiar pruebas, no para el uso normal).
      */
     public function eliminarAnticipo(int $anticipoId): void
     {
@@ -318,9 +324,27 @@ class LiquidacionSemanalVentas extends Page
         }
 
         if ($anticipo->estado !== 'pendiente') {
-            Notification::make()->title('Este anticipo ya fue descontado, no se puede eliminar')->warning()->send();
+            if ($this->forzar_eliminar_id !== $anticipo->id) {
+                $this->forzar_eliminar_id = $anticipo->id;
+                $this->forzar_eliminar_password = null;
 
-            return;
+                Notification::make()
+                    ->title('Este anticipo ya fue descontado')
+                    ->body('Si de verdad quieres borrarlo (ej. era una prueba), confirma con tu contraseña abajo.')
+                    ->warning()
+                    ->send();
+
+                return;
+            }
+
+            if (! $this->forzar_eliminar_password || ! Hash::check($this->forzar_eliminar_password, auth()->user()->password)) {
+                Notification::make()->title('Contraseña incorrecta')->danger()->send();
+
+                return;
+            }
+
+            $this->forzar_eliminar_id = null;
+            $this->forzar_eliminar_password = null;
         }
 
         if ($this->anticipo_editando_id === $anticipo->id) {
@@ -330,6 +354,12 @@ class LiquidacionSemanalVentas extends Page
         $anticipo->delete();
 
         Notification::make()->title('Anticipo eliminado')->success()->send();
+    }
+
+    public function cancelarForzarEliminar(): void
+    {
+        $this->forzar_eliminar_id = null;
+        $this->forzar_eliminar_password = null;
     }
 
     public function liquidarSemana(int $vendedorId): void
