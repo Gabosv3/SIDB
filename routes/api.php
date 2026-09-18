@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AppVersionController;
 use App\Http\Controllers\Api\AsignacionController;
 use App\Http\Controllers\Api\AuthController;
@@ -51,6 +52,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Auth ────────────────────────────────────────────────────────────────
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // ── Admin (solo rol super_admin, validado dentro del controlador) ────────
+    Route::get('/admin/kpis', [AdminController::class, 'kpis']);
 
     // ── Push notifications ───────────────────────────────────────────────────
     Route::post('/push-tokens', [PushTokenController::class, 'store']);

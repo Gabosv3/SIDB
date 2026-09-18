@@ -143,6 +143,9 @@ class AuthController extends Controller
                 'es_vendedor'  => $user->esVendedor(),
                 'es_cobrador'  => $user->esCobrador(),
                 'es_supervisor'=> $user->esSupervisor(),
+                // Da acceso al panel de KPIs y opciones extra en el menú lateral.
+                // Se asigna manualmente desde Filament (rol "super_admin") a muy pocos usuarios.
+                'es_super_admin'=> $user->hasRole('super_admin'),
                 'vendedor'     => $user->vendedor ? [
                     'id'          => $user->vendedor->id,
                     'codigo'      => $user->vendedor->codigo,
