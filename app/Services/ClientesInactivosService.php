@@ -27,7 +27,7 @@ class ClientesInactivosService
             ->groupBy('cliente_id')
             ->pluck('ultimo', 'cliente_id');
 
-        return Cliente::where('activo', true)
+        $filas = Cliente::where('activo', true)
             ->where('saldo', '>', 0)
             ->when($rutaId, fn ($q) => $q->where('ruta_cobro_id', $rutaId))
             ->when($cobradorId, fn ($q) => $q->whereHas('rutaCobro', fn ($q2) => $q2->where('cobrador_id', $cobradorId)))
@@ -55,8 +55,19 @@ class ClientesInactivosService
                 $fila['dias_sin_pago']   = $fila['ultimo_pago'] ? (int) floor($fila['ultimo_pago']->diffInDays($hoy)) : null;
 
                 return $fila;
-            })
-            ->sortByDesc(fn (array $fila) => $fila['dias_sin_pago'] ?? PHP_INT_MAX)
+            });
+
+        // Filtrando por un cobrador puntual: sirve para que salga a cobrar,
+        // así que se ordena como su recorrido real (ruta y orden de visita
+        // del cliente dentro de ella), no por antigüedad de la deuda.
+        if ($cobradorId) {
+            return $filas->sortBy([
+                fn (array $fila) => $fila['cliente']->rutaCobro?->nombre ?? '',
+                fn (array $fila) => $fila['cliente']->orden ?? PHP_INT_MAX,
+            ])->values();
+        }
+
+        return $filas->sortByDesc(fn (array $fila) => $fila['dias_sin_pago'] ?? PHP_INT_MAX)
             ->values();
     }
 }

@@ -575,6 +575,30 @@ class ClienteResource extends Resource implements HasShieldPermissions
                     ->label('Creados hoy')
                     ->toggle()
                     ->query(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->whereDate('created_at', today())),
+
+                Tables\Filters\Filter::make('creado_en_fecha')
+                    ->label('Creados en fecha')
+                    ->schema([
+                        Forms\Components\DatePicker::make('desde')
+                            ->label('Desde'),
+                        Forms\Components\DatePicker::make('hasta')
+                            ->label('Hasta'),
+                    ])
+                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data) {
+                        return $query
+                            ->when($data['desde'] ?? null, fn ($q, $fecha) => $q->whereDate('created_at', '>=', $fecha))
+                            ->when($data['hasta'] ?? null, fn ($q, $fecha) => $q->whereDate('created_at', '<=', $fecha));
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicadores = [];
+                        if ($data['desde'] ?? null) {
+                            $indicadores[] = 'Desde ' . \Illuminate\Support\Carbon::parse($data['desde'])->format('d/m/Y');
+                        }
+                        if ($data['hasta'] ?? null) {
+                            $indicadores[] = 'Hasta ' . \Illuminate\Support\Carbon::parse($data['hasta'])->format('d/m/Y');
+                        }
+                        return $indicadores;
+                    }),
             ])
             ->actions([
                 // Botón WhatsApp — enlace directo a wa.me con el número del cliente.
