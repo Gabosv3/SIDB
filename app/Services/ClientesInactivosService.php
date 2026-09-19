@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
  */
 class ClientesInactivosService
 {
-    public static function listar(int $dias = 30): Collection
+    public static function listar(int $dias = 30, ?int $rutaId = null, ?int $cobradorId = null): Collection
     {
         $limite = Carbon::now()->subDays($dias);
 
@@ -29,6 +29,8 @@ class ClientesInactivosService
 
         return Cliente::where('activo', true)
             ->where('saldo', '>', 0)
+            ->when($rutaId, fn ($q) => $q->where('ruta_cobro_id', $rutaId))
+            ->when($cobradorId, fn ($q) => $q->whereHas('rutaCobro', fn ($q2) => $q2->where('cobrador_id', $cobradorId)))
             ->with('rutaCobro.cobrador')
             ->get()
             ->map(function (Cliente $cliente) use ($ultimaVisita, $ultimoPago) {

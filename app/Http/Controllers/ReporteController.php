@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AsignacionDiaria;
 use App\Models\Garantia;
+use App\Services\ClientesInactivosService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Carbon;
@@ -96,5 +97,29 @@ class ReporteController extends Controller
         ]);
 
         return $pdf->stream('Garantias-Semana_' . $inicio->format('Y-m-d') . '.pdf');
+    }
+
+    /**
+     * Listado imprimible de clientes con saldo pendiente que no han sido
+     * visitados ni han abonado en el periodo indicado -- mismos filtros que
+     * la página "Clientes Inactivos" del panel.
+     */
+    public function reporteClientesInactivos($tenant, Request $request)
+    {
+        $dias = (int) $request->query('dias', 30);
+        $rutaId = $request->query('ruta_id') ? (int) $request->query('ruta_id') : null;
+        $cobradorId = $request->query('cobrador_id') ? (int) $request->query('cobrador_id') : null;
+
+        $filas = ClientesInactivosService::listar($dias, $rutaId, $cobradorId)
+            ->filter(fn ($fila) => $fila['cliente']->sucursal_id == $tenant)
+            ->values();
+
+        $pdf = Pdf::loadView('reporte-clientes-inactivos-pdf', [
+            'filas' => $filas,
+            'dias' => $dias,
+            'fecha' => today(),
+        ]);
+
+        return $pdf->stream('Clientes-Inactivos_' . today()->format('Y-m-d') . '.pdf');
     }
 }

@@ -108,6 +108,11 @@ Route::middleware(['web', 'auth', 'can:View:Reportes'])->prefix('reportes')->nam
         ->where('tenant', '[0-9]+');
 });
 
+Route::get('reportes/clientes-inactivos/{tenant}', 'App\Http\Controllers\ReporteController@reporteClientesInactivos')
+    ->middleware(['web', 'auth'])
+    ->name('reporte.clientes-inactivos')
+    ->where('tenant', '[0-9]+');
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Monitor POS
 Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function () {

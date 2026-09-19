@@ -36,6 +36,8 @@
 
 @php
     $filas = $this->getClientes();
+    $rutas = $this->getRutas();
+    $cobradores = $this->getCobradores();
 @endphp
 
 <div class="ci-toolbar">
@@ -45,6 +47,22 @@
         <option value="30">1 mes</option>
         <option value="60">2 meses</option>
         <option value="90">3 meses</option>
+    </select>
+
+    <label>Ruta</label>
+    <select wire:model.live="ruta_id" class="ci-select">
+        <option value="">— Todas —</option>
+        @foreach($rutas as $ruta)
+            <option value="{{ $ruta->id }}">{{ $ruta->nombre }}</option>
+        @endforeach
+    </select>
+
+    <label>Cobrador</label>
+    <select wire:model.live="cobrador_id" class="ci-select">
+        <option value="">— Todos —</option>
+        @foreach($cobradores as $cobrador)
+            <option value="{{ $cobrador->id }}">{{ $cobrador->nombre }} {{ $cobrador->apellido }}</option>
+        @endforeach
     </select>
 </div>
 
