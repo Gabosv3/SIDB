@@ -1008,11 +1008,10 @@
                 return;
             }
 
-            if (fecha < hoy) {
-                alert('⚠️ FECHA INVÁLIDA\n\nLa fecha no puede ser anterior a hoy.');
-                document.getElementById('fechaInput').focus();
-                return;
-            }
+            // Sin restricción de "no antes de hoy" aquí: esto es EDITAR una
+            // asignación que ya existe (a diferencia de crear una nueva), así
+            // que corregir su fecha hacia el pasado es un caso válido (ej.
+            // se guardó con la fecha equivocada).
 
             // Validación 4: Productos
             if (numProductos === 0) {
@@ -1121,9 +1120,6 @@
                 ejecutarBusquedaProductos();
             }
         });
-
-        // Set min date on fecha input
-        document.getElementById('fechaInput').min = new Date().toISOString().split('T')[0];
 
         // Initialize - Se ejecuta directamente porque el script está al final del body
         actualizarCarrito();
