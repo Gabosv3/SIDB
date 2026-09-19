@@ -109,6 +109,11 @@ class Cliente extends Model
         return $this->hasMany(GestionCobro::class, 'cliente_id');
     }
 
+    public function visitasCobro(): HasMany
+    {
+        return $this->hasMany(VisitaCobro::class, 'cliente_id');
+    }
+
     /**
      * Otros clientes vinculados al mismo grupo (hogar/familia), sin incluirse a sí mismo.
      */
