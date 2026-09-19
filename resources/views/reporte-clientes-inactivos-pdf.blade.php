@@ -65,6 +65,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th>Código</th>
                         <th>Cliente</th>
                         <th>Teléfono</th>
                         <th>Ruta</th>
@@ -78,6 +79,7 @@
                     @foreach($filas as $fila)
                         @php $cliente = $fila['cliente']; @endphp
                         <tr>
+                            <td>{{ $cliente->codigo_anterior ?: '—' }}</td>
                             <td>{{ $cliente->nombre_completo }}</td>
                             <td>{{ $cliente->telefono_whatsapp ?: $cliente->telefono_normal ?: '—' }}</td>
                             <td>{{ $cliente->rutaCobro?->nombre ?? '—' }}</td>

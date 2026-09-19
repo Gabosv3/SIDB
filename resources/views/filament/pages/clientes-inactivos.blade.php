@@ -91,7 +91,7 @@
                     <tr class="ci-tr">
                         <td class="ci-td">
                             <div class="ci-nombre">{{ $cliente->nombre_completo }}</div>
-                            <div class="ci-sub">{{ $cliente->telefono_whatsapp ?: $cliente->telefono_normal ?: 'Sin teléfono' }}</div>
+                            <div class="ci-sub">Cód. {{ $cliente->codigo_anterior ?: '—' }} · {{ $cliente->telefono_whatsapp ?: $cliente->telefono_normal ?: 'Sin teléfono' }}</div>
                         </td>
                         <td class="ci-td">
                             {{ $cliente->rutaCobro?->nombre ?? '— Sin ruta —' }}
