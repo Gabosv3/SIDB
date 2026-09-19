@@ -60,11 +60,23 @@ class ClientesInactivosService
         // Filtrando por un cobrador puntual: sirve para que salga a cobrar,
         // así que se ordena como su recorrido real (ruta y orden de visita
         // del cliente dentro de ella), no por antigüedad de la deuda.
+        // Collection::sortBy() no hace multi-key sort con closures sueltos en
+        // el array, así que se ordena a mano con usort.
         if ($cobradorId) {
-            return $filas->sortBy([
-                fn (array $fila) => $fila['cliente']->rutaCobro?->nombre ?? '',
-                fn (array $fila) => $fila['cliente']->orden ?? PHP_INT_MAX,
-            ])->values();
+            $ordenadas = $filas->values()->all();
+
+            usort($ordenadas, function (array $a, array $b) {
+                $rutaA = $a['cliente']->rutaCobro?->nombre ?? '';
+                $rutaB = $b['cliente']->rutaCobro?->nombre ?? '';
+
+                if ($rutaA !== $rutaB) {
+                    return $rutaA <=> $rutaB;
+                }
+
+                return ($a['cliente']->orden ?? PHP_INT_MAX) <=> ($b['cliente']->orden ?? PHP_INT_MAX);
+            });
+
+            return collect($ordenadas)->values();
         }
 
         return $filas->sortByDesc(fn (array $fila) => $fila['dias_sin_pago'] ?? PHP_INT_MAX)
