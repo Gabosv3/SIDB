@@ -173,10 +173,7 @@ class Venta extends Model
             $contador = VendedorTicketsContador::where('vendedor_id', $vendedorId)->lockForUpdate()->first();
         }
 
-        // A partir de este cambio los tickets arrancan en 10,000 (se ven más
-        // "serios" que 000001) -- no afecta los ya emitidos, solo empuja el
-        // siguiente número hacia arriba si el contador todavía no llega ahí.
-        $siguiente = max($contador->ultimo_numero + 1, 10000);
+        $siguiente = $contador->ultimo_numero + 1;
         $contador->update(['ultimo_numero' => $siguiente]);
 
         return sprintf('TCK-%d-%06d', $vendedorId, $siguiente);
