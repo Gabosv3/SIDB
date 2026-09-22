@@ -520,6 +520,30 @@ class ClientesRutaController extends Controller
         return response()->json(['mensaje' => 'Revisión reiniciada.', 'cantidad' => $cantidad]);
     }
 
+    /**
+     * Marca como "revisado" a todos los clientes que calzan con el filtro
+     * actual (misma lógica de ruta que limpiarRevision) de un solo golpe,
+     * en vez de tener que marcarlos uno por uno.
+     */
+    public function marcarTodosRevisados(Request $request, $tenant): JsonResponse
+    {
+        $rutaId = $request->get('ruta_cobro_id');
+
+        $query = Cliente::where('activo', true);
+
+        if ($rutaId === 'sin_ruta') {
+            $query->whereNull('ruta_cobro_id')->where('saldo', '>', 0);
+        } elseif ($rutaId === 'cuentas_cerradas') {
+            $query->whereNull('ruta_cobro_id')->where('saldo', '<=', 0);
+        } elseif ($rutaId !== 'todos') {
+            $query->where('ruta_cobro_id', $rutaId);
+        }
+
+        $cantidad = $query->whereNull('revisado_en')->update(['revisado_en' => now()]);
+
+        return response()->json(['mensaje' => 'Todos marcados como revisados.', 'cantidad' => $cantidad]);
+    }
+
     public function detalleCliente(Request $request, $tenant, Cliente $cliente): JsonResponse
     {
         $cliente->load([

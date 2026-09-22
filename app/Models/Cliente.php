@@ -21,8 +21,28 @@ class Cliente extends Model
 
     protected $table = 'clientes';
 
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        // Código correlativo propio del cliente (arranca en 10,000, distinto
+        // de "codigo_anterior" que es el código heredado del sistema viejo).
+        // Se asigna dentro de una transacción con lockForUpdate para que dos
+        // clientes creados casi al mismo tiempo nunca reciban el mismo número.
+        static::creating(function (Cliente $cliente): void {
+            if (empty($cliente->codigo)) {
+                $cliente->codigo = \Illuminate\Support\Facades\DB::transaction(function () {
+                    $ultimo = static::lockForUpdate()->max('codigo') ?? 9999;
+
+                    return $ultimo + 1;
+                });
+            }
+        });
+    }
+
     protected $fillable = [
         'sucursal_id',
+        'codigo',
         'codigo_anterior',
         'nombre',
         'apellido',

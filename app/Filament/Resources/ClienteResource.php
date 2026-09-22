@@ -513,6 +513,13 @@ class ClienteResource extends Resource implements HasShieldPermissions
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('codigo')
+                    ->label('Código')
+                    ->searchable()
+                    ->sortable()
+                    ->badge()
+                    ->color('primary'),
+
                 Tables\Columns\TextColumn::make('sucursal.nombre')
                     ->label('Sucursal')
                     ->sortable()

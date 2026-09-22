@@ -319,6 +319,7 @@
             <div>
                 <div class="pm-stat-label">Revisados (temporal)</div>
                 <div class="pm-stat-num" id="cr-revisados">—</div>
+                <button type="button" class="cr-revision-reset" id="cr-revision-marcar-todos">Marcar todos como revisados</button>
                 <button type="button" class="cr-revision-reset" id="cr-revision-limpiar">Limpiar revisión de esta ruta</button>
             </div>
         </div>
@@ -1102,6 +1103,22 @@
     }
 
     soloSinRevisarInput.addEventListener('change', function () { render(ultimoData); });
+
+    document.getElementById('cr-revision-marcar-todos').addEventListener('click', function () {
+        if (!confirm('¿Marcar como revisados a TODOS los clientes de esta selección? No borra nada de clientes, ventas ni pagos — solo el checklist.')) return;
+        var url = baseUrl + '/marcar-todos-revisados?ruta_cobro_id=' + encodeURIComponent(rutaSelect.value);
+        fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        })
+            .then(function (r) { return r.json(); })
+            .then(function () {
+                paginaActual = 1;
+                cargar();
+                showToast('Todos marcados como revisados.');
+            })
+            .catch(function () { showToast('No se pudo marcar la revisión.'); });
+    });
 
     document.getElementById('cr-revision-limpiar').addEventListener('click', function () {
         if (!confirm('¿Limpiar la revisión de esta selección para TODOS los que usan esta pantalla? No borra nada de clientes, ventas ni pagos — solo el checklist.')) return;
