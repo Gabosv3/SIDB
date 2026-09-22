@@ -288,10 +288,11 @@ class AsignacionDiariaResource extends Resource
                     ->modalDescription('Se calcularán las ventas realizadas y las unidades devueltas. Esta acción no se puede deshacer.')
                     ->action(function (AsignacionDiaria $record) {
                         $record->liquidar();
-                        redirect()->route('asignacion-diaria.corte', [
+
+                        return redirect()->route('asignacion-diaria.corte', [
                             'tenant' => \Filament\Facades\Filament::getTenant()->id,
                             'asignacion' => $record->id,
-                        ])->send();
+                        ]);
                     }),
 
                 Actions\ViewAction::make(),

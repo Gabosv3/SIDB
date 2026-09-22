@@ -14,3 +14,7 @@ Schedule::command('app:notificar-cuotas-vencidas')->dailyAt('06:00');
 // Fin del día: confirma las primas que nadie confirmó a mano desde
 // "Resumen de Ventas del Día".
 Schedule::command('app:confirmar-primas-pendientes')->dailyAt('23:50');
+
+// A las 11pm: liquida sola cualquier asignación diaria de hoy que nadie
+// haya cerrado a mano desde "Asignaciones Diarias".
+Schedule::command('app:liquidar-jornadas-pendientes')->dailyAt('23:00');

@@ -1789,8 +1789,21 @@ class ClientesRutaController extends Controller
             return response()->json(['mensaje' => 'El monto ya cobrado no puede ser mayor al valor total.'], 422);
         }
 
-        $resultado = DB::transaction(function () use ($data, $nombre, $apellido, $montoCobrado, $valorTotal) {
+        // Si escriben un código a mano en "Código (anterior)" y es numérico
+        // y no está ya en uso, ese valor se usa como el código real del
+        // cliente en vez del correlativo automático (ej. importaciones de
+        // otro sistema que ya traían su propio código).
+        $codigoManual = null;
+        if (! empty($data['codigo_anterior']) && ctype_digit($data['codigo_anterior'])) {
+            $candidato = (int) $data['codigo_anterior'];
+            if (! Cliente::where('codigo', $candidato)->exists()) {
+                $codigoManual = $candidato;
+            }
+        }
+
+        $resultado = DB::transaction(function () use ($data, $nombre, $apellido, $montoCobrado, $valorTotal, $codigoManual) {
             $cliente = Cliente::create([
+                'codigo' => $codigoManual,
                 'codigo_anterior' => $data['codigo_anterior'] ?? null,
                 'sucursal_id' => 1,
                 'nombre' => $nombre,
