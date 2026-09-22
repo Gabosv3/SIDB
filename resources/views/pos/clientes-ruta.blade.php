@@ -241,9 +241,6 @@
                 Todos los clientes (todas las rutas)
             </option>
         </select>
-        <button type="button" id="cr-eliminar-ruta-btn" class="cr-eliminar-cliente-btn" style="display:none;margin-top:.4rem;">
-            🗑 Borrar ruta completa
-        </button>
     </div>
     <div class="cr-filter-group cr-search-wrap">
         <label class="cr-filter-label">Buscar por código o nombre</label>
@@ -324,6 +321,7 @@
                 <div class="pm-stat-num" id="cr-revisados">—</div>
                 <button type="button" class="cr-revision-reset" id="cr-revision-marcar-todos">Marcar todos como revisados</button>
                 <button type="button" class="cr-revision-reset" id="cr-revision-limpiar">Limpiar revisión de esta ruta</button>
+                <button type="button" class="cr-revision-reset" id="cr-eliminar-ruta-btn" style="display:none;color:#dc2626;">🗑 Borrar esta ruta completa</button>
             </div>
         </div>
     </div>
@@ -1144,7 +1142,7 @@
 
     function actualizarBotonEliminarRuta() {
         var esRutaReal = /^\d+$/.test(rutaSelect.value);
-        eliminarRutaBtn.style.display = (esSuperAdmin && esRutaReal) ? 'inline-flex' : 'none';
+        eliminarRutaBtn.style.display = (esSuperAdmin && esRutaReal) ? 'block' : 'none';
     }
     actualizarBotonEliminarRuta();
 
