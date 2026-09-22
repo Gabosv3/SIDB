@@ -220,6 +220,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::delete('{tenant}/clientes/{cliente}', 'App\Http\Controllers\ClientesRutaController@eliminarCliente')
         ->name('eliminar-cliente')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::delete('{tenant}/rutas/{ruta}', 'App\Http\Controllers\ClientesRutaController@eliminarRutaCompleta')
+        ->name('eliminar-ruta-completa')
+        ->where(['tenant' => '[0-9]+', 'ruta' => '[0-9]+']);
     Route::post('{tenant}/clientes', 'App\Http\Controllers\ClientesRutaController@crearCliente')
         ->name('crear-cliente')
         ->where('tenant', '[0-9]+');

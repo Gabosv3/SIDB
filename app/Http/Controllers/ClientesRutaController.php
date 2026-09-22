@@ -6,8 +6,11 @@ use App\Models\Cliente;
 use App\Models\Cobrador;
 use App\Models\ConfiguracionSistema;
 use App\Models\DetalleVenta;
+use App\Models\Garantia;
 use App\Models\GestionCobro;
+use App\Models\Pagare;
 use App\Models\PagoVenta;
+use App\Models\Preventa;
 use App\Models\Producto;
 use App\Models\Reintegro;
 use App\Models\RutaCobro;
@@ -995,6 +998,75 @@ class ClientesRutaController extends Controller
             ));
 
         return response()->json(['mensaje' => 'Cliente eliminado junto con toda su gestión.']);
+    }
+
+    /**
+     * Borra una ruta de cobro completa junto con TODOS sus clientes y toda
+     * su gestión (ventas, pagos, visitas, etc.) -- pensado para limpiar una
+     * ruta subida por error (ej. un Excel importado dos veces). Es
+     * irreversible, por eso el front exige 3 confirmaciones (las primeras 2
+     * con contraseña) antes de llegar aquí, y aquí se vuelve a validar la
+     * contraseña dos veces por si acaso.
+     */
+    public function eliminarRutaCompleta(Request $request, $tenant, RutaCobro $ruta): JsonResponse
+    {
+        if (! auth()->user()?->hasRole('super_admin')) {
+            return response()->json(['mensaje' => 'Solo un super administrador puede eliminar una ruta completa.'], 403);
+        }
+
+        $data = $request->validate([
+            'password_1' => ['required', 'current_password'],
+            'password_2' => ['required', 'current_password'],
+        ], [
+            'password_1.required' => 'Debes ingresar tu contraseña para confirmar.',
+            'password_1.current_password' => 'La contraseña ingresada no es correcta.',
+            'password_2.required' => 'Debes ingresar tu contraseña para confirmar.',
+            'password_2.current_password' => 'La contraseña ingresada no es correcta.',
+        ]);
+
+        $clientes = Cliente::where('ruta_cobro_id', $ruta->id)->get();
+
+        $resumen = [
+            'ruta_id' => $ruta->id,
+            'ruta_nombre' => $ruta->nombre,
+            'clientes_count' => $clientes->count(),
+            'saldo_total' => round((float) $clientes->sum('saldo'), 2),
+        ];
+
+        DB::transaction(function () use ($clientes, $ruta) {
+            foreach ($clientes as $cliente) {
+                // Mismo orden obligatorio que eliminarCliente() (reintegros,
+                // visitas, pagarés y garantías referencian en modo restrict),
+                // más pagarés/garantías/preventas que aquella sí puede dejar
+                // pasar por alto para un solo cliente pero aquí, borrando
+                // muchos de una vez, conviene cubrir también.
+                Reintegro::where('cliente_id', $cliente->id)->delete();
+                VisitaCobro::where('cliente_id', $cliente->id)->delete();
+                Pagare::where('cliente_id', $cliente->id)->delete();
+                Garantia::where('cliente_id', $cliente->id)->delete();
+                Preventa::where('cliente_id', $cliente->id)->delete();
+                // detalle_ventas, pago_ventas y gestion_cobros cascadean por venta_id.
+                Venta::where('cliente_id', $cliente->id)->delete();
+                $cliente->delete();
+            }
+
+            $ruta->delete();
+        });
+
+        activity('ruta_cobro_eliminada_completa')
+            ->causedBy(auth()->user())
+            ->withProperties($resumen)
+            ->log(sprintf(
+                'Eliminó la ruta "%s" completa junto con %d cliente(s) (saldo total $%s)',
+                $resumen['ruta_nombre'],
+                $resumen['clientes_count'],
+                number_format($resumen['saldo_total'], 2)
+            ));
+
+        return response()->json([
+            'mensaje' => sprintf('Ruta "%s" eliminada junto con %d cliente(s).', $resumen['ruta_nombre'], $resumen['clientes_count']),
+            'cantidad' => $resumen['clientes_count'],
+        ]);
     }
 
     public function reordenar(Request $request, $tenant): JsonResponse

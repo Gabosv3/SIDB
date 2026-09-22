@@ -241,6 +241,9 @@
                 Todos los clientes (todas las rutas)
             </option>
         </select>
+        <button type="button" id="cr-eliminar-ruta-btn" class="cr-eliminar-cliente-btn" style="display:none;margin-top:.4rem;">
+            🗑 Borrar ruta completa
+        </button>
     </div>
     <div class="cr-filter-group cr-search-wrap">
         <label class="cr-filter-label">Buscar por código o nombre</label>
@@ -1137,12 +1140,64 @@
             .catch(function () { showToast('No se pudo reiniciar la revisión.'); });
     });
 
+    var eliminarRutaBtn = document.getElementById('cr-eliminar-ruta-btn');
+
+    function actualizarBotonEliminarRuta() {
+        var esRutaReal = /^\d+$/.test(rutaSelect.value);
+        eliminarRutaBtn.style.display = (esSuperAdmin && esRutaReal) ? 'inline-flex' : 'none';
+    }
+    actualizarBotonEliminarRuta();
+
     rutaSelect.addEventListener('change', function () {
         var url = new URL(window.location);
         url.searchParams.set('ruta_cobro_id', rutaSelect.value);
         window.history.replaceState({}, '', url);
         paginaActual = 1;
         cargar();
+        actualizarBotonEliminarRuta();
+    });
+
+    eliminarRutaBtn.addEventListener('click', function () {
+        var rutaId = rutaSelect.value;
+        var opcionSeleccionada = rutaSelect.options[rutaSelect.selectedIndex];
+        var nombreRuta = opcionSeleccionada ? opcionSeleccionada.textContent.trim() : ('ruta #' + rutaId);
+
+        if (!confirm('⚠️ CONFIRMACIÓN 1 de 3\n\nEstás a punto de borrar COMPLETA la ruta:\n"' + nombreRuta + '"\n\nEsto borra TODOS sus clientes, ventas, pagos y visitas. NO se puede deshacer.\n\n¿Continuar?')) return;
+
+        var password1 = window.prompt('CONFIRMACIÓN 2 de 3\n\nEscribe tu contraseña para continuar:');
+        if (password1 === null) return;
+        if (password1.trim() === '') { showToast('Debes ingresar tu contraseña para confirmar.'); return; }
+
+        var password2 = window.prompt('CONFIRMACIÓN 3 de 3\n\nEscribe tu contraseña OTRA VEZ para confirmar definitivamente que quieres borrar "' + nombreRuta + '" y todos sus clientes:');
+        if (password2 === null) return;
+        if (password2.trim() === '') { showToast('Debes ingresar tu contraseña para confirmar.'); return; }
+
+        var url = baseUrl + '/rutas/' + encodeURIComponent(rutaId);
+        fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ password_1: password1, password_2: password2 }),
+        })
+            .then(function (r) { return r.json().then(function (body) { return { status: r.status, body: body }; }); })
+            .then(function (res) {
+                if (res.status >= 400) {
+                    var mensaje = res.body.mensaje
+                        || (res.body.errors && res.body.errors.password_1 && res.body.errors.password_1[0])
+                        || (res.body.errors && res.body.errors.password_2 && res.body.errors.password_2[0])
+                        || 'No se pudo eliminar la ruta.';
+                    showToast(mensaje);
+                    return;
+                }
+                showToast(res.body.mensaje || 'Ruta eliminada.');
+                var url2 = new URL(window.location);
+                url2.searchParams.set('ruta_cobro_id', 'todos');
+                window.location.href = url2.toString();
+            })
+            .catch(function () { showToast('No se pudo eliminar la ruta.'); });
     });
 
     // ── Filtro por cobrador y/o semana: reduce las opciones de "Ruta de cobro" ──
