@@ -97,12 +97,17 @@ class ClienteController extends Controller
                     ->orWhere('telefono_normal', 'like', "%{$q}%")
                     ->orWhere('telefono_whatsapp', 'like', "%{$q}%");
             });
-        } elseif ($vendedor = $user->vendedor) {
-            // Sin texto de búsqueda: el vendedor quiere ver primero a quién
-            // ya le vendió HOY (lo más probable que esté buscando: un cliente
-            // recurrente de la misma jornada), no un listado genérico de la
-            // sucursal. Si todavía no ha vendido nada hoy, se deja el scope
-            // normal (clientes de su sucursal) para no mostrar una lista vacía.
+        } elseif ($request->query('contexto') === 'venta' && ($vendedor = $user->vendedor)) {
+            // Sin texto de búsqueda Y pidiéndolo explícitamente desde la
+            // pantalla de Nueva Venta (?contexto=venta): el vendedor quiere
+            // ver primero a quién ya le vendió HOY (lo más probable que esté
+            // buscando: un cliente recurrente de la misma jornada). Ese
+            // acotamiento NO debe aplicar en otras pantallas que listan
+            // /clientes sin ese parámetro (ej. Preventa, usada también por
+            // cobradores que a la vez son vendedores) — ahí se espera el
+            // listado normal de la sucursal, no filtrado por ventas de hoy.
+            // Si todavía no ha vendido nada hoy, se deja el scope normal
+            // (clientes de su sucursal) para no mostrar una lista vacía.
             $clienteIdsHoy = Venta::where('vendedor_id', $vendedor->id)
                 ->whereDate('fecha_venta', today())
                 ->pluck('cliente_id')
