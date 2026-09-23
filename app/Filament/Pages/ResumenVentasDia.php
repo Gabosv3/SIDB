@@ -28,6 +28,8 @@ class ResumenVentasDia extends Page
 
     public string $fecha = '';
     public string $buscarCliente = '';
+    /** dia|semana|mes -- controla el rango que cubre $fecha. */
+    public string $periodo = 'dia';
     /** @var array<int> */
     public array $vendedoresSeleccionados = [];
 
@@ -56,9 +58,38 @@ class ResumenVentasDia extends Page
         return Vendedor::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get();
     }
 
+    /** Fin del rango según $periodo, a partir de $fecha como ancla. */
+    public function getFechaFin(): Carbon
+    {
+        $ancla = Carbon::parse($this->fecha);
+
+        return match ($this->periodo) {
+            'semana' => $ancla->copy()->endOfWeek(Carbon::SUNDAY),
+            'mes' => $ancla->copy()->endOfMonth(),
+            default => $ancla->copy(),
+        };
+    }
+
+    /** Inicio del rango según $periodo, a partir de $fecha como ancla. */
+    public function getFechaInicio(): Carbon
+    {
+        $ancla = Carbon::parse($this->fecha);
+
+        return match ($this->periodo) {
+            'semana' => $ancla->copy()->startOfWeek(Carbon::MONDAY),
+            'mes' => $ancla->copy()->startOfMonth(),
+            default => $ancla->copy(),
+        };
+    }
+
     public function getResumen(): \Illuminate\Support\Collection
     {
-        return ResumenVentasDiaService::resumen($this->fecha, $this->vendedoresSeleccionados, $this->buscarCliente);
+        return ResumenVentasDiaService::resumen(
+            $this->getFechaInicio()->toDateString(),
+            $this->vendedoresSeleccionados,
+            $this->buscarCliente,
+            $this->getFechaFin()->toDateString(),
+        );
     }
 
     public function getTotales(\Illuminate\Support\Collection $resumen): array

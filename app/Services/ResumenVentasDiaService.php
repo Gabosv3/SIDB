@@ -9,16 +9,18 @@ use Illuminate\Support\Collection;
 class ResumenVentasDiaService
 {
     /**
-     * Ventas del día, con el cliente/vendedor cargados y marcadas si el
-     * cliente era nuevo (su primera compra alguna vez) o ya existía.
+     * Ventas del día (o del rango, si se pasa $fechaFin), con el
+     * cliente/vendedor cargados y marcadas si el cliente era nuevo (su
+     * primera compra alguna vez) o ya existía.
      *
      * @param  array<int>  $vendedorIds
      */
-    public static function resumen(string $fecha, array $vendedorIds = [], string $buscarCliente = ''): Collection
+    public static function resumen(string $fecha, array $vendedorIds = [], string $buscarCliente = '', ?string $fechaFin = null): Collection
     {
-        $dia = Carbon::parse($fecha)->startOfDay();
+        $inicio = Carbon::parse($fecha)->startOfDay();
+        $fin = $fechaFin ? Carbon::parse($fechaFin)->endOfDay() : $inicio->copy()->endOfDay();
 
-        $query = Venta::whereDate('fecha_venta', $dia)
+        $query = Venta::whereBetween('fecha_venta', [$inicio, $fin])
             ->with(['cliente.rutaCobro', 'vendedor', 'user', 'detalles.producto:id,nombre,precio_vendedor', 'pagare'])
             ->when($vendedorIds !== [], fn ($q) => $q->whereIn('vendedor_id', $vendedorIds))
             ->orderBy('fecha_venta');
@@ -41,12 +43,12 @@ class ResumenVentasDiaService
 
         $clienteIds = $ventas->pluck('cliente_id')->filter()->unique()->values();
 
-        // Clientes que ya tenían al menos una venta ANTES de este día (en
+        // Clientes que ya tenían al menos una venta ANTES de este rango (en
         // cualquier estado — si ya se le vendió antes, no es "nuevo").
         $clientesConHistorial = $clienteIds->isEmpty()
             ? collect()
             : Venta::whereIn('cliente_id', $clienteIds)
-                ->where('fecha_venta', '<', $dia)
+                ->where('fecha_venta', '<', $inicio)
                 ->distinct()
                 ->pluck('cliente_id');
 

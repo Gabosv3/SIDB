@@ -107,6 +107,19 @@
         <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Fecha</label>
         <input type="date" wire:model.live="fecha" class="rv-input" />
     </div>
+    <div>
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Período</label>
+        <select wire:model.live="periodo" class="rv-input">
+            <option value="dia">Solo ese día</option>
+            <option value="semana">Semana completa</option>
+            <option value="mes">Mes completo</option>
+        </select>
+        @if($periodo !== 'dia')
+            <div style="font-size:0.72rem;color:#6b7280;margin-top:0.25rem">
+                {{ $this->getFechaInicio()->format('d/m/Y') }} — {{ $this->getFechaFin()->format('d/m/Y') }}
+            </div>
+        @endif
+    </div>
     <div x-data="{ open: false }" style="position:relative">
         <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Vendedores</label>
         <button
