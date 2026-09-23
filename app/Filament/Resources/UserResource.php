@@ -251,9 +251,9 @@ class UserResource extends Resource implements HasShieldPermissions
                         'activa' => 'Activa',
                         'bloqueada' => 'Bloqueada',
                         'desactivada' => 'Desactivada',
-                    ]),
+                    ])
+                    ->default('activa'),
             ])
-            ->filtersLayout(Tables\Enums\FiltersLayout::AboveContent)
             ->actions([
                 Actions\Action::make('verPerfil')
                     ->label('Ver perfil')
