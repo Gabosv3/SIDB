@@ -291,15 +291,71 @@ class ProveedorResource extends Resource implements HasShieldPermissions
                         'consignacion' => 'Consignacion',
                         'adelanto'     => 'Adelanto',
                     ]),
+
+                Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Se deja el bloqueo también en el soft delete: ocultar un
+                // proveedor con compras rompería $compra->proveedor en reportes.
+                Actions\DeleteAction::make()
+                    ->before(function (Proveedor $record, Actions\DeleteAction $action) {
+                        if (\App\Models\Compra::where('proveedor_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este proveedor ya tiene compras registradas -- ocultarlo rompería ese historial en los reportes.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (Proveedor $record, Actions\ForceDeleteAction $action) {
+                        if (\App\Models\Compra::where('proveedor_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este proveedor ya tiene compras registradas -- borrarlo definitivamente perdería ese historial.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conCompras = $records->filter(fn (Proveedor $p) => \App\Models\Compra::where('proveedor_id', $p->id)->exists());
+
+                            if ($conCompras->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos proveedores seleccionados ya tienen compras registradas: '.$conCompras->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conCompras = $records->filter(fn (Proveedor $p) => \App\Models\Compra::where('proveedor_id', $p->id)->exists());
+
+                            if ($conCompras->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos proveedores seleccionados ya tienen compras registradas: '.$conCompras->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->striped()

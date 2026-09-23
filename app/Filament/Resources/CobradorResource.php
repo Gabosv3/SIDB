@@ -195,6 +195,8 @@ class CobradorResource extends Resource implements HasShieldPermissions
                     ->toggleable(),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\TernaryFilter::make('activo')
                     ->label('Estado')
                     ->trueLabel('Solo activos')
@@ -209,14 +211,85 @@ class CobradorResource extends Resource implements HasShieldPermissions
                     ->url(fn (Cobrador $record) => route('empleados.show', [\Filament\Facades\Filament::getTenant()?->id ?? 1, $record->user_id]))
                     ->openUrlInNewTab(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Aunque el soft delete ya no dispara el cascade hacia
+                // rutas_cobro→clientes (es UPDATE, no DELETE), se deja el
+                // bloqueo igual: ocultar un cobrador con historial rompería
+                // relaciones ($ruta->cobrador, $encuesta->cobrador, etc.
+                // quedarían null) en pantallas que no filtran soft-deleted.
+                Actions\DeleteAction::make()
+                    ->before(function (Cobrador $record, Actions\DeleteAction $action) {
+                        if (static::tieneHistorialBloqueante($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este cobrador ya tiene rutas, anticipos o encuestas de cliente registradas -- ocultarlo rompería esas pantallas. Desactívalo en vez de eliminarlo.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (Cobrador $record, Actions\ForceDeleteAction $action) {
+                        if (static::tieneHistorialBloqueante($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este cobrador ya tiene rutas de cobro o anticipos registrados. Ojo: borrarlo definitivamente arrastraría en cascada TODOS sus clientes.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Cobrador $c) => static::tieneHistorialBloqueante($c->id));
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos cobradores seleccionados ya tienen historial registrado: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Cobrador $c) => static::tieneHistorialBloqueante($c->id));
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos cobradores seleccionados ya tienen rutas o anticipos registrados: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('nombre');
+    }
+
+    /**
+     * Un cobrador con rutas asignadas NO se puede borrar directo: rutas_cobro
+     * cascadea en la BD, así que borrar el cobrador borraría también todas
+     * sus rutas y -- por el cascade de clientes.ruta_cobro_id -- todos los
+     * clientes de esas rutas, sin ningún aviso. anticipos_cobrador está en
+     * modo restrict y tiraría el error crudo de todos modos.
+     */
+    public static function tieneHistorialBloqueante(int $cobradorId): bool
+    {
+        return \App\Models\RutaCobro::where('cobrador_id', $cobradorId)->exists()
+            || \App\Models\AnticipoCobrador::where('cobrador_id', $cobradorId)->exists()
+            || \App\Models\EncuestaCliente::where('cobrador_id', $cobradorId)->exists();
     }
 
     // ── Relation Managers ─────────────────────────────────────────────────────

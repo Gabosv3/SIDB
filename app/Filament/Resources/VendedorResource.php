@@ -191,6 +191,8 @@ class VendedorResource extends Resource
                     ->color('success'),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\SelectFilter::make('sucursal_id')
                     ->label('Sucursal')
                     ->relationship('sucursal', 'nombre')
@@ -209,11 +211,67 @@ class VendedorResource extends Resource
                     ->url(fn (Vendedor $record) => route('empleados.show', [\Filament\Facades\Filament::getTenant()?->id ?? 1, $record->user_id]))
                     ->openUrlInNewTab(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Aunque ahora es soft delete, se deja el mismo bloqueo: si
+                // el vendedor tiene historial, ocultarlo rompería la
+                // relación ($venta->vendedor quedaría null) en recibos,
+                // reportes y comisiones viejas.
+                Actions\DeleteAction::make()
+                    ->before(function (Vendedor $record, Actions\DeleteAction $action) {
+                        if (static::tieneHistorialBloqueante($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este vendedor ya tiene ventas, reintegros, anticipos o asignaciones diarias registradas -- ocultarlo rompería esos recibos/reportes viejos. Desactívalo en vez de eliminarlo.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (Vendedor $record, Actions\ForceDeleteAction $action) {
+                        if (static::tieneHistorialBloqueante($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este vendedor ya tiene reintegros, anticipos o asignaciones diarias registradas -- borrarlo definitivamente perdería ese historial.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Vendedor $v) => static::tieneHistorialBloqueante($v->id));
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos vendedores seleccionados ya tienen historial registrado: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Vendedor $v) => static::tieneHistorialBloqueante($v->id));
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos vendedores seleccionados ya tienen historial registrado: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('nombre');
@@ -226,5 +284,19 @@ class VendedorResource extends Resource
             'create' => Pages\CreateVendedor::route('/create'),
             'edit'   => Pages\EditVendedor::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Reintegros, anticipos y asignaciones diarias referencian al vendedor
+     * en modo "restrict" (sin cascade) -- si tiene cualquiera de estos,
+     * borrarlo tira un error de restricción de llave foránea directo al
+     * usuario en vez de un mensaje entendible.
+     */
+    public static function tieneHistorialBloqueante(int $vendedorId): bool
+    {
+        return \App\Models\Reintegro::where('vendedor_id', $vendedorId)->exists()
+            || \App\Models\AnticipoVendedor::where('vendedor_id', $vendedorId)->exists()
+            || \App\Models\AsignacionDiaria::where('vendedor_id', $vendedorId)->exists()
+            || \App\Models\Venta::where('vendedor_id', $vendedorId)->exists();
     }
 }

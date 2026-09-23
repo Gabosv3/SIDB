@@ -137,17 +137,49 @@ class Backups extends Page
     /** Descargar un backup */
     public function downloadBackup(string $path): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        return response()->streamDownload(function () use ($path) {
-            readfile($path);
-        }, basename($path));
+        // Mismo resguardo que deleteBackup(): sin esto, cualquiera con
+        // acceso a esta página podría llamar al método por consola del
+        // navegador con la ruta de CUALQUIER archivo del servidor (ej.
+        // .env con las credenciales de la base de datos) y descargarlo.
+        $backupDir = realpath(storage_path('app/backups'));
+        $resolved = realpath($path);
+
+        abort_unless(
+            $backupDir && $resolved && str_starts_with($resolved, $backupDir . DIRECTORY_SEPARATOR),
+            403,
+            'Ese archivo no está en la carpeta de backups.'
+        );
+
+        return response()->streamDownload(function () use ($resolved) {
+            readfile($resolved);
+        }, basename($resolved));
     }
 
     /** Eliminar un backup individual */
     public function deleteBackup(string $path): void
     {
-        if (file_exists($path)) {
-            unlink($path);
+        // $path llega desde un wire:click en el HTML, pero Livewire no
+        // valida que el argumento que de verdad llegó al servidor sea el
+        // que se renderizó -- cualquiera con acceso a esta página podría
+        // llamar al método por consola del navegador con OTRA ruta. Se
+        // exige que el archivo resuelto quede dentro de storage/app/backups
+        // antes de borrar nada, para no poder usar esto para borrar
+        // cualquier archivo del servidor.
+        $backupDir = realpath(storage_path('app/backups'));
+        $resolved = realpath($path);
+
+        if (! $backupDir || ! $resolved || ! str_starts_with($resolved, $backupDir . DIRECTORY_SEPARATOR)) {
+            Notification::make()
+                ->title('Ruta inválida')
+                ->body('Ese archivo no está en la carpeta de backups.')
+                ->danger()
+                ->send();
+
+            return;
         }
+
+        unlink($resolved);
+
         Notification::make()
             ->title('Backup eliminado')
             ->success()

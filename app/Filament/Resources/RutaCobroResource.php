@@ -204,6 +204,8 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                     ->boolean(),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\TernaryFilter::make('activa')
                     ->label('Estado')
                     ->trueLabel('Solo activas')
@@ -218,11 +220,74 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // A diferencia de los demás recursos, aquí SÍ se deja el
+                // bloqueo incluso en el soft delete normal: aunque ya no
+                // truena ni cascadea, una ruta oculta con clientes todavía
+                // apuntándole los dejaría "huérfanos" (su relación rutaCobro
+                // dejaría de verse por el scope de SoftDeletes). Para borrar
+                // una ruta CON clientes, usar "Clientes por Ruta" → "Borrar
+                // esta ruta completa", que sí mueve/limpia todo junto.
+                Actions\DeleteAction::make()
+                    ->before(function (RutaCobro $record, Actions\DeleteAction $action) {
+                        $clientes = $record->clientes()->count();
+
+                        if ($clientes > 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body("Esta ruta tiene {$clientes} cliente(s) asignado(s) -- ocultarla los dejaría sin ruta visible. Ve a \"Clientes por Ruta\" y usa \"Borrar esta ruta completa\", o cambia esos clientes de ruta primero.")
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (RutaCobro $record, Actions\ForceDeleteAction $action) {
+                        $clientes = $record->clientes()->count();
+
+                        if ($clientes > 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body("Esta ruta tiene {$clientes} cliente(s) asignado(s) -- borrarla definitivamente se los llevaría también. Ve a \"Clientes por Ruta\" y usa \"Borrar esta ruta completa\" si de verdad quieres eliminar todo, o cambia esos clientes de ruta primero.")
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conClientes = $records->filter(fn (RutaCobro $r) => $r->clientes()->count() > 0);
+
+                            if ($conClientes->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunas rutas seleccionadas tienen clientes asignados: '.$conClientes->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conClientes = $records->filter(fn (RutaCobro $r) => $r->clientes()->count() > 0);
+
+                            if ($conClientes->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunas rutas seleccionadas tienen clientes asignados: '.$conClientes->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('nombre');

@@ -185,6 +185,8 @@ class SupervisorResource extends Resource implements HasShieldPermissions
                     ->toggleable(),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\TernaryFilter::make('activo')
                     ->label('Estado')
                     ->trueLabel('Solo activos')
@@ -192,11 +194,69 @@ class SupervisorResource extends Resource implements HasShieldPermissions
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Se deja el bloqueo también en el soft delete: ocultarlo
+                // rompería $supervision->supervisor / $encuesta->supervisor.
+                Actions\DeleteAction::make()
+                    ->before(function ($record, Actions\DeleteAction $action) {
+                        if (\App\Models\Supervision::where('supervisor_id', $record->id)->exists()
+                            || \App\Models\EncuestaCliente::where('supervisor_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este supervisor ya tiene supervisiones o encuestas de cliente registradas -- ocultarlo rompería esas pantallas. Desactívalo en vez de eliminarlo.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function ($record, Actions\ForceDeleteAction $action) {
+                        if (\App\Models\Supervision::where('supervisor_id', $record->id)->exists()
+                            || \App\Models\EncuestaCliente::where('supervisor_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este supervisor ya tiene supervisiones o encuestas de cliente registradas -- borrarlo definitivamente se las llevaría.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn ($s) => \App\Models\Supervision::where('supervisor_id', $s->id)->exists()
+                                || \App\Models\EncuestaCliente::where('supervisor_id', $s->id)->exists());
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos supervisores seleccionados ya tienen historial registrado.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn ($s) => \App\Models\Supervision::where('supervisor_id', $s->id)->exists()
+                                || \App\Models\EncuestaCliente::where('supervisor_id', $s->id)->exists());
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos supervisores seleccionados ya tienen historial registrado.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('nombre');

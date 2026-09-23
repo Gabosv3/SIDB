@@ -129,11 +129,40 @@ class CategoriaResource extends Resource implements HasShieldPermissions
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // categoria_id en productos es nullOnDelete: no truena, pero
+                // borrar una categoría con productos los deja sin categoría
+                // de golpe y sin aviso. Se avisa antes en vez de dejarlo pasar.
+                Actions\DeleteAction::make()
+                    ->before(function (\App\Models\Categoria $record, Actions\DeleteAction $action) {
+                        $productos = \App\Models\Producto::where('categoria_id', $record->id)->count();
+
+                        if ($productos > 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body("Esta categoría tiene {$productos} producto(s) asignado(s) -- borrarla los dejaría sin categoría. Cambia esos productos de categoría primero, o desactívala en vez de eliminarla.")
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conProductos = $records->filter(fn (\App\Models\Categoria $c) => \App\Models\Producto::where('categoria_id', $c->id)->exists());
+
+                            if ($conProductos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunas categorías seleccionadas tienen productos asignados: '.$conProductos->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('nombre');

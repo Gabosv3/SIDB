@@ -606,6 +606,8 @@ class ClienteResource extends Resource implements HasShieldPermissions
                         }
                         return $indicadores;
                     }),
+
+                Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
                 // Botón WhatsApp — enlace directo a wa.me con el número del cliente.
@@ -628,14 +630,85 @@ class ClienteResource extends Resource implements HasShieldPermissions
                 // Acciones estándar
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Aunque Cliente usa SoftDeletes y ya no truena por FK, se
+                // bloquea igual si tiene historial: ocultarlo rompería
+                // $venta->cliente, $pago->cliente, etc en recibos/reportes
+                // viejos que no filtran soft-deleted. Para un cliente CON
+                // historial que de verdad hay que sacar, usa "Clientes por
+                // Ruta" → Eliminar (pide contraseña de super_admin y hace la
+                // limpieza completa antes de borrar).
+                Actions\DeleteAction::make()
+                    ->before(function (Cliente $record, Actions\DeleteAction $action) {
+                        if (static::tieneHistorialBloqueante($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este cliente ya tiene ventas, pagos, visitas, pagarés, garantías o preventas registradas -- ocultarlo rompería esos recibos/reportes. Usa "Clientes por Ruta" para eliminarlo con toda su gestión, o desactívalo aquí.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                // Eliminar para siempre SÍ es destructivo -- reusa el mismo
+                // orden de limpieza que ya usa "Clientes por Ruta" →
+                // eliminarCliente() (reintegros/visitas antes que ventas,
+                // que cascadean detalle_ventas/pago_ventas/gestion_cobros)
+                // y de paso cubre pagarés/garantías/preventas.
+                Actions\ForceDeleteAction::make()
+                    ->action(function (Cliente $record) {
+                        \Illuminate\Support\Facades\DB::transaction(function () use ($record) {
+                            \App\Models\Reintegro::where('cliente_id', $record->id)->delete();
+                            \App\Models\VisitaCobro::where('cliente_id', $record->id)->delete();
+                            \App\Models\Pagare::where('cliente_id', $record->id)->delete();
+                            \App\Models\Garantia::where('cliente_id', $record->id)->delete();
+                            \App\Models\Preventa::where('cliente_id', $record->id)->delete();
+                            \App\Models\Venta::withTrashed()->where('cliente_id', $record->id)->forceDelete();
+                            $record->forceDelete();
+                        });
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Cliente eliminado para siempre')
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Cliente $c) => static::tieneHistorialBloqueante($c->id));
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos clientes seleccionados ya tienen historial registrado: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('nombre');
+    }
+
+    /**
+     * Ventas/visitas/reintegros/pagarés/garantías/preventas referencian al
+     * cliente -- ocultarlo con soft delete rompería esas relaciones
+     * ($venta->cliente, etc quedarían null) en recibos y reportes viejos
+     * que no filtran soft-deleted.
+     */
+    public static function tieneHistorialBloqueante(int $clienteId): bool
+    {
+        return \App\Models\Venta::where('cliente_id', $clienteId)->exists()
+            || \App\Models\VisitaCobro::where('cliente_id', $clienteId)->exists()
+            || \App\Models\Reintegro::where('cliente_id', $clienteId)->exists()
+            || \App\Models\Pagare::where('cliente_id', $clienteId)->exists()
+            || \App\Models\Garantia::where('cliente_id', $clienteId)->exists()
+            || \App\Models\Preventa::where('cliente_id', $clienteId)->exists();
     }
 
     // ── Relation Managers ─────────────────────────────────────────────────────

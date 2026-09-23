@@ -178,6 +178,8 @@ class SucursalResource extends Resource implements HasShieldPermissions
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\TernaryFilter::make('activo')
                     ->label('Estado')
                     ->trueLabel('Solo activas')
@@ -185,13 +187,84 @@ class SucursalResource extends Resource implements HasShieldPermissions
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // El soft delete ya no dispara el cascade hacia cobradores/
+                // rutas/clientes/vendedores, pero se deja el bloqueo igual:
+                // ocultar una sucursal con datos rompería la relación
+                // ($cliente->sucursal, $vendedor->sucursal, etc quedarían
+                // null) por todo el sistema, no solo en el selector.
+                Actions\DeleteAction::make()
+                    ->before(function (Sucursal $record, Actions\DeleteAction $action) {
+                        if (static::tieneDatosBloqueantes($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Esta sucursal ya tiene cobradores, vendedores, rutas de cobro o clientes -- ocultarla rompería esas relaciones por todo el sistema. Desactívala en vez de eliminarla.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (Sucursal $record, Actions\ForceDeleteAction $action) {
+                        if (static::tieneDatosBloqueantes($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Esta sucursal ya tiene cobradores, vendedores, rutas de cobro o clientes -- borrarla definitivamente se los llevaría en cascada a todos.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn (Sucursal $s) => static::tieneDatosBloqueantes($s->id));
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunas sucursales seleccionadas ya tienen datos asociados: '.$conDatos->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn (Sucursal $s) => static::tieneDatosBloqueantes($s->id));
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunas sucursales seleccionadas ya tienen datos asociados: '.$conDatos->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ]);
+    }
+
+    /**
+     * cobradores/rutas_cobro/clientes/vendedores cascadean por sucursal_id --
+     * borrar una sucursal con cualquiera de estos se llevaría en cascada
+     * TODO ese árbol (incluyendo, otra vez en cascada, los clientes de sus
+     * rutas) sin ningún aviso.
+     */
+    public static function tieneDatosBloqueantes(int $sucursalId): bool
+    {
+        return \App\Models\Cobrador::where('sucursal_id', $sucursalId)->exists()
+            || \App\Models\Vendedor::where('sucursal_id', $sucursalId)->exists()
+            || \App\Models\RutaCobro::where('sucursal_id', $sucursalId)->exists()
+            || \App\Models\Cliente::where('sucursal_id', $sucursalId)->exists();
     }
 
     // ── Pages ─────────────────────────────────────────────────────────────────

@@ -213,14 +213,70 @@ class VehiculoResource extends Resource
                         'pickup' => 'Pickup',
                         'otro'   => 'Otro',
                     ]),
+
+                Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Se deja el bloqueo también en el soft delete: ocultarlo
+                // rompería $mantenimiento->vehiculo en el historial.
+                Actions\DeleteAction::make()
+                    ->before(function ($record, Actions\DeleteAction $action) {
+                        if (\App\Models\MantenimientoVehiculo::where('vehiculo_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este vehículo ya tiene mantenimientos registrados -- ocultarlo rompería ese historial.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function ($record, Actions\ForceDeleteAction $action) {
+                        if (\App\Models\MantenimientoVehiculo::where('vehiculo_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este vehículo ya tiene mantenimientos registrados -- borrarlo definitivamente se los llevaría.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn ($v) => \App\Models\MantenimientoVehiculo::where('vehiculo_id', $v->id)->exists());
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos vehículos seleccionados ya tienen mantenimientos registrados.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn ($v) => \App\Models\MantenimientoVehiculo::where('vehiculo_id', $v->id)->exists());
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos vehículos seleccionados ya tienen mantenimientos registrados.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('placa');

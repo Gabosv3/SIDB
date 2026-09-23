@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SucursalResource\Pages;
 
 use App\Filament\Resources\SucursalResource;
+use App\Models\Sucursal;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
@@ -13,7 +14,19 @@ class EditSucursal extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Mismo guard que la tabla del listado (ver SucursalResource::table)
+            Actions\DeleteAction::make()
+                ->before(function (Sucursal $record, Actions\DeleteAction $action) {
+                    if (SucursalResource::tieneDatosBloqueantes($record->id)) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('No se puede eliminar')
+                            ->body('Esta sucursal ya tiene cobradores, vendedores, rutas de cobro o clientes -- ocultarla rompería esas relaciones por todo el sistema. Desactívala en vez de eliminarla.')
+                            ->danger()
+                            ->send();
+
+                        $action->halt();
+                    }
+                }),
         ];
     }
 

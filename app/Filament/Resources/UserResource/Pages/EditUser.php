@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\UserResource\Pages;
 
 use App\Filament\Resources\UserResource;
+use App\Models\User;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
@@ -15,7 +16,19 @@ class EditUser extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Mismo guard que la tabla del listado (ver UserResource::table)
+            Actions\DeleteAction::make()
+                ->before(function (User $record, Actions\DeleteAction $action) {
+                    if (UserResource::tieneDatosBloqueantes($record->id)) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('No se puede eliminar')
+                            ->body('Este usuario ya tiene ficha de empleado, pagos o documentos registrados -- ocultarlo rompería su expediente. Usa "Bloquear acceso" en su perfil en vez de eliminarlo.')
+                            ->danger()
+                            ->send();
+
+                        $action->halt();
+                    }
+                }),
         ];
     }
 

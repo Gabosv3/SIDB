@@ -6,9 +6,12 @@ use Filament\Models\Contracts\HasName;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Sucursal extends Model implements HasName
 {
+    use SoftDeletes;
+
     protected $table = 'sucursales';
 
     protected $fillable = [

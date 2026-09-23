@@ -524,6 +524,8 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     ->boolean(),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\TernaryFilter::make('activo')
                     ->label('Estado')
                     ->trueLabel('Solo activos')
@@ -632,11 +634,67 @@ class ProductoResource extends Resource implements HasShieldPermissions
                     })
                     ->successRedirectUrl(fn (Producto $replica): string => static::getUrl('edit', ['record' => $replica])),
 
-                Actions\DeleteAction::make(),
+                // Aunque ahora es soft delete y no truena por FK, se deja el
+                // mismo bloqueo: si el producto tiene ventas/compras, ocultarlo
+                // rompería esas relaciones ($detalle->producto quedaría null)
+                // en recibos/reportes/PDFs viejos que no filtran soft-deleted.
+                Actions\DeleteAction::make()
+                    ->before(function (Producto $record, Actions\DeleteAction $action) {
+                        if ($record->detallesVenta()->exists() || $record->detallesCompra()->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este producto ya tiene ventas o compras registradas -- ocultarlo rompería esos recibos/reportes viejos. Desactívalo (Activo = No) en vez de eliminarlo.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (Producto $record, Actions\ForceDeleteAction $action) {
+                        if ($record->detallesVenta()->exists() || $record->detallesCompra()->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este producto ya tiene ventas o compras registradas -- borrarlo definitivamente perdería ese historial.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                     Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Producto $p) => $p->detallesVenta()->exists() || $p->detallesCompra()->exists());
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos productos seleccionados ya tienen ventas o compras registradas: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conHistorial = $records->filter(fn (Producto $p) => $p->detallesVenta()->exists() || $p->detallesCompra()->exists());
+
+                            if ($conHistorial->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos productos seleccionados ya tienen ventas o compras registradas: '.$conHistorial->pluck('nombre')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
 
                     // Igual que "Asignar precios por cuotas": para variantes del mismo
                     // producto (ej. 10 sillas iguales, una por color) que necesitan los

@@ -180,11 +180,35 @@ class GestionCobroResource extends Resource
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                Actions\DeleteAction::make()
+                    ->before(function (GestionCobro $record, Actions\DeleteAction $action) {
+                        if (\App\Models\VisitaCobro::where('gestion_cobro_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Esta cuota ya tiene una visita de cobro registrada.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conVisitas = $records->filter(fn (GestionCobro $g) => \App\Models\VisitaCobro::where('gestion_cobro_id', $g->id)->exists());
+
+                            if ($conVisitas->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunas cuotas seleccionadas ya tienen visitas de cobro registradas.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('fecha_vencimiento');

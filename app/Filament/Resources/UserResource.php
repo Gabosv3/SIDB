@@ -237,6 +237,8 @@ class UserResource extends Resource implements HasShieldPermissions
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\SelectFilter::make('roles')
                     ->label('Rol')
                     ->relationship('roles', 'name')
@@ -259,13 +261,83 @@ class UserResource extends Resource implements HasShieldPermissions
                     ->url(fn (User $record) => route('empleados.show', [\Filament\Facades\Filament::getTenant()?->id ?? 1, $record->id]))
                     ->openUrlInNewTab(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // El soft delete ya no dispara el cascade hacia ficha/pagos/
+                // documentos, pero se deja el bloqueo igual: ocultar un
+                // usuario con ficha de empleado rompería esa relación
+                // ($perfil->user quedaría null) en el expediente. Para
+                // bloquear el acceso de un empleado sin tocar su ficha, ya
+                // existe "Bloquear acceso" en su perfil.
+                Actions\DeleteAction::make()
+                    ->before(function (User $record, Actions\DeleteAction $action) {
+                        if (static::tieneDatosBloqueantes($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Este usuario ya tiene ficha de empleado, pagos o documentos registrados -- ocultarlo rompería su expediente. Usa "Bloquear acceso" en su perfil en vez de eliminarlo.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (User $record, Actions\ForceDeleteAction $action) {
+                        if (static::tieneDatosBloqueantes($record->id)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Este usuario ya tiene ficha de empleado, pagos o documentos registrados -- borrarlo definitivamente se los llevaría en cascada.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn (User $u) => static::tieneDatosBloqueantes($u->id));
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunos usuarios seleccionados ya tienen historial de empleado: '.$conDatos->pluck('name')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conDatos = $records->filter(fn (User $u) => static::tieneDatosBloqueantes($u->id));
+
+                            if ($conDatos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunos usuarios seleccionados ya tienen historial de empleado: '.$conDatos->pluck('name')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ]);
+    }
+
+    /**
+     * employee_profiles/employee_documents/employee_pagos cascadean por
+     * user_id -- borrar el usuario se llevaría en cascada toda su ficha de
+     * RRHH y su historial de pagos, sin ningún aviso.
+     */
+    public static function tieneDatosBloqueantes(int $userId): bool
+    {
+        return \App\Models\EmployeeProfile::where('user_id', $userId)->exists()
+            || \App\Models\EmployeePago::where('user_id', $userId)->exists()
+            || \App\Models\EmployeeDocument::where('user_id', $userId)->exists();
     }
 
     // ── Pages ─────────────────────────────────────────────────────────────────

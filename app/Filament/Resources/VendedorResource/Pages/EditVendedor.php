@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\VendedorResource\Pages;
 
 use App\Filament\Resources\VendedorResource;
+use App\Models\Vendedor;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
@@ -13,7 +14,19 @@ class EditVendedor extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            // Mismo guard que la tabla del listado (ver VendedorResource::table)
+            Actions\DeleteAction::make()
+                ->before(function (Vendedor $record, Actions\DeleteAction $action) {
+                    if (VendedorResource::tieneHistorialBloqueante($record->id)) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('No se puede eliminar')
+                            ->body('Este vendedor ya tiene ventas, reintegros, anticipos o asignaciones diarias registradas -- ocultarlo rompería esos recibos/reportes. Desactívalo en vez de eliminarlo.')
+                            ->danger()
+                            ->send();
+
+                        $action->halt();
+                    }
+                }),
         ];
     }
 

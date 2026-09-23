@@ -495,6 +495,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\TrashedFilter::make(),
+
                 Tables\Filters\SelectFilter::make('estado')
                     ->label('Estado')
                     ->options([
@@ -602,11 +604,67 @@ class VentaResource extends Resource implements HasShieldPermissions
                     }),
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Se deja el bloqueo también en el soft delete: ocultar una
+                // venta con pagos rompería $pago->venta en recibos/reportes.
+                // La vía correcta para anular una venta sigue siendo
+                // "Cancelar" (reintegra stock/asignación).
+                Actions\DeleteAction::make()
+                    ->before(function (Venta $record, Actions\DeleteAction $action) {
+                        if ((float) $record->monto_pagado > 0) {
+                            Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Esta venta ya tiene pagos registrados -- ocultarla rompería ese historial de cobros. Usa "Cancelar" en vez de eliminar.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (Venta $record, Actions\ForceDeleteAction $action) {
+                        if ((float) $record->monto_pagado > 0) {
+                            Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Esta venta ya tiene pagos registrados -- borrarla definitivamente perdería ese historial de cobros.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conPagos = $records->filter(fn (Venta $v) => (float) $v->monto_pagado > 0);
+
+                            if ($conPagos->isNotEmpty()) {
+                                Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunas ventas seleccionadas ya tienen pagos registrados: '.$conPagos->pluck('numero_venta')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conPagos = $records->filter(fn (Venta $v) => (float) $v->monto_pagado > 0);
+
+                            if ($conPagos->isNotEmpty()) {
+                                Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunas ventas seleccionadas ya tienen pagos registrados: '.$conPagos->pluck('numero_venta')->join(', ').'.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('fecha_venta', 'desc');

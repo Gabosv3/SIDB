@@ -445,15 +445,71 @@ class CompraResource extends Resource implements HasShieldPermissions
                 Tables\Filters\Filter::make('ultimos_30_dias')
                     ->label('Últimos 30 días')
                     ->query(fn (Builder $query): Builder => $query->where('fecha_compra', '>=', Carbon::now()->subDays(30))),
+
+                Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // Se deja el bloqueo también en el soft delete: ocultar una
+                // compra con pagos rompería $pago->compra en reportes viejos.
+                Actions\DeleteAction::make()
+                    ->before(function (\App\Models\Compra $record, Actions\DeleteAction $action) {
+                        if (\App\Models\PagoCompra::where('compra_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar')
+                                ->body('Esta compra ya tiene pagos registrados -- ocultarla rompería ese historial de pagos a proveedor en los reportes.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
+                Actions\RestoreAction::make(),
+                Actions\ForceDeleteAction::make()
+                    ->before(function (\App\Models\Compra $record, Actions\ForceDeleteAction $action) {
+                        if (\App\Models\PagoCompra::where('compra_id', $record->id)->exists()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('No se puede eliminar para siempre')
+                                ->body('Esta compra ya tiene pagos registrados -- borrarla definitivamente perdería ese historial de pagos a proveedor.')
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\DeleteBulkAction $action) {
+                            $conPagos = $records->filter(fn (\App\Models\Compra $c) => \App\Models\PagoCompra::where('compra_id', $c->id)->exists());
+
+                            if ($conPagos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Algunas compras seleccionadas ya tienen pagos registrados.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
+                    Actions\RestoreBulkAction::make(),
+                    Actions\ForceDeleteBulkAction::make()
+                        ->before(function (\Illuminate\Support\Collection $records, Actions\ForceDeleteBulkAction $action) {
+                            $conPagos = $records->filter(fn (\App\Models\Compra $c) => \App\Models\PagoCompra::where('compra_id', $c->id)->exists());
+
+                            if ($conPagos->isNotEmpty()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('No se puede eliminar para siempre')
+                                    ->body('Algunas compras seleccionadas ya tienen pagos registrados.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        }),
                 ]),
             ])
             ->striped()
