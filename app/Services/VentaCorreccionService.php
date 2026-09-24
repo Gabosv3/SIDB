@@ -109,15 +109,24 @@ class VentaCorreccionService
         ?\App\Models\AsignacionDiaria $asignacion,
         string $motivo,
         ?int $ventaIdExcluirDeValidacion = null,
+        bool $forzar = false,
     ): array {
-        return DB::transaction(function () use ($venta, $nuevosDetalles, $prima, $descuentoPct, $clienteId, $asignacion, $motivo, $ventaIdExcluirDeValidacion) {
+        return DB::transaction(function () use ($venta, $nuevosDetalles, $prima, $descuentoPct, $clienteId, $asignacion, $motivo, $ventaIdExcluirDeValidacion, $forzar) {
             if (in_array($venta->estado, ['cancelada', 'devuelta'], true)) {
                 return ['error' => 'Esta venta está anulada y no se puede corregir.'];
             }
 
             $hayAbonosPosteriores = PagoVenta::where('venta_id', $venta->id)->whereNull('anulado_en')->exists();
-            if ($hayAbonosPosteriores) {
+            if ($hayAbonosPosteriores && ! $forzar) {
                 return ['error' => 'Esta venta ya tiene abonos registrados aparte de la prima inicial. Corregir los productos o la prima ahora dejaría esos abonos inconsistentes con las cuotas nuevas — hay que resolverlo manualmente.'];
+            }
+
+            // Forzado con abonos ya registrados: el dinero recibido (PagoVenta)
+            // no se toca ni se pierde, pero las cuotas (GestionCobro) se
+            // recrean desde cero más abajo -- hay que cuadrar a mano cuánto
+            // de lo ya cobrado corresponde a cada cuota nueva.
+            if ($hayAbonosPosteriores && $forzar) {
+                $motivo = '[FORZADA CON ABONOS YA REGISTRADOS] ' . $motivo;
             }
 
             $asignacionDetalles = $asignacion ? $asignacion->detalles->keyBy('producto_id') : collect();

@@ -388,6 +388,17 @@ class ResumenVentasDia extends Page
                     ->placeholder('Ej: Se quitó una silla que sobraba, prima corregida a $10')
                     ->rows(2)
                     ->required(),
+                Forms\Components\Checkbox::make('forzar')
+                    ->label('Forzar corrección aunque ya tenga abonos registrados')
+                    ->helperText('Los pagos ya recibidos NO se pierden, pero las cuotas se recrean desde cero -- tendrás que cuadrar a mano cuánto de lo ya cobrado corresponde a cada cuota nueva.')
+                    ->default(false)
+                    ->visible(function (): bool {
+                        $ventaId = $this->getMountedAction()?->getArguments()['venta_id'] ?? null;
+
+                        return auth()->user()?->hasRole('super_admin')
+                            && $ventaId
+                            && \App\Models\PagoVenta::where('venta_id', $ventaId)->whereNull('anulado_en')->exists();
+                    }),
             ])
             ->action(function (array $data, array $arguments): void {
                 $venta = Venta::with('detalles')->findOrFail($arguments['venta_id']);
@@ -408,6 +419,11 @@ class ResumenVentasDia extends Page
                     'precio_cuota'         => $d['precio_cuota'] ?? null,
                 ])->toArray();
 
+                // El checkbox solo se muestra a super_admin, pero se revalida
+                // aquí también por si acaso -- que nadie más pueda forzarlo
+                // enviando el campo a mano.
+                $forzar = (bool) ($data['forzar'] ?? false) && auth()->user()?->hasRole('super_admin');
+
                 $resultado = VentaCorreccionService::aplicarCorreccion(
                     $venta,
                     $nuevosDetalles,
@@ -415,7 +431,9 @@ class ResumenVentasDia extends Page
                     (float) $venta->descuento_porcentaje,
                     $venta->cliente_id,
                     null, // el panel no valida contra la asignación diaria del vendedor
-                    $data['motivo']
+                    $data['motivo'],
+                    null,
+                    $forzar,
                 );
 
                 if (isset($resultado['error'])) {
