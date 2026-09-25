@@ -246,6 +246,7 @@
                             <th>Vendido</th>
                             <th>Anticipos</th>
                             <th>Vale consumo</th>
+                            <th>Remanente</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -261,6 +262,7 @@
                                 <td class="lqv-td lqv-vendido" style="font-weight:700">${{ number_format($dia->total, 2) }}</td>
                                 <td class="lqv-td lqv-anticipo" style="font-weight:700">{{ $dia->anticipos > 0 ? '$'.number_format($dia->anticipos, 2) : '—' }}</td>
                                 <td class="lqv-td" style="font-weight:700">{{ $dia->vale_consumo > 0 ? '$'.number_format($dia->vale_consumo, 2) : '—' }}</td>
+                                <td class="lqv-td {{ $dia->remanente < 0 ? 'lqv-neto-neg' : 'lqv-neto-pos' }}" style="font-weight:700">${{ number_format($dia->remanente, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>

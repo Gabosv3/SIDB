@@ -87,14 +87,24 @@ class LiquidacionSemanalVentas extends Page
             ['total_vendido' => $totalVendido, 'comision' => $comision, 'a_pagar' => $aPagar, 'modalidad' => $modalidad, 'salario_base' => $salarioBase]
                 = $this->calcularAPagar($vendedor, $inicio, $fin);
 
+            // Se trae con detalles (no un simple SUM) porque el remanente por
+            // día necesita la comisión real de cada producto de ese día
+            // (mismo tramo por producto que usa calcularAPagar), no solo el
+            // total vendido.
             $ventasPorDia = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
                 ->whereNotIn('estado', ['cancelada', 'devuelta'])
                 ->where('tipo_pago', '!=', 'contado')
-                ->selectRaw('DATE(fecha_venta) as dia, SUM(total) as total, COUNT(*) as ventas')
-                ->groupBy('dia')
+                ->with('detalles')
                 ->get()
-                ->keyBy('dia');
+                ->groupBy(fn (Venta $v) => $v->fecha_venta->toDateString())
+                ->map(fn ($grupo) => (object) [
+                    'ventas' => $grupo->count(),
+                    'total' => (float) $grupo->sum('total'),
+                    'comision' => round($grupo->flatMap->detalles->sum(
+                        fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
+                    ), 2),
+                ]);
 
             // Anticipos de la semana -- excluye los que vienen de "Confirmar
             // prima" de una venta al contado, porque esa prima ya no está
@@ -127,13 +137,23 @@ class LiquidacionSemanalVentas extends Page
 
             $porDia = $fechasConMovimiento->map(function ($fechaStr) use ($ventasPorDia, $anticiposPorDia, $valesPorDia) {
                 $venta = $ventasPorDia->get($fechaStr);
+                $comisionDia = (float) ($venta?->comision ?? 0);
+                $anticiposDia = (float) ($anticiposPorDia->get($fechaStr) ?? 0);
+                $valeDia = (float) ($valesPorDia->get($fechaStr) ?? 0);
 
                 return (object) [
                     'dia' => $fechaStr,
                     'ventas' => $venta?->ventas ?? 0,
                     'total' => (float) ($venta?->total ?? 0),
-                    'anticipos' => (float) ($anticiposPorDia->get($fechaStr) ?? 0),
-                    'vale_consumo' => (float) ($valesPorDia->get($fechaStr) ?? 0),
+                    'comision' => $comisionDia,
+                    'anticipos' => $anticiposDia,
+                    'vale_consumo' => $valeDia,
+                    // Lo que todavía le falta por pagar de ese día: la
+                    // comisión que ganó ese día menos lo que ya se le dio
+                    // (anticipo + vale) ese mismo día. Puede salir negativo
+                    // si se le dio más de lo que ganó ese día en particular
+                    // -- se arrastra igual que el neto semanal.
+                    'remanente' => round($comisionDia - $anticiposDia - $valeDia, 2),
                 ];
             })->values();
 
