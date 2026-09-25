@@ -261,7 +261,14 @@
                                 <td class="lqv-td lqv-dia-fecha">{{ $fecha->format('d/m/Y') }}</td>
                                 <td class="lqv-td">{{ $dia->ventas }}</td>
                                 <td class="lqv-td lqv-vendido" style="font-weight:700">${{ number_format($dia->total, 2) }}</td>
-                                <td class="lqv-td lqv-comision">{{ $dia->total > 0 ? $dia->porcentaje_comision.'%' : '—' }}</td>
+                                <td class="lqv-td lqv-comision" style="font-weight:700">
+                                    @if($dia->total > 0)
+                                        ${{ number_format($dia->comision, 2) }}
+                                        <span style="font-weight:400;opacity:.75">({{ $dia->porcentaje_comision }}%)</span>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td class="lqv-td lqv-anticipo" style="font-weight:700">{{ $dia->anticipos > 0 ? '$'.number_format($dia->anticipos, 2) : '—' }}</td>
                                 <td class="lqv-td" style="font-weight:700">{{ $dia->vale_consumo > 0 ? '$'.number_format($dia->vale_consumo, 2) : '—' }}</td>
                                 <td class="lqv-td {{ $dia->remanente < 0 ? 'lqv-neto-neg' : 'lqv-neto-pos' }}" style="font-weight:700">${{ number_format($dia->remanente, 2) }}</td>
