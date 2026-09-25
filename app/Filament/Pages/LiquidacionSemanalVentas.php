@@ -137,6 +137,7 @@ class LiquidacionSemanalVentas extends Page
 
             $porDia = $fechasConMovimiento->map(function ($fechaStr) use ($ventasPorDia, $anticiposPorDia, $valesPorDia) {
                 $venta = $ventasPorDia->get($fechaStr);
+                $totalDia = (float) ($venta?->total ?? 0);
                 $comisionDia = (float) ($venta?->comision ?? 0);
                 $anticiposDia = (float) ($anticiposPorDia->get($fechaStr) ?? 0);
                 $valeDia = (float) ($valesPorDia->get($fechaStr) ?? 0);
@@ -144,8 +145,12 @@ class LiquidacionSemanalVentas extends Page
                 return (object) [
                     'dia' => $fechaStr,
                     'ventas' => $venta?->ventas ?? 0,
-                    'total' => (float) ($venta?->total ?? 0),
+                    'total' => $totalDia,
                     'comision' => $comisionDia,
+                    // % real de ese día (comisión / vendido) -- para cuadrar
+                    // a ojo contra el tramo esperado, igual que el "% efectivo"
+                    // de la semana completa arriba.
+                    'porcentaje_comision' => $totalDia > 0 ? round($comisionDia / $totalDia * 100, 2) : 0.0,
                     'anticipos' => $anticiposDia,
                     'vale_consumo' => $valeDia,
                     // Lo que todavía le falta por pagar de ese día: la
