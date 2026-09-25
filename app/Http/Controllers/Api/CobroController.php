@@ -167,7 +167,7 @@ class CobroController extends Controller
         $semanaActual = ConfiguracionSistema::instance()->semanaActual();
 
         $rutas = RutaCobro::whereIn('id', $this->rutasIdsAccesibles($request, $cobrador))
-            ->where('dia_semana', $diaHoy)
+            ->where(fn ($q) => $q->whereNull('dia_semana')->orWhere('dia_semana', $diaHoy))
             ->where('activa', true)
             ->when($semanaActual !== null, fn ($q) => $q->where(
                 fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaActual)

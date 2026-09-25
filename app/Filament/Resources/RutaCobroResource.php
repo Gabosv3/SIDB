@@ -102,7 +102,7 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
 
                     Forms\Components\Select::make('dia_semana')
                         ->label('Día de cobranza')
-                        ->placeholder('Selecciona el día')
+                        ->placeholder('Todos los días (se muestra siempre)')
                         ->options([
                             'lunes' => 'Lunes',
                             'martes' => 'Martes',
@@ -112,7 +112,7 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                             'sábado' => 'Sábado',
                             'domingo' => 'Domingo',
                         ])
-                        ->required(),
+                        ->helperText('Si se deja sin elegir, la ruta se muestra en el POS/app del cobrador todos los días de la semana.'),
 
                     Forms\Components\Select::make('semana_ciclo')
                         ->label('Semana del ciclo quincenal')
@@ -158,7 +158,7 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
                 Tables\Columns\TextColumn::make('dia_semana')
                     ->label('Día')
                     ->badge()
-                    ->formatStateUsing(fn ($state) => $state ? ucfirst($state) : '—')
+                    ->formatStateUsing(fn ($state) => $state ? ucfirst($state) : 'Todos los días')
                     ->color(fn ($state) => match($state) {
                         'lunes' => 'blue',
                         'martes' => 'cyan',

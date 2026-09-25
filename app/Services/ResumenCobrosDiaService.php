@@ -68,7 +68,7 @@ class ResumenCobrosDiaService
                 ->count();
 
             $rutasHoyIds = $cobrador->rutasCobro()
-                ->where('dia_semana', $diaFecha)
+                ->where(fn ($q) => $q->whereNull('dia_semana')->orWhere('dia_semana', $diaFecha))
                 ->when($semanaFecha !== null, fn ($q) => $q->where(
                     fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaFecha)
                 ))
@@ -531,7 +531,7 @@ class ResumenCobrosDiaService
         $diaFecha = $diasEs[$fechaCarbon->dayOfWeekIso - 1];
         $semanaFecha = ConfiguracionSistema::instance()->semanaParaFecha($fechaCarbon);
 
-        $rutasIds = RutaCobro::where('dia_semana', $diaFecha)
+        $rutasIds = RutaCobro::where(fn ($q) => $q->whereNull('dia_semana')->orWhere('dia_semana', $diaFecha))
             ->whereIn('cobrador_id', self::cobradorIdsParaReportes($cobradorIds))
             ->when($semanaFecha !== null, fn ($q) => $q->where(
                 fn ($q2) => $q2->whereNull('semana_ciclo')->orWhere('semana_ciclo', $semanaFecha)
