@@ -2,7 +2,6 @@
 
 use App\Models\RutaCobro;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 
 Route::get('/', function () {
     return redirect('/administrativo');
@@ -321,9 +320,24 @@ Route::get('/ruta-mapa/{ruta}', function (RutaCobro $ruta) {
 // Descarga de backups (solo super_admin)
 Route::get('/administrativo/backups/download/{path}', function (string $path) {
     abort_unless(auth()->user()?->hasRole('super_admin'), 403);
+
+    // $filePath viene en base64 desde el botón y es una ruta ABSOLUTA (así
+    // la guarda Backups::getBackups()) -- Storage::disk('local') la trataba
+    // como relativa a storage/app y nunca la encontraba (por eso el botón
+    // fallaba). Se valida con realpath() que quede dentro de
+    // storage/app/backups (mismo resguardo que downloadBackup() en
+    // Backups.php) y se sirve directo con response()->download().
     $filePath = base64_decode($path);
-    abort_unless(Storage::disk('local')->exists($filePath), 404);
-    return Storage::disk('local')->download($filePath);
+    $backupDir = realpath(storage_path('app/backups'));
+    $resolved = realpath($filePath);
+
+    abort_unless(
+        $backupDir && $resolved && str_starts_with($resolved, $backupDir . DIRECTORY_SEPARATOR),
+        403,
+        'Ese archivo no está en la carpeta de backups.'
+    );
+
+    return response()->download($resolved);
 })->middleware(['web', 'auth'])->name('filament.administrativo.pages.backups.download');
 
 // ─────────────────────────────────────────────────────────────────────────────

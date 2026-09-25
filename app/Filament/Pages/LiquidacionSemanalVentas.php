@@ -87,14 +87,14 @@ class LiquidacionSemanalVentas extends Page
             ['total_vendido' => $totalVendido, 'comision' => $comision, 'a_pagar' => $aPagar, 'modalidad' => $modalidad, 'salario_base' => $salarioBase]
                 = $this->calcularAPagar($vendedor, $inicio, $fin);
 
-            $porDia = Venta::where('vendedor_id', $vendedor->id)
+            $ventasPorDia = Venta::where('vendedor_id', $vendedor->id)
                 ->whereBetween('fecha_venta', [$inicio, $fin])
                 ->whereNotIn('estado', ['cancelada', 'devuelta'])
                 ->where('tipo_pago', '!=', 'contado')
                 ->selectRaw('DATE(fecha_venta) as dia, SUM(total) as total, COUNT(*) as ventas')
                 ->groupBy('dia')
-                ->orderBy('dia')
-                ->get();
+                ->get()
+                ->keyBy('dia');
 
             // Anticipos de la semana -- excluye los que vienen de "Confirmar
             // prima" de una venta al contado, porque esa prima ya no está
@@ -105,14 +105,37 @@ class LiquidacionSemanalVentas extends Page
                 ->whereDoesntHave('venta', fn ($q) => $q->where('tipo_pago', 'contado'))
                 ->get();
             $totalAnticipos = (float) $anticipos->sum('monto');
+            $anticiposPorDia = $anticipos->groupBy(fn ($a) => $a->fecha->toDateString())
+                ->map(fn ($grupo) => (float) $grupo->sum('monto'));
 
             // Vales de consumo (personales) ya aprobados de la semana -- mismo
             // criterio que en la Liquidación Semanal de Cobradores.
-            $totalValesConsumo = (float) Vale::where('user_id', $vendedor->user_id)
+            $valesConsumo = Vale::where('user_id', $vendedor->user_id)
                 ->where('tipo', 'consumo')
                 ->where('estado', 'aprobado')
                 ->whereBetween('fecha_gasto', [$inicio->toDateString(), $fin->toDateString()])
-                ->sum('monto');
+                ->get();
+            $totalValesConsumo = (float) $valesConsumo->sum('monto');
+            $valesPorDia = $valesConsumo->groupBy(fn ($v) => Carbon::parse($v->fecha_gasto)->toDateString())
+                ->map(fn ($grupo) => (float) $grupo->sum('monto'));
+
+            // Un día de la semana entra en la tabla si tuvo ventas,
+            // anticipos o vales -- para no perder de vista, por ejemplo, un
+            // anticipo dado un día sin ventas.
+            $fechasConMovimiento = collect([$ventasPorDia->keys(), $anticiposPorDia->keys(), $valesPorDia->keys()])
+                ->flatten()->unique()->sort()->values();
+
+            $porDia = $fechasConMovimiento->map(function ($fechaStr) use ($ventasPorDia, $anticiposPorDia, $valesPorDia) {
+                $venta = $ventasPorDia->get($fechaStr);
+
+                return (object) [
+                    'dia' => $fechaStr,
+                    'ventas' => $venta?->ventas ?? 0,
+                    'total' => (float) ($venta?->total ?? 0),
+                    'anticipos' => (float) ($anticiposPorDia->get($fechaStr) ?? 0),
+                    'vale_consumo' => (float) ($valesPorDia->get($fechaStr) ?? 0),
+                ];
+            })->values();
 
             // % efectivo solo para mostrar en pantalla (comisión / vendido);
             // cada venta ya pagó su propio tramo por separado arriba.

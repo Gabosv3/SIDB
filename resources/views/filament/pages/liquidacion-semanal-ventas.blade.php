@@ -244,6 +244,8 @@
                             <th>Fecha</th>
                             <th>Ventas</th>
                             <th>Vendido</th>
+                            <th>Anticipos</th>
+                            <th>Vale consumo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -257,6 +259,8 @@
                                 <td class="lqv-td lqv-dia-fecha">{{ $fecha->format('d/m/Y') }}</td>
                                 <td class="lqv-td">{{ $dia->ventas }}</td>
                                 <td class="lqv-td lqv-vendido" style="font-weight:700">${{ number_format($dia->total, 2) }}</td>
+                                <td class="lqv-td lqv-anticipo" style="font-weight:700">{{ $dia->anticipos > 0 ? '$'.number_format($dia->anticipos, 2) : '—' }}</td>
+                                <td class="lqv-td" style="font-weight:700">{{ $dia->vale_consumo > 0 ? '$'.number_format($dia->vale_consumo, 2) : '—' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
