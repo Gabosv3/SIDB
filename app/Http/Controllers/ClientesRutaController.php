@@ -595,6 +595,7 @@ class ClientesRutaController extends Controller
                 'tipo_pago' => $v->tipo_pago,
                 'estado' => $v->estado,
                 'total' => (float) $v->total,
+                'descuento_porcentaje' => (float) $v->descuento_porcentaje,
                 'monto_pagado' => (float) $v->monto_pagado,
                 'saldo_pendiente' => (float) $v->saldo_pendiente,
                 'dias_credito' => $v->dias_credito,
@@ -1469,6 +1470,7 @@ class ClientesRutaController extends Controller
             'precios' => 'required|array|min:1',
             'precios.*.producto_id' => 'required|integer',
             'precios.*.precio_unitario' => 'required|numeric|min:0',
+            'descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'motivo' => 'required|string|max:500',
             'forzar' => 'nullable|boolean',
         ]);
@@ -1494,11 +1496,15 @@ class ClientesRutaController extends Controller
             'precio_manual'        => true,
         ])->toArray();
 
+        $descuentoPct = array_key_exists('descuento_porcentaje', $data)
+            ? (float) $data['descuento_porcentaje']
+            : (float) $venta->descuento_porcentaje;
+
         $resultado = \App\Services\VentaCorreccionService::aplicarCorreccion(
             $venta,
             $nuevosDetalles,
             (float) $venta->prima,
-            (float) $venta->descuento_porcentaje,
+            $descuentoPct,
             $cliente->id,
             null,
             $data['motivo'],

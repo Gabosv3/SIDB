@@ -158,6 +158,10 @@
         <div class="cp-modal-body">
             <div id="cp-precios-modal-productos"></div>
             <div class="cp-modal-field">
+                <label>Descuento de la venta (%)</label>
+                <input type="number" step="0.01" min="0" max="100" id="cp-precios-modal-descuento">
+            </div>
+            <div class="cp-modal-field">
                 <label>Motivo de la corrección</label>
                 <textarea id="cp-precios-modal-motivo" rows="2" placeholder="Ej: Precio mal puesto al vender"></textarea>
             </div>
@@ -434,7 +438,7 @@
             : '';
 
         var editarPreciosBtn = (esSuperAdmin && v.productos && v.productos.length > 0)
-            ? '<button type="button" class="cr-abono-edit cp-venta-precios-edit" data-venta="' + v.id + '" data-productos="' + encodeURIComponent(JSON.stringify(v.productos)) + '" title="Corregir precio de los productos de esta venta">💲</button>'
+            ? '<button type="button" class="cr-abono-edit cp-venta-precios-edit" data-venta="' + v.id + '" data-descuento="' + v.descuento_porcentaje + '" data-productos="' + encodeURIComponent(JSON.stringify(v.productos)) + '" title="Corregir precio de los productos de esta venta">💲</button>'
             : '';
 
         var card = '<div class="cr-venta-card">' +
@@ -693,7 +697,7 @@
 
         body.querySelectorAll('.cp-venta-precios-edit').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                abrirPreciosModal(this.dataset.venta, JSON.parse(decodeURIComponent(this.dataset.productos)));
+                abrirPreciosModal(this.dataset.venta, JSON.parse(decodeURIComponent(this.dataset.productos)), this.dataset.descuento);
             });
         });
 
@@ -808,13 +812,15 @@
     var preciosModalProductos = document.getElementById('cp-precios-modal-productos');
     var preciosModalMotivo = document.getElementById('cp-precios-modal-motivo');
     var preciosModalForzar = document.getElementById('cp-precios-modal-forzar');
+    var preciosModalDescuento = document.getElementById('cp-precios-modal-descuento');
     var preciosModalError = document.getElementById('cp-precios-modal-error');
     var preciosModalVentaId = null;
 
-    function abrirPreciosModal(ventaId, productos) {
+    function abrirPreciosModal(ventaId, productos, descuentoActual) {
         preciosModalVentaId = ventaId;
         preciosModalMotivo.value = '';
         preciosModalForzar.checked = false;
+        preciosModalDescuento.value = Number(descuentoActual || 0).toFixed(2);
         preciosModalError.textContent = '';
         preciosModalProductos.innerHTML = productos.map(function (p, i) {
             return '<div class="cp-modal-field" data-producto-id="' + p.producto_id + '">' +
@@ -863,6 +869,7 @@
             body: JSON.stringify({
                 venta_id: Number(preciosModalVentaId),
                 precios: precios,
+                descuento_porcentaje: Number(preciosModalDescuento.value || 0),
                 motivo: motivo,
                 forzar: preciosModalForzar.checked,
             }),
