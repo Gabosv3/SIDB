@@ -70,6 +70,7 @@
                         <th>Teléfono</th>
                         <th>Dirección</th>
                         <th>Ruta</th>
+                        <th>Producto</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -92,6 +93,7 @@
                                     <span class="sin-dato">Sin ruta</span>
                                 @endif
                             </td>
+                            <td>{{ $productosPorCliente[$cliente->id] ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

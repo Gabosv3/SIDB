@@ -206,6 +206,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/clientes/{cliente}/venta-vendedor-fecha', 'App\Http\Controllers\ClientesRutaController@actualizarVentaVendedorFecha')
         ->name('venta-vendedor-fecha')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
+    Route::post('{tenant}/clientes/{cliente}/venta-precios', 'App\Http\Controllers\ClientesRutaController@actualizarPreciosVenta')
+        ->name('venta-precios')
+        ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
     Route::post('{tenant}/clientes/{cliente}/campo', 'App\Http\Controllers\ClientesRutaController@actualizarCampo')
         ->name('campo')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);

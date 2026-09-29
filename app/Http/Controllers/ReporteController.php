@@ -139,7 +139,9 @@ class ReporteController extends Controller
         // closures no hace un verdadero orden multi-clave (cada clave se
         // evalúa por separado y la última pisa el orden de la anterior).
         $clientes = \App\Models\Cliente::whereIn('id', $ids)
-            ->with('rutaCobro')
+            ->with(['rutaCobro', 'ventas' => function ($q) {
+                $q->latest('fecha_venta')->with('detalles.producto');
+            }])
             ->get()
             ->all();
 
@@ -152,8 +154,20 @@ class ReporteController extends Controller
 
         $clientes = collect($clientes);
 
+        // Producto(s) de la venta más reciente de cada cliente (ya viene
+        // ordenada por fecha_venta desc desde el eager load de arriba).
+        $productosPorCliente = $clientes->mapWithKeys(function ($c) {
+            $venta = $c->ventas->first();
+            $productos = $venta
+                ? $venta->detalles->map(fn ($d) => $d->producto?->nombre ?? '—')->implode(', ')
+                : null;
+
+            return [$c->id => $productos];
+        });
+
         $pdf = Pdf::loadView('reporte-clientes-seleccionados-pdf', [
             'clientes' => $clientes,
+            'productosPorCliente' => $productosPorCliente,
             'fecha' => today(),
         ]);
 

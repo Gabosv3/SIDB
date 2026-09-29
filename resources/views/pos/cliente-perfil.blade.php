@@ -148,6 +148,31 @@
         </div>
     </div>
 </div>
+
+<div class="cp-modal-overlay" id="cp-precios-modal-overlay">
+    <div class="cp-modal">
+        <div class="cp-modal-header">
+            <span>Corregir precios</span>
+            <button type="button" class="cp-modal-close" id="cp-precios-modal-close">&times;</button>
+        </div>
+        <div class="cp-modal-body">
+            <div id="cp-precios-modal-productos"></div>
+            <div class="cp-modal-field">
+                <label>Motivo de la corrección</label>
+                <textarea id="cp-precios-modal-motivo" rows="2" placeholder="Ej: Precio mal puesto al vender"></textarea>
+            </div>
+            <label style="display:flex; align-items:center; gap:.4rem; font-size:.78rem; color:var(--text-2); margin-top:.4rem;">
+                <input type="checkbox" id="cp-precios-modal-forzar">
+                Forzar aunque ya tenga abonos registrados (recrea las cuotas desde cero)
+            </label>
+            <p class="cp-modal-error" id="cp-precios-modal-error"></p>
+            <div class="cp-modal-actions">
+                <button type="button" class="cr-import-btn-secundario" id="cp-precios-modal-cancelar">Cancelar</button>
+                <button type="button" class="cr-import-btn" id="cp-precios-modal-guardar">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -401,9 +426,13 @@
             ? '<button type="button" class="cr-abono-edit cp-venta-vendedor-fecha-edit" data-venta="' + v.id + '" data-vendedor-id="' + (v.vendedor_id || '') + '" data-fecha-iso="' + (v.fecha_venta_iso || '') + '" title="Corregir vendedor / fecha de esta venta">✏️</button>'
             : '';
 
+        var editarPreciosBtn = (esSuperAdmin && v.productos && v.productos.length > 0)
+            ? '<button type="button" class="cr-abono-edit cp-venta-precios-edit" data-venta="' + v.id + '" data-productos="' + encodeURIComponent(JSON.stringify(v.productos)) + '" title="Corregir precio de los productos de esta venta">💲</button>'
+            : '';
+
         var card = '<div class="cr-venta-card">' +
             '<div class="cr-venta-card-header">' +
-                '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')' + (v.vendedor_nombre ? ' · Vendedor: ' + v.vendedor_nombre : ' · Vendedor: —') + '</span> ' + editarVentaBtn + '</div>' +
+                '<div><strong>' + v.numero_venta + '</strong> <span style="color:var(--muted-2); font-size:.78rem;">— ' + v.fecha_venta + ' (' + (v.tipo_pago === 'credito' ? 'Crédito' : 'Contado') + ')' + (v.vendedor_nombre ? ' · Vendedor: ' + v.vendedor_nombre : ' · Vendedor: —') + '</span> ' + editarVentaBtn + editarPreciosBtn + '</div>' +
                 '<span class="cr-venta-badge" style="background:' + colores[0] + '; color:' + colores[1] + ';">' + (estadoLabels[v.estado] || v.estado) + '</span>' +
             '</div>' +
             productosHtml +
@@ -655,6 +684,12 @@
             });
         });
 
+        body.querySelectorAll('.cp-venta-precios-edit').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                abrirPreciosModal(this.dataset.venta, JSON.parse(decodeURIComponent(this.dataset.productos)));
+            });
+        });
+
         body.querySelectorAll('.cp-anular-recibo').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var numeroRecibo = this.dataset.numeroRecibo;
@@ -758,6 +793,87 @@
             btn.disabled = false;
             btn.textContent = 'Guardar';
             ventaModalError.textContent = 'No se pudo guardar, intenta de nuevo.';
+        });
+    });
+
+    // ── Modal: corregir precios de los productos de una venta ───────────
+    var preciosModalOverlay = document.getElementById('cp-precios-modal-overlay');
+    var preciosModalProductos = document.getElementById('cp-precios-modal-productos');
+    var preciosModalMotivo = document.getElementById('cp-precios-modal-motivo');
+    var preciosModalForzar = document.getElementById('cp-precios-modal-forzar');
+    var preciosModalError = document.getElementById('cp-precios-modal-error');
+    var preciosModalVentaId = null;
+
+    function abrirPreciosModal(ventaId, productos) {
+        preciosModalVentaId = ventaId;
+        preciosModalMotivo.value = '';
+        preciosModalForzar.checked = false;
+        preciosModalError.textContent = '';
+        preciosModalProductos.innerHTML = productos.map(function (p, i) {
+            return '<div class="cp-modal-field" data-producto-id="' + p.producto_id + '">' +
+                '<label>' + p.nombre + ' (x' + p.cantidad + ')</label>' +
+                '<input type="number" step="0.01" min="0" class="cp-precio-input" value="' + p.precio_unitario.toFixed(2) + '">' +
+            '</div>';
+        }).join('');
+        preciosModalOverlay.classList.add('show');
+    }
+
+    function cerrarPreciosModal() {
+        preciosModalOverlay.classList.remove('show');
+        preciosModalVentaId = null;
+    }
+
+    document.getElementById('cp-precios-modal-close').addEventListener('click', cerrarPreciosModal);
+    document.getElementById('cp-precios-modal-cancelar').addEventListener('click', cerrarPreciosModal);
+    preciosModalOverlay.addEventListener('click', function (e) { if (e.target === preciosModalOverlay) cerrarPreciosModal(); });
+
+    document.getElementById('cp-precios-modal-guardar').addEventListener('click', function () {
+        if (! preciosModalVentaId) return;
+
+        var motivo = preciosModalMotivo.value.trim();
+        if (motivo === '') {
+            preciosModalError.textContent = 'Escribe el motivo de la corrección.';
+            return;
+        }
+
+        var precios = Array.prototype.map.call(preciosModalProductos.children, function (fila) {
+            return {
+                producto_id: Number(fila.dataset.productoId),
+                precio_unitario: Number(fila.querySelector('.cp-precio-input').value),
+            };
+        });
+
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Guardando...';
+
+        fetch(baseUrl + '/clientes/' + clienteId + '/venta-precios', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({
+                venta_id: Number(preciosModalVentaId),
+                precios: precios,
+                motivo: motivo,
+                forzar: preciosModalForzar.checked,
+            }),
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
+            if (res.ok) {
+                cerrarPreciosModal();
+                showToast(res.body.mensaje || 'Actualizado.');
+                cargar();
+            } else {
+                preciosModalError.textContent = res.body.mensaje || 'No se pudo guardar.';
+            }
+        }).catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Guardar';
+            preciosModalError.textContent = 'No se pudo guardar, intenta de nuevo.';
         });
     });
 

@@ -601,6 +601,7 @@ class ClientesRutaController extends Controller
                 'vendedor_id' => $v->vendedor_id,
                 'vendedor_nombre' => $v->vendedor ? trim($v->vendedor->nombre.' '.$v->vendedor->apellido) : null,
                 'productos' => $v->detalles->map(fn ($d) => [
+                    'producto_id' => $d->producto_id,
                     'nombre' => $d->producto?->nombre ?? 'Producto eliminado',
                     'cantidad' => (int) $d->cantidad,
                     'precio_unitario' => (float) $d->precio_unitario,
@@ -1447,6 +1448,69 @@ class ClientesRutaController extends Controller
         $venta->save();
 
         return response()->json(['mensaje' => 'Venta actualizada.']);
+    }
+
+    /**
+     * Corrige el precio unitario de uno o más productos de una venta ya
+     * hecha, desde el perfil del cliente. Reutiliza VentaCorreccionService
+     * (mismo mecanismo del panel: recalcula total y cuotas, y se bloquea si
+     * ya tiene abonos a menos que se fuerce) marcando cada línea como
+     * precio_manual para que el precio dado mande sobre el catálogo de
+     * cuotas del producto, incluso en ventas a crédito.
+     */
+    public function actualizarPreciosVenta(Request $request, $tenant, Cliente $cliente): JsonResponse
+    {
+        if (! (auth()->user()?->hasRole('super_admin') ?? false)) {
+            return response()->json(['mensaje' => 'No tenés permiso para hacer este cambio.'], 403);
+        }
+
+        $data = $request->validate([
+            'venta_id' => 'required|integer',
+            'precios' => 'required|array|min:1',
+            'precios.*.producto_id' => 'required|integer',
+            'precios.*.precio_unitario' => 'required|numeric|min:0',
+            'motivo' => 'required|string|max:500',
+            'forzar' => 'nullable|boolean',
+        ]);
+
+        $venta = $cliente->ventas()->with('detalles')->where('id', $data['venta_id'])->first();
+
+        if (! $venta) {
+            return response()->json(['mensaje' => 'Esta venta no pertenece a este cliente.'], 422);
+        }
+
+        $preciosPorProducto = collect($data['precios'])->keyBy('producto_id');
+
+        $nuevosDetalles = $venta->detalles->map(fn ($d) => [
+            'producto_id'          => $d->producto_id,
+            'cantidad'             => $d->cantidad,
+            'precio_unitario'      => $preciosPorProducto->has($d->producto_id)
+                ? (float) $preciosPorProducto[$d->producto_id]['precio_unitario']
+                : (float) $d->precio_unitario,
+            'descuento_porcentaje' => (float) $d->descuento_porcentaje,
+            'tipo_pago'            => $d->tipo_pago,
+            'cuotas'               => $d->cuotas,
+            'precio_cuota'         => $d->precio_cuota,
+            'precio_manual'        => true,
+        ])->toArray();
+
+        $resultado = \App\Services\VentaCorreccionService::aplicarCorreccion(
+            $venta,
+            $nuevosDetalles,
+            (float) $venta->prima,
+            (float) $venta->descuento_porcentaje,
+            $cliente->id,
+            null,
+            $data['motivo'],
+            null,
+            (bool) ($data['forzar'] ?? false),
+        );
+
+        if (isset($resultado['error'])) {
+            return response()->json(['mensaje' => $resultado['error']], 422);
+        }
+
+        return response()->json(['mensaje' => 'Precio(s) actualizado(s).']);
     }
 
     /**

@@ -33,8 +33,14 @@ class VentaCorreccionService
             $detalleAsignado = $asignacionDetalles->get((int) $item['producto_id']);
             $tipoPagoLinea    = $item['tipo_pago'] ?? null;
             $precioCuota      = null;
+            // precio_manual: fuerza el precio_unitario que viene en el input,
+            // aunque la línea sea a crédito y el producto tenga un plan de
+            // cuotas en su catálogo -- usado por la corrección de precio
+            // desde el perfil del cliente, donde el precio de esta venta
+            // puntual debe mandar sobre el catálogo del producto.
+            $precioManual = (bool) ($item['precio_manual'] ?? false);
 
-            if ($tipoPagoLinea === 'credito' && isset($item['cuotas'])) {
+            if (! $precioManual && $tipoPagoLinea === 'credito' && isset($item['cuotas'])) {
                 $producto     = Producto::find($item['producto_id']);
                 $planCatalogo = collect($producto?->precios_cuotas ?? [])
                     ->first(fn ($p) => (int) ($p['cuotas'] ?? 0) === (int) $item['cuotas']);
@@ -44,6 +50,8 @@ class VentaCorreccionService
                     : (float) ($item['precio_cuota'] ?? 0);
 
                 $precioUnitario = round((int) $item['cuotas'] * $precioCuota, 2);
+            } elseif ($precioManual) {
+                $precioUnitario = (float) $item['precio_unitario'];
             } else {
                 $precioUnitario = $detalleAsignado?->precio_venta ?? $item['precio_unitario'];
             }

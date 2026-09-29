@@ -197,15 +197,21 @@
     </div>
 </div>
 
+@php
+    // Clientes ÚNICOS de esta lista -- un cliente que compró dos veces el
+    // mismo día aparece en dos filas, pero solo cuenta una vez para
+    // seleccionar/imprimir (no tiene sentido imprimirlo duplicado).
+    $clientesUnicos = $resumen->pluck('venta.cliente_id')->filter()->unique();
+@endphp
 @if($filtroClientesNuevos !== 'todos' && $resumen->isNotEmpty())
     <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding:0.75rem 1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem">
         <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:#166534;cursor:pointer">
             <input
                 type="checkbox"
-                {{ count($clientesSeleccionados) === $resumen->count() && $resumen->isNotEmpty() ? 'checked' : '' }}
+                {{ count($clientesSeleccionados) === $clientesUnicos->count() && $clientesUnicos->isNotEmpty() ? 'checked' : '' }}
                 x-on:click="$event.target.checked ? $wire.seleccionarTodosVisibles() : $wire.deseleccionarTodos()"
             />
-            Seleccionar todos los de esta lista ({{ $resumen->count() }})
+            Seleccionar todos los de esta lista ({{ $clientesUnicos->count() }} clientes{{ $resumen->count() !== $clientesUnicos->count() ? ', '.$resumen->count().' ventas' : '' }})
         </label>
         <a
             href="{{ route('reporte.clientes-seleccionados', ['tenant' => \Filament\Facades\Filament::getTenant()?->id ?? 1, 'ids' => implode(',', $clientesSeleccionados)]) }}"
