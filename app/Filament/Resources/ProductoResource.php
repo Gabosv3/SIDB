@@ -137,8 +137,11 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                             // El máximo numérico real entre todos los códigos PRODUC-*, no el
                                             // del último id insertado — si hay productos borrados o códigos
                                             // puestos a mano fuera de orden, orderByDesc('id') puede repetir un
-                                            // número ya usado.
-                                            $max = Producto::where('codigo', 'like', 'PRODUC-%')
+                                            // número ya usado. withTrashed() es obligatorio: un producto en la
+                                            // papelera sigue ocupando su código físicamente (el UNIQUE no
+                                            // distingue soft-deleted).
+                                            $max = Producto::withTrashed()
+                                                ->where('codigo', 'like', 'PRODUC-%')
                                                 ->get(['codigo'])
                                                 ->map(fn ($p) => (int) substr($p->codigo, 7))
                                                 ->max();
@@ -626,7 +629,12 @@ class ProductoResource extends Resource implements HasShieldPermissions
                         $replica->stock = 0;
                         $replica->nombre = "{$replica->nombre} (copia)";
 
-                        $max = Producto::where('codigo', 'like', 'PRODUC-%')
+                        // withTrashed() obligatorio: un producto eliminado sigue
+                        // ocupando su código en la tabla (el UNIQUE no distingue
+                        // soft-deleted), si no se cuenta se repite un código ya
+                        // usado y truena la restricción única.
+                        $max = Producto::withTrashed()
+                            ->where('codigo', 'like', 'PRODUC-%')
                             ->get(['codigo'])
                             ->map(fn ($p) => (int) substr($p->codigo, 7))
                             ->max();
