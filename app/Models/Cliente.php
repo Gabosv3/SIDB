@@ -42,6 +42,14 @@ class Cliente extends Model
                     return $ultimo + 1;
                 });
             }
+
+            // Si el cliente no trae un código heredado del sistema viejo
+            // (no hay tarjeta física con número previo), se usa el mismo
+            // "codigo" interno como codigo_anterior, en vez de dejarlo en
+            // blanco esperando que alguien lo escriba a mano.
+            if (empty($cliente->codigo_anterior)) {
+                $cliente->codigo_anterior = (string) $cliente->codigo;
+            }
         });
     }
 

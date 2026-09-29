@@ -132,10 +132,25 @@ class ReporteController extends Controller
     {
         $ids = array_filter(array_map('intval', explode(',', (string) $request->query('ids', ''))));
 
+        // Se ordena en PHP (no en SQL) porque el criterio de ruta viene de
+        // una relación: agrupa primero por nombre de ruta (los que no
+        // tienen ruta van al final) y dentro de cada ruta, por nombre.
+        // usort() manual porque Collection::sortBy() con un array de
+        // closures no hace un verdadero orden multi-clave (cada clave se
+        // evalúa por separado y la última pisa el orden de la anterior).
         $clientes = \App\Models\Cliente::whereIn('id', $ids)
             ->with('rutaCobro')
-            ->orderBy('nombre')
-            ->get();
+            ->get()
+            ->all();
+
+        usort($clientes, function ($a, $b) {
+            $rutaA = $a->rutaCobro->nombre ?? 'zzz_sin_ruta';
+            $rutaB = $b->rutaCobro->nombre ?? 'zzz_sin_ruta';
+
+            return $rutaA <=> $rutaB ?: $a->nombre <=> $b->nombre;
+        });
+
+        $clientes = collect($clientes);
 
         $pdf = Pdf::loadView('reporte-clientes-seleccionados-pdf', [
             'clientes' => $clientes,
