@@ -202,7 +202,8 @@
         <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:#166534;cursor:pointer">
             <input
                 type="checkbox"
-                onclick="document.querySelectorAll('.rv-check-cliente').forEach(cb => { cb.checked = this.checked; cb.dispatchEvent(new Event('change')); })"
+                {{ count($clientesSeleccionados) === $resumen->count() && $resumen->isNotEmpty() ? 'checked' : '' }}
+                x-on:click="$event.target.checked ? $wire.seleccionarTodosVisibles() : $wire.deseleccionarTodos()"
             />
             Seleccionar todos los de esta lista ({{ $resumen->count() }})
         </label>

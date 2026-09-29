@@ -148,6 +148,27 @@ class ResumenVentasDia extends Page
     }
 
     /**
+     * Marca/desmarca de una sola vez a todos los clientes de la lista
+     * filtrada actual -- una sola petición al servidor, en vez de disparar
+     * un "change" por cada checkbox (60 peticiones casi simultáneas se
+     * pisaban entre sí y perdían selecciones).
+     */
+    public function seleccionarTodosVisibles(): void
+    {
+        $this->clientesSeleccionados = $this->getResumen()
+            ->pluck('venta.cliente_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function deseleccionarTodos(): void
+    {
+        $this->clientesSeleccionados = [];
+    }
+
+    /**
      * Guarda a mano el código (codigo_anterior) de un cliente que todavía no
      * tenía -- para no tener que salir de este resumen a editar el cliente.
      */
