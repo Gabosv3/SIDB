@@ -1861,14 +1861,17 @@ class ClientesRutaController extends Controller
             return response()->json(['mensaje' => 'El monto ya cobrado no puede ser mayor al valor total.'], 422);
         }
 
-        // Si escriben un código a mano en "Código (anterior)" y es numérico
-        // y no está ya en uso, ese valor se usa como el código real del
-        // cliente en vez del correlativo automático (ej. importaciones de
-        // otro sistema que ya traían su propio código).
+        // Si escriben un código a mano en "Código (anterior)" y es numérico,
+        // cae dentro del rango 9300-9999 (reservado solo para estos casos
+        // manuales) y no está ya en uso, ese valor se usa como el código
+        // real del cliente en vez del correlativo automático (ej. cuando
+        // falla la venta en el POS y se registra todo a mano). Fuera de
+        // ese rango siempre se usa el correlativo automático (10000+) para
+        // no volver a mezclarse con él.
         $codigoManual = null;
         if (! empty($data['codigo_anterior']) && ctype_digit($data['codigo_anterior'])) {
             $candidato = (int) $data['codigo_anterior'];
-            if (! Cliente::where('codigo', $candidato)->exists()) {
+            if ($candidato >= 9300 && $candidato <= 9999 && ! Cliente::withTrashed()->where('codigo', $candidato)->exists()) {
                 $codigoManual = $candidato;
             }
         }
