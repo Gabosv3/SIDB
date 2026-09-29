@@ -416,9 +416,16 @@
         var colores = estadoColores[v.estado] || ['#f1f5f9', '#475569'];
         var pct = v.total > 0 ? Math.min(100, Math.round((v.monto_pagado / v.total) * 100)) : 0;
 
+        // El descuento de la venta es global (no por línea) -- se reparte
+        // proporcionalmente entre los productos solo para que el precio
+        // mostrado en el pill coincida con el Total de abajo (evita que se
+        // vea como si $170 + $170 no diera el total real de $165).
+        var totalProductos = (v.productos || []).reduce(function (s, p) { return s + p.subtotal; }, 0);
+        var factorDescuento = totalProductos > 0 ? v.total / totalProductos : 1;
+
         var productosHtml = (v.productos && v.productos.length > 0)
             ? '<div class="cp-productos">' + v.productos.map(function (p) {
-                return '<span class="cp-producto-pill"><b>' + p.cantidad + 'x</b> ' + p.nombre + ' — ' + money(p.subtotal) + '</span>';
+                return '<span class="cp-producto-pill"><b>' + p.cantidad + 'x</b> ' + p.nombre + ' — ' + money(p.subtotal * factorDescuento) + '</span>';
             }).join('') + '</div>'
             : '';
 
