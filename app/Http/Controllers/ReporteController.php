@@ -122,4 +122,26 @@ class ReporteController extends Controller
 
         return $pdf->stream('Clientes-Inactivos_' . today()->format('Y-m-d') . '.pdf');
     }
+
+    /**
+     * Listado imprimible de los clientes (código, nombre, dirección, ruta)
+     * que se seleccionaron a mano en "Resumen de Ventas del Día" -- pensado
+     * para llevar en papel a asignar/repartir clientes nuevos por ruta.
+     */
+    public function reporteClientesSeleccionados($tenant, Request $request)
+    {
+        $ids = array_filter(array_map('intval', explode(',', (string) $request->query('ids', ''))));
+
+        $clientes = \App\Models\Cliente::whereIn('id', $ids)
+            ->with('rutaCobro')
+            ->orderBy('nombre')
+            ->get();
+
+        $pdf = Pdf::loadView('reporte-clientes-seleccionados-pdf', [
+            'clientes' => $clientes,
+            'fecha' => today(),
+        ]);
+
+        return $pdf->stream('Clientes_' . today()->format('Y-m-d') . '.pdf');
+    }
 }

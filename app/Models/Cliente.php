@@ -30,10 +30,14 @@ class Cliente extends Model
         // de "codigo_anterior" que es el código heredado del sistema viejo).
         // Se asigna dentro de una transacción con lockForUpdate para que dos
         // clientes creados casi al mismo tiempo nunca reciban el mismo número.
+        // withTrashed() es obligatorio aquí: un cliente en la papelera sigue
+        // ocupando su código físicamente en la tabla (el UNIQUE no distingue
+        // soft-deleted), así que si no se cuenta se puede repetir un código
+        // ya usado y tronar la restricción única.
         static::creating(function (Cliente $cliente): void {
             if (empty($cliente->codigo)) {
                 $cliente->codigo = \Illuminate\Support\Facades\DB::transaction(function () {
-                    $ultimo = static::lockForUpdate()->max('codigo') ?? 9999;
+                    $ultimo = static::withTrashed()->lockForUpdate()->max('codigo') ?? 9999;
 
                     return $ultimo + 1;
                 });

@@ -167,7 +167,35 @@
             style="min-width:220px"
         />
     </div>
+    <div>
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Clientes nuevos</label>
+        <select wire:model.live="filtroClientesNuevos" class="rv-input">
+            <option value="todos">Todos (nuevos y recurrentes)</option>
+            <option value="con_ruta">Solo nuevos — ya tienen ruta</option>
+            <option value="sin_ruta">Solo nuevos — sin ruta asignada</option>
+        </select>
+    </div>
 </div>
+
+@if($filtroClientesNuevos !== 'todos' && $resumen->isNotEmpty())
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding:0.75rem 1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem">
+        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:#166534;cursor:pointer">
+            <input
+                type="checkbox"
+                onclick="document.querySelectorAll('.rv-check-cliente').forEach(cb => { cb.checked = this.checked; cb.dispatchEvent(new Event('change')); })"
+            />
+            Seleccionar todos los de esta lista ({{ $resumen->count() }})
+        </label>
+        <a
+            href="{{ route('reporte.clientes-seleccionados', ['tenant' => \Filament\Facades\Filament::getTenant()?->id ?? 1, 'ids' => implode(',', $clientesSeleccionados)]) }}"
+            target="_blank"
+            class="rv-mapa-link"
+            style="{{ empty($clientesSeleccionados) ? 'opacity:.5;pointer-events:none' : '' }}"
+        >
+            🖨️ Imprimir seleccionados ({{ count($clientesSeleccionados) }})
+        </a>
+    </div>
+@endif
 
 {{-- Tarjetas totales --}}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.75rem">
@@ -217,6 +245,9 @@
             <table style="width:100%;border-collapse:collapse">
                 <thead class="rv-thead">
                     <tr>
+                        @if($filtroClientesNuevos !== 'todos')
+                            <th></th>
+                        @endif
                         <th>Hora</th>
                         <th>Cliente</th>
                         <th>Teléfono</th>
@@ -239,6 +270,18 @@
                     @foreach($resumen as $r)
                         @php $v = $r->venta; $c = $v->cliente; @endphp
                         <tr class="rv-tr">
+                            @if($filtroClientesNuevos !== 'todos')
+                                <td class="rv-td">
+                                    @if($c)
+                                        <input
+                                            type="checkbox"
+                                            class="rv-check-cliente"
+                                            value="{{ $c->id }}"
+                                            wire:model.live="clientesSeleccionados"
+                                        />
+                                    @endif
+                                </td>
+                            @endif
                             <td class="rv-td" style="white-space:nowrap;color:#9ca3af;font-variant-numeric:tabular-nums">
                                 {{ $v->fecha_venta->format('H:i') }}
                             </td>
@@ -246,6 +289,24 @@
                                 {{ $c?->nombre_completo ?? 'Sin cliente' }}
                                 @if($c?->codigo_anterior)
                                     <span style="color:#9ca3af;font-size:0.75rem"> · {{ $c->codigo_anterior }}</span>
+                                @elseif($c)
+                                    <div style="display:flex;align-items:center;gap:0.3rem;margin-top:0.25rem">
+                                        <input
+                                            type="text"
+                                            wire:model="codigoNuevo.{{ $c->id }}"
+                                            placeholder="Código..."
+                                            class="rv-input"
+                                            style="padding:0.2rem 0.4rem;font-size:0.72rem;width:90px"
+                                        />
+                                        <button
+                                            type="button"
+                                            wire:click="guardarCodigo({{ $c->id }})"
+                                            class="rv-mapa-link"
+                                            style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:0.72rem"
+                                        >
+                                            Guardar
+                                        </button>
+                                    </div>
                                 @endif
                             </td>
                             <td class="rv-td" style="color:#6b7280">{{ $c?->telefono_normal ?? '—' }}</td>

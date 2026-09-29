@@ -30,6 +30,12 @@ class ResumenVentasDia extends Page
     public string $buscarCliente = '';
     /** dia|semana|mes -- controla el rango que cubre $fecha. */
     public string $periodo = 'dia';
+    /** todos|con_ruta|sin_ruta -- solo aplica sobre los clientes NUEVOS. */
+    public string $filtroClientesNuevos = 'todos';
+    /** @var array<int> IDs de cliente marcados para imprimir. */
+    public array $clientesSeleccionados = [];
+    /** cliente_id => valor que se está escribiendo en el input de código inline. */
+    public array $codigoNuevo = [];
     /** @var array<int> */
     public array $vendedoresSeleccionados = [];
 
@@ -84,12 +90,50 @@ class ResumenVentasDia extends Page
 
     public function getResumen(): \Illuminate\Support\Collection
     {
-        return ResumenVentasDiaService::resumen(
+        $resumen = ResumenVentasDiaService::resumen(
             $this->getFechaInicio()->toDateString(),
             $this->vendedoresSeleccionados,
             $this->buscarCliente,
             $this->getFechaFin()->toDateString(),
         );
+
+        if ($this->filtroClientesNuevos === 'todos') {
+            return $resumen;
+        }
+
+        // Solo aplica sobre los clientes nuevos -- para armar la lista a
+        // imprimir de "nuevos que ya tienen ruta" o "nuevos que todavía no".
+        return $resumen->filter(function ($r) {
+            if (! $r->es_cliente_nuevo) {
+                return false;
+            }
+
+            $tieneRuta = (bool) $r->venta->cliente?->ruta_cobro_id;
+
+            return $this->filtroClientesNuevos === 'con_ruta' ? $tieneRuta : ! $tieneRuta;
+        })->values();
+    }
+
+    /**
+     * Guarda a mano el código (codigo_anterior) de un cliente que todavía no
+     * tenía -- para no tener que salir de este resumen a editar el cliente.
+     */
+    public function guardarCodigo(int $clienteId): void
+    {
+        $valor = trim((string) ($this->codigoNuevo[$clienteId] ?? ''));
+
+        if ($valor === '') {
+            Notification::make()->title('Escribe un código antes de guardar')->warning()->send();
+
+            return;
+        }
+
+        $cliente = Cliente::findOrFail($clienteId);
+        $cliente->update(['codigo_anterior' => $valor]);
+
+        unset($this->codigoNuevo[$clienteId]);
+
+        Notification::make()->title("Código guardado: {$valor}")->success()->send();
     }
 
     public function getTotales(\Illuminate\Support\Collection $resumen): array
