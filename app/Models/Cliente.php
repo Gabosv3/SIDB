@@ -44,11 +44,20 @@ class Cliente extends Model
             }
 
             // Si el cliente no trae un código heredado del sistema viejo
-            // (no hay tarjeta física con número previo), se usa el mismo
-            // "codigo" interno como codigo_anterior, en vez de dejarlo en
-            // blanco esperando que alguien lo escriba a mano.
+            // (no hay tarjeta física con número previo), se le asigna un
+            // codigo_anterior automático propio -- un correlativo aparte
+            // que arranca en 10,001, independiente del "codigo" interno.
             if (empty($cliente->codigo_anterior)) {
-                $cliente->codigo_anterior = (string) $cliente->codigo;
+                $cliente->codigo_anterior = (string) \Illuminate\Support\Facades\DB::transaction(function () {
+                    $ultimo = static::withTrashed()
+                        ->whereRaw('codigo_anterior REGEXP "^[0-9]+$"')
+                        ->whereRaw('CAST(codigo_anterior AS UNSIGNED) >= 10000')
+                        ->lockForUpdate()
+                        ->selectRaw('MAX(CAST(codigo_anterior AS UNSIGNED)) as maximo')
+                        ->value('maximo') ?? 10000;
+
+                    return $ultimo + 1;
+                });
             }
         });
     }
