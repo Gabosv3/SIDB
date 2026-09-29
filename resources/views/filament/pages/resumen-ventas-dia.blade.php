@@ -175,6 +175,26 @@
             <option value="sin_ruta">Solo nuevos — sin ruta asignada</option>
         </select>
     </div>
+    <div>
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Código desde</label>
+        <input
+            type="number"
+            wire:model.live.debounce.400ms="codigoDesde"
+            placeholder="Ej: 10001"
+            class="rv-input"
+            style="width:110px"
+        />
+    </div>
+    <div>
+        <label style="display:block;font-size:0.75rem;font-weight:500;color:#6b7280;margin-bottom:0.25rem">Código hasta</label>
+        <input
+            type="number"
+            wire:model.live.debounce.400ms="codigoHasta"
+            placeholder="Ej: 10100"
+            class="rv-input"
+            style="width:110px"
+        />
+    </div>
 </div>
 
 @if($filtroClientesNuevos !== 'todos' && $resumen->isNotEmpty())

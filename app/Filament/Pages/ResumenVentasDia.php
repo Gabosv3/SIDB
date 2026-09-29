@@ -32,6 +32,9 @@ class ResumenVentasDia extends Page
     public string $periodo = 'dia';
     /** todos|con_ruta|sin_ruta -- solo aplica sobre los clientes NUEVOS. */
     public string $filtroClientesNuevos = 'todos';
+    /** Rango de codigo_anterior a mostrar (vacío = sin filtro por código). */
+    public string $codigoDesde = '';
+    public string $codigoHasta = '';
     /** @var array<int> IDs de cliente marcados para imprimir. */
     public array $clientesSeleccionados = [];
     /** cliente_id => valor que se está escribiendo en el input de código inline. */
@@ -97,20 +100,50 @@ class ResumenVentasDia extends Page
             $this->getFechaFin()->toDateString(),
         );
 
-        if ($this->filtroClientesNuevos === 'todos') {
+        if ($this->filtroClientesNuevos !== 'todos') {
+            // Solo aplica sobre los clientes nuevos -- para armar la lista a
+            // imprimir de "nuevos que ya tienen ruta" o "nuevos que todavía no".
+            $resumen = $resumen->filter(function ($r) {
+                if (! $r->es_cliente_nuevo) {
+                    return false;
+                }
+
+                $tieneRuta = (bool) $r->venta->cliente?->ruta_cobro_id;
+
+                return $this->filtroClientesNuevos === 'con_ruta' ? $tieneRuta : ! $tieneRuta;
+            })->values();
+        }
+
+        $desde = trim($this->codigoDesde);
+        $hasta = trim($this->codigoHasta);
+
+        if ($desde === '' && $hasta === '') {
             return $resumen;
         }
 
-        // Solo aplica sobre los clientes nuevos -- para armar la lista a
-        // imprimir de "nuevos que ya tienen ruta" o "nuevos que todavía no".
-        return $resumen->filter(function ($r) {
-            if (! $r->es_cliente_nuevo) {
+        $desde = $desde !== '' ? (int) $desde : null;
+        $hasta = $hasta !== '' ? (int) $hasta : null;
+
+        // Solo compara clientes cuyo codigo_anterior es puramente numérico
+        // (los alfanuméricos tipo "B8977" quedan fuera de un filtro de rango).
+        return $resumen->filter(function ($r) use ($desde, $hasta) {
+            $codigo = $r->venta->cliente?->codigo_anterior;
+
+            if (! $codigo || ! ctype_digit((string) $codigo)) {
                 return false;
             }
 
-            $tieneRuta = (bool) $r->venta->cliente?->ruta_cobro_id;
+            $codigo = (int) $codigo;
 
-            return $this->filtroClientesNuevos === 'con_ruta' ? $tieneRuta : ! $tieneRuta;
+            if ($desde !== null && $codigo < $desde) {
+                return false;
+            }
+
+            if ($hasta !== null && $codigo > $hasta) {
+                return false;
+            }
+
+            return true;
         })->values();
     }
 
