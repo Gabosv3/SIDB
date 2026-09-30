@@ -322,6 +322,7 @@
                 <button type="button" class="cr-revision-reset" id="cr-revision-marcar-todos">Marcar todos como revisados</button>
                 <button type="button" class="cr-revision-reset" id="cr-revision-limpiar">Limpiar revisión de esta ruta</button>
                 <button type="button" class="cr-revision-reset" id="cr-eliminar-ruta-btn" style="display:none;color:#dc2626;">🗑 Borrar esta ruta completa</button>
+                <button type="button" class="cr-revision-reset" id="cr-recordatorios-btn">📨 Enviar recordatorios de pago</button>
             </div>
         </div>
     </div>
@@ -615,6 +616,25 @@
             <div class="cr-import-actions">
                 <button type="button" class="cr-import-btn-secundario" id="cr-fusionar-cancelar">Cancelar</button>
                 <button type="button" class="cr-import-btn" id="cr-fusionar-confirmar" style="background:#dc2626;">Fusionar (no se puede deshacer)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="cr-modal-overlay" id="cr-recordatorios-overlay">
+    <div class="cr-modal" style="max-width:560px;">
+        <div class="cr-modal-header">
+            <span>Enviar recordatorios de pago</span>
+            <button type="button" class="cr-modal-close" id="cr-recordatorios-close">&times;</button>
+        </div>
+        <div class="cr-modal-body">
+            <p class="cr-import-hint">Se abre WhatsApp Web con el mensaje ya escrito para cada cliente — el navegador no deja abrir muchas pestañas de golpe, así que hay que darle "Enviar" uno por uno.</p>
+            <div class="cr-import-field">
+                <label>Próxima visita de cobro (se incluye en el mensaje)</label>
+                <input type="date" id="cr-recordatorios-fecha" class="cr-filter-input">
+            </div>
+            <div id="cr-recordatorios-lista" style="max-height:320px; overflow-y:auto; margin-top:.6rem;">
+                <p class="cr-import-hint">Cargando clientes con saldo pendiente...</p>
             </div>
         </div>
     </div>
@@ -1596,6 +1616,86 @@
             btn.textContent = 'Fusionar (no se puede deshacer)';
             errorEl.textContent = 'Error de conexión.';
         });
+    });
+
+    // ── Recordatorios de pago por WhatsApp ───────────────────────────────
+    // No manda nada por una API — abre WhatsApp Web con el mensaje ya
+    // escrito (como un link wa.me), así que no hace falta ninguna plantilla
+    // aprobada por Meta. El navegador bloquea abrir varias pestañas de
+    // golpe con un solo clic, por eso es un botón "Enviar" por cliente.
+    var recordatoriosOverlay = document.getElementById('cr-recordatorios-overlay');
+    var recordatoriosLista = document.getElementById('cr-recordatorios-lista');
+    var recordatoriosFecha = document.getElementById('cr-recordatorios-fecha');
+    var ultimoRecordatoriosData = null;
+
+    function telefonoWaId(telefono) {
+        var digitos = (telefono || '').replace(/\D/g, '');
+        if (digitos === '') return null;
+        // Números locales de El Salvador tienen 8 dígitos; si ya viene con
+        // código de país (503) se deja tal cual.
+        if (digitos.length === 8) digitos = '503' + digitos;
+        return digitos;
+    }
+
+    function mensajeRecordatorio(nombre, saldo) {
+        var fecha = recordatoriosFecha.value;
+        var fechaTexto = fecha ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+
+        var texto = 'Hola ' + nombre + ', te recordamos que tienes un saldo pendiente de ' + money(saldo) + ' con Distribuidora Bircancesco Menjivar.';
+        if (fechaTexto) texto += ' Tu próxima visita de cobro será el ' + fechaTexto + '.';
+        texto += ' Gracias.';
+        return texto;
+    }
+
+    function pintarListaRecordatorios(clientes) {
+        if (clientes.length === 0) {
+            recordatoriosLista.innerHTML = '<p class="cr-import-hint">No hay clientes con saldo pendiente en esta lista.</p>';
+            return;
+        }
+
+        recordatoriosLista.innerHTML = clientes.map(function (c) {
+            var waId = telefonoWaId(c.telefono);
+            var deshabilitado = !waId;
+            var link = waId
+                ? 'https://wa.me/' + waId + '?text=' + encodeURIComponent(mensajeRecordatorio(c.nombre, c.saldo))
+                : '#';
+
+            return '<div style="display:flex; align-items:center; justify-content:space-between; gap:.6rem; padding:.5rem .2rem; border-bottom:1px solid var(--border-2);">' +
+                '<div>' +
+                    '<div style="font-size:.85rem; font-weight:600;">' + c.nombre + '</div>' +
+                    '<div style="font-size:.72rem; color:var(--muted-2);">' + (c.telefono || 'Sin teléfono') + ' · Saldo: ' + money(c.saldo) + '</div>' +
+                '</div>' +
+                '<a href="' + link + '" target="_blank" rel="noopener" class="cr-import-btn-secundario' + (deshabilitado ? '' : '') + '" style="padding:.35rem .8rem; font-size:.75rem; text-decoration:none;' + (deshabilitado ? ' opacity:.5; pointer-events:none;' : '') + '" title="' + (deshabilitado ? 'Este cliente no tiene teléfono registrado' : 'Abrir WhatsApp Web con el mensaje listo') + '">📨 Enviar</a>' +
+            '</div>';
+        }).join('');
+    }
+
+    function abrirRecordatoriosModal() {
+        recordatoriosFecha.value = '';
+        recordatoriosLista.innerHTML = '<p class="cr-import-hint">Cargando clientes con saldo pendiente...</p>';
+        recordatoriosOverlay.classList.add('show');
+
+        fetch(baseUrl + '/lista-recordatorios?ruta_cobro_id=' + encodeURIComponent(rutaSelect.value))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                ultimoRecordatoriosData = data.clientes || [];
+                pintarListaRecordatorios(ultimoRecordatoriosData);
+            })
+            .catch(function () {
+                recordatoriosLista.innerHTML = '<p class="cr-import-hint">No se pudo cargar la lista, intenta de nuevo.</p>';
+            });
+    }
+
+    function cerrarRecordatoriosModal() { recordatoriosOverlay.classList.remove('show'); }
+
+    document.getElementById('cr-recordatorios-btn').addEventListener('click', abrirRecordatoriosModal);
+    document.getElementById('cr-recordatorios-close').addEventListener('click', cerrarRecordatoriosModal);
+    recordatoriosOverlay.addEventListener('click', function (e) { if (e.target === recordatoriosOverlay) cerrarRecordatoriosModal(); });
+
+    // Cambiar la fecha regenera los enlaces (re-pinta con el mensaje actualizado).
+    recordatoriosFecha.addEventListener('change', function () {
+        if (! ultimoRecordatoriosData) return;
+        pintarListaRecordatorios(ultimoRecordatoriosData);
     });
 
     // Ver detalle: ahora es una página completa (perfil del cliente), enlazada

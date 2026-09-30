@@ -547,6 +547,45 @@ class ClientesRutaController extends Controller
         return response()->json(['mensaje' => 'Todos marcados como revisados.', 'cantidad' => $cantidad]);
     }
 
+    /**
+     * Lista de clientes con saldo pendiente de una ruta (o "sin_ruta" /
+     * "todos"), pensada para armar recordatorios de pago por WhatsApp desde
+     * el frontend -- no envía nada, solo entrega nombre/teléfono/saldo para
+     * que el frontend genere los enlaces wa.me. Trae TODA la ruta, sin
+     * paginar (a diferencia del listado normal), porque el envío es por
+     * ruta completa.
+     */
+    public function listaRecordatorios(Request $request, $tenant): JsonResponse
+    {
+        $rutaId = $request->get('ruta_cobro_id');
+
+        $query = Cliente::where('activo', true)->where('saldo', '>', 0);
+
+        if ($rutaId === 'sin_ruta') {
+            $query->whereNull('ruta_cobro_id');
+        } elseif ($rutaId === 'cuentas_cerradas') {
+            // No tiene sentido mandar recordatorio a una cuenta ya cerrada
+            // (saldo <= 0), y el filtro de arriba ya lo excluye -- se deja
+            // la lista vacía en vez de ignorar el filtro de ruta.
+            $query->whereRaw('1 = 0');
+        } elseif ($rutaId !== 'todos') {
+            $query->where('ruta_cobro_id', $rutaId);
+        }
+
+        $clientes = $query->orderByRaw('orden IS NULL, orden ASC')
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'apellido', 'telefono_whatsapp', 'telefono_normal', 'saldo'])
+            ->map(fn (Cliente $c) => [
+                'id' => $c->id,
+                'nombre' => $c->nombre_completo,
+                'telefono' => $c->telefono_whatsapp ?: $c->telefono_normal,
+                'saldo' => (float) $c->saldo,
+            ])
+            ->values();
+
+        return response()->json(['clientes' => $clientes]);
+    }
+
     public function detalleCliente(Request $request, $tenant, Cliente $cliente): JsonResponse
     {
         $cliente->load([

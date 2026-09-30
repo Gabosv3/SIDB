@@ -224,6 +224,9 @@ Route::middleware(['web', 'auth', 'can:View:ClientesRuta'])->prefix('clientes-ru
     Route::post('{tenant}/marcar-todos-revisados', 'App\Http\Controllers\ClientesRutaController@marcarTodosRevisados')
         ->name('marcar-todos-revisados')
         ->where('tenant', '[0-9]+');
+    Route::get('{tenant}/lista-recordatorios', 'App\Http\Controllers\ClientesRutaController@listaRecordatorios')
+        ->name('lista-recordatorios')
+        ->where('tenant', '[0-9]+');
     Route::delete('{tenant}/clientes/{cliente}', 'App\Http\Controllers\ClientesRutaController@eliminarCliente')
         ->name('eliminar-cliente')
         ->where(['tenant' => '[0-9]+', 'cliente' => '[0-9]+']);
