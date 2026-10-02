@@ -1135,8 +1135,9 @@ class ClientesRutaController extends Controller
     /**
      * Sugiere un orden de visita para una ruta usando "vecino más cercano"
      * sobre las coordenadas GPS (distancia en línea recta, fórmula de
-     * Haversine) — arranca del cliente con el orden actual más bajo y en
-     * cada paso salta al más cercano sin visitar. No es la ruta más corta
+     * Haversine) — arranca siempre desde la distribuidora (config
+     * distribuidora.origen) y en cada paso salta al cliente más cercano sin
+     * visitar. No es la ruta más corta
      * por calle (no considera tráfico ni sentido de las vías), es una
      * aproximación rápida y gratuita con los datos que ya tenemos.
      * Los clientes sin coordenadas quedan al final, en su orden actual —
@@ -1159,18 +1160,19 @@ class ClientesRutaController extends Controller
         }
 
         $restantes = $conGps->keyBy('id');
-        $actual = $conGps->sortBy(fn (Cliente $c) => $c->orden ?? PHP_INT_MAX)->first();
-        $ordenSugerido = [$actual->id];
-        $restantes->forget($actual->id);
+        $ordenSugerido = [];
+        $latActual = (float) config('distribuidora.origen.lat');
+        $lngActual = (float) config('distribuidora.origen.lng');
 
         while ($restantes->isNotEmpty()) {
             $masCercano = $restantes->sortBy(
-                fn (Cliente $c) => $this->distanciaKm((float) $actual->latitud, (float) $actual->longitud, (float) $c->latitud, (float) $c->longitud)
+                fn (Cliente $c) => $this->distanciaKm($latActual, $lngActual, (float) $c->latitud, (float) $c->longitud)
             )->first();
 
             $ordenSugerido[] = $masCercano->id;
             $restantes->forget($masCercano->id);
-            $actual = $masCercano;
+            $latActual = (float) $masCercano->latitud;
+            $lngActual = (float) $masCercano->longitud;
         }
 
         $ordenSugerido = array_merge(
