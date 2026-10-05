@@ -1203,6 +1203,15 @@ class CobroController extends Controller
             return response()->json(['mensaje' => 'Esta gestión no pertenece a tus rutas.'], 403);
         }
 
+        // Una cuota puede quedar apuntando a una venta eliminada; más abajo se
+        // usa la venta sin revisar, y eso terminaba en un 500 a mitad del pago.
+        if (! $gestion->venta) {
+            return response()->json([
+                'mensaje' => 'La venta de esta cuota ya no existe.',
+                'message' => 'La venta de esta cuota ya no existe.',
+            ], 422);
+        }
+
         $monto = (float) $data['monto'];
 
         $result = DB::transaction(function () use ($id, $monto, $data) {

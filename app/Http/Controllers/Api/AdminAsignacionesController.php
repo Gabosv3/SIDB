@@ -231,7 +231,7 @@ class AdminAsignacionesController extends Controller
                 'id'       => $asignacion->id,
                 'fecha'    => $asignacion->fecha->toDateString(),
                 'estado'   => $asignacion->estado,
-                'vendedor' => trim($asignacion->vendedor->nombre . ' ' . $asignacion->vendedor->apellido),
+                'vendedor' => $asignacion->vendedor ? trim($asignacion->vendedor->nombre . ' ' . $asignacion->vendedor->apellido) : '—',
                 'productos'=> $asignacion->detalles->map(fn ($d) => [
                     'nombre'            => $d->producto?->nombre,
                     'cantidad_asignada' => $d->cantidad_asignada,
@@ -370,7 +370,7 @@ class AdminAsignacionesController extends Controller
             'mensaje'    => 'Asignación actualizada.',
             'asignacion' => [
                 'id'        => $asignacion->id,
-                'vendedor'  => trim($asignacion->vendedor->nombre . ' ' . $asignacion->vendedor->apellido),
+                'vendedor'  => $asignacion->vendedor ? trim($asignacion->vendedor->nombre . ' ' . $asignacion->vendedor->apellido) : '—',
                 'productos' => $asignacion->detalles->map(fn ($d) => [
                     'nombre'            => $d->producto?->nombre,
                     'cantidad_asignada' => $d->cantidad_asignada,
