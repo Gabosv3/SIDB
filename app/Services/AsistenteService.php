@@ -39,6 +39,7 @@ class AsistenteService
         'encuesta-clientes' => ['encuesta'],
         'gestion-cobros' => ['cuota', 'cuotas', 'cobro', 'cobros'],
         'resumen-ventas-dia' => ['vendido hoy', 'ventas de hoy', 'resumen ventas', 'ventas del dia'],
+        'cuadre-caja' => ['cuadre de caja', 'cuadrar caja', 'cuadre', 'cuadrar efectivo', 'faltante', 'sobrante', 'efectivo recibido', 'caja del dia'],
         'resumen-mensual' => ['resumen del mes', 'resumen mensual', 'cierre del mes', 'balance del mes', 'mes completo', 'mensual', 'flujo'],
         'resumen-cobros-dia' => ['cobrado hoy', 'cobros de hoy', 'cierre de caja', 'cuadrar efectivo'],
         'liquidacion-semanal' => ['liquidar cobrador', 'pagar cobrador', 'comision cobrador', 'anticipo cobrador'],

@@ -43,6 +43,11 @@
                 { s: wm('codigoDesde'), t: 'Rango de código', d: 'Muestra solo clientes cuyo código está entre "desde" y "hasta".' },
                 { s: 'table', t: 'Detalle de ventas', d: 'Cada fila es una venta. Desde aquí puedes asignar ruta, confirmar la prima, corregir o cancelar.' }
             ] },
+        'cuadre-caja': { n: 'Cuadre de Caja', d: 'Por persona y por día: lo que debe entregar (cobros en efectivo + ventas al contado − gastos) contra el efectivo que realmente recibes. Guarda la diferencia con una nota.',
+            pasos: [
+                { s: wm('fecha'), t: 'Fecha', d: 'Elige el día a cuadrar.' },
+                { s: '.cq-table', t: 'Una fila por persona', d: 'Escribe el efectivo recibido, una nota si hace falta y pulsa Cuadrar. Queda guardado el sobrante o faltante, quién cuadró y la hora; puedes actualizarlo.' }
+            ] },
         'resumen-mensual': { n: 'Resumen Mensual', d: 'Ventas, cobros, compras, gastos (con vehículos), comisiones, cartera y un flujo estimado del mes. Cambia el mes arriba y descarga el PDF.',
             pasos: [
                 { s: wm('mes'), t: 'Mes', d: 'Elige el mes a resumir.' },
