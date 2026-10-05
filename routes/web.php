@@ -116,6 +116,11 @@ Route::get('reportes/clientes-inactivos/{tenant}', 'App\Http\Controllers\Reporte
     ->name('reporte.clientes-inactivos')
     ->where('tenant', '[0-9]+');
 
+Route::get('reportes/resumen-mensual/{tenant}', 'App\Http\Controllers\ReporteController@resumenMensual')
+    ->middleware(['web', 'auth'])
+    ->name('reporte.resumen-mensual')
+    ->where('tenant', '[0-9]+');
+
 Route::get('reportes/clientes-seleccionados/{tenant}', 'App\Http\Controllers\ReporteController@reporteClientesSeleccionados')
     ->middleware(['web', 'auth'])
     ->name('reporte.clientes-seleccionados')

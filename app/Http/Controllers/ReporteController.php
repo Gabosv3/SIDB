@@ -123,6 +123,22 @@ class ReporteController extends Controller
         return $pdf->stream('Clientes-Inactivos_' . today()->format('Y-m-d') . '.pdf');
     }
 
+    /** Resumen del mes (ventas, cobros, compras, gastos, comisiones, cartera y flujo estimado) en PDF. */
+    public function resumenMensual($tenant, Request $request)
+    {
+        try {
+            $mes = Carbon::createFromFormat('Y-m-d', ($request->query('mes') ?: today()->format('Y-m')) . '-01')->startOfMonth();
+        } catch (\Throwable) {
+            $mes = today()->startOfMonth();
+        }
+
+        $pdf = Pdf::loadView('reporte-resumen-mensual-pdf', [
+            'r' => \App\Services\ResumenMensualService::calcular($mes, (int) $tenant),
+        ]);
+
+        return $pdf->stream('Resumen-Mensual_' . $mes->format('Y-m') . '.pdf');
+    }
+
     /**
      * Listado imprimible de los clientes (código, nombre, dirección, ruta)
      * que se seleccionaron a mano en "Resumen de Ventas del Día" -- pensado

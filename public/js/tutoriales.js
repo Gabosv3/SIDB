@@ -43,6 +43,12 @@
                 { s: wm('codigoDesde'), t: 'Rango de código', d: 'Muestra solo clientes cuyo código está entre "desde" y "hasta".' },
                 { s: 'table', t: 'Detalle de ventas', d: 'Cada fila es una venta. Desde aquí puedes asignar ruta, confirmar la prima, corregir o cancelar.' }
             ] },
+        'resumen-mensual': { n: 'Resumen Mensual', d: 'Ventas, cobros, compras, gastos (con vehículos), comisiones, cartera y un flujo estimado del mes. Cambia el mes arriba y descarga el PDF.',
+            pasos: [
+                { s: wm('mes'), t: 'Mes', d: 'Elige el mes a resumir.' },
+                { s: 'a.rm-btn', t: 'PDF', d: 'Descarga este mismo resumen en PDF.' },
+                { s: '.rm-table', t: 'Secciones', d: 'Cada bloque resume un área; las comisiones y el flujo son estimados.' }
+            ] },
         'resumen-cobros-dia': { n: 'Resumen de Cobros del Día', d: 'Lo cobrado por cada cobrador en el día. Úsalo al cierre para cuadrar el efectivo.' },
         'resumen-encuestas-cliente': { n: 'Resumen de Encuestas de Cliente', d: 'Resumen de encuestas del día por cobrador.' },
         'resumen-reintegros': { n: 'Resumen de Reintegros del Día', d: 'Reintegros del día; usa "Gestionar reintegros" para el listado completo.' },
