@@ -172,7 +172,10 @@ class Cliente extends Model
     public static function recalcularSaldo(int $clienteId): void
     {
         static::whereKey($clienteId)->update([
-            'saldo' => Venta::where('cliente_id', $clienteId)->sum('saldo_pendiente'),
+            // Una venta cancelada o devuelta ya no se cobra: no cuenta en el saldo.
+            'saldo' => Venta::where('cliente_id', $clienteId)
+                ->whereNotIn('estado', ['cancelada', 'devuelta'])
+                ->sum('saldo_pendiente'),
         ]);
     }
 

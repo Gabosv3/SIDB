@@ -88,6 +88,26 @@ class Venta extends Model
             }
         });
 
+        // El saldo del cliente es la suma del saldo pendiente de sus ventas: se
+        // recalcula siempre que una venta se crea o cambia lo que afecta ese
+        // saldo, sea cual sea el camino (app del vendedor, panel, cancelación,
+        // POS). Antes solo lo hacían los pagos, y las ventas nuevas o
+        // canceladas dejaban al cliente con el saldo desactualizado.
+        static::saved(function (Venta $venta): void {
+            if (! $venta->cliente_id) {
+                return;
+            }
+
+            if ($venta->wasRecentlyCreated || $venta->wasChanged(['saldo_pendiente', 'estado', 'cliente_id'])) {
+                Cliente::recalcularSaldo($venta->cliente_id);
+
+                $clienteAnterior = $venta->wasChanged('cliente_id') ? (int) $venta->getOriginal('cliente_id') : 0;
+                if ($clienteAnterior) {
+                    Cliente::recalcularSaldo($clienteAnterior);
+                }
+            }
+        });
+
         // Al cancelar, devolver, o terminar de pagar una venta, el cliente sale
         // de su ruta de cobro activa — pero solo si esta era su única cuenta a
         // crédito con saldo. Si le queda otra venta activa, se queda en la ruta

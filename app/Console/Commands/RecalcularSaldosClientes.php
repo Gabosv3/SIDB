@@ -22,6 +22,7 @@ class RecalcularSaldosClientes extends Command
 
         $saldos = Venta::selectRaw('cliente_id, ROUND(SUM(saldo_pendiente), 2) as saldo')
             ->whereNotNull('cliente_id')
+            ->whereNotIn('estado', ['cancelada', 'devuelta'])
             ->groupBy('cliente_id')
             ->pluck('saldo', 'cliente_id');
 
