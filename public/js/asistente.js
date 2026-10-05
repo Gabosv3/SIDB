@@ -107,6 +107,20 @@
         temporizador = setTimeout(function () { window.location.href = it.u; }, 1200);
     }
 
+    // Registra en el servidor las frases que no se entendieron, para ampliar las palabras clave.
+    function registrar(texto, tipo) {
+        var cfg = window.ASISTENTE_LOG;
+        if (!cfg || !window.fetch) return;
+        try {
+            fetch(cfg.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': cfg.token, 'Accept': 'application/json' },
+                body: JSON.stringify({ frase: texto.slice(0, 300), tipo: tipo, pantalla: location.pathname.slice(0, 200) }),
+                credentials: 'same-origin'
+            }).catch(function () {});
+        } catch (e) {}
+    }
+
     function responder(texto) {
         var r = analizar(texto);
 
@@ -130,9 +144,11 @@
         }
 
         if (r.nav.length) {
+            registrar(texto, 'dudosa');
             return mensaje('No estoy seguro. ¿Alguna de estas?', 'bot', r.nav.slice(0, 3).map(function (x) { return { t: x.it.t, u: x.it.u }; }));
         }
 
+        registrar(texto, 'sin_resultado');
         mensaje('No entendí eso. Prueba con frases como «crear un cliente», «ver ventas», «hacer un respaldo» o «cómo corrijo un precio».', 'bot', sugerencias());
     }
 

@@ -56,6 +56,7 @@ class AsistenteService
         'audit-logs' => ['auditoria', 'bitacora', 'historial cambios', 'quien modifico'],
         'historial-pagos-eliminados' => ['pagos eliminados', 'pago borrado'],
         'supervisiones' => ['supervision', 'evaluacion cobrador'],
+        'frases-asistente' => ['frases asistente', 'frases no entendidas', 'asistente'],
     ];
 
     public static function catalogo(): array

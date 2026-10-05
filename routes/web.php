@@ -54,6 +54,10 @@ Route::middleware(['web', 'auth', 'can:Export:Clientes'])->prefix('clientes')->n
 });
 
 // Productos
+Route::post('asistente/no-entendida', 'App\Http\Controllers\AsistenteController@noEntendida')
+    ->middleware(['web', 'auth', 'throttle:30,1'])
+    ->name('asistente.no-entendida');
+
 Route::middleware(['web', 'auth'])->prefix('productos')->name('productos.')->group(function () {
     Route::get('{tenant}/conteo-inventario', 'App\Http\Controllers\ProductoController@generarConteoInventario')
         ->name('conteo-inventario')
