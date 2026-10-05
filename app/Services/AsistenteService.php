@@ -56,7 +56,8 @@ class AsistenteService
         'audit-logs' => ['auditoria', 'bitacora', 'historial cambios', 'quien modifico'],
         'historial-pagos-eliminados' => ['pagos eliminados', 'pago borrado'],
         'supervisiones' => ['supervision', 'evaluacion cobrador'],
-        'frases-asistente' => ['frases asistente', 'frases no entendidas', 'asistente'],
+        'frases-asistente' => ['frases asistente', 'frases no entendidas'],
+        'palabras-asistente' => ['palabras asistente', 'lista de palabras', 'que puedo pedir', 'que puedes hacer', 'ayuda asistente'],
     ];
 
     public static function catalogo(): array
@@ -170,6 +171,9 @@ class AsistenteService
             ['k' => ['no puedo eliminar', 'no deja borrar', 'no se puede eliminar'],
              'r' => 'Los registros con historial (ventas, pagos, compras, rutas con clientes) no se eliminan: se desactivan o se cancelan para no perder información.',
              'u' => null, 'l' => null],
+            ['k' => ['ayuda', 'que puedo pedir', 'que puedes hacer', 'lista de palabras', 'palabras clave', 'comandos'],
+             'r' => 'Aquí está la lista completa de lo que puedes pedirme, con las palabras que reconozco.',
+             'u' => $url('Palabras del Asistente'), 'l' => 'Ver la lista de palabras'],
             ['k' => ['tutorial', 'ayuda pantalla', 'como se usa esta pantalla', 'recorrido'],
              'r' => 'Pulsa el botón rojo "?" de abajo a la derecha para ver el recorrido guiado de esta pantalla.',
              'u' => null, 'l' => null],

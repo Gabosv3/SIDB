@@ -154,10 +154,12 @@
 
     function sugerencias() {
         var out = [];
+        var lista = DATA.items.filter(function (x) { return x.t === 'Palabras del Asistente'; })[0];
         ['Crear Usuario', 'Ver Clientes', 'Ver Ventas'].forEach(function (t) {
             var it = DATA.items.filter(function (x) { return x.t === t; })[0];
             if (it) out.push({ t: it.t, u: it.u });
         });
+        if (lista) out.push({ t: 'Ver todas las palabras', u: lista.u });
         return out;
     }
 
