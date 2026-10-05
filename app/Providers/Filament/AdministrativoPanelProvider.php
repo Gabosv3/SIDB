@@ -75,7 +75,7 @@ class AdministrativoPanelProvider extends PanelProvider
             // ── Tutoriales guiados por pantalla ──────────────────────────────────
             ->renderHook(
                 'panels::body.end',
-                fn (): string => auth()->check() ? view('filament.tutoriales')->render() : '',
+                fn (): string => auth()->check() ? view('filament.tutoriales')->render() . view('filament.asistente')->render() : '',
             )
             // ── Botón Monitor POS en el sidebar ──────────────────────────────────
             ->renderHook(

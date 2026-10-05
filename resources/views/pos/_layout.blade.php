@@ -204,6 +204,7 @@
 @yield('scripts')
 @auth
     @include('filament.tutoriales')
+    @include('filament.asistente')
 @endauth
 <script>
     function toggleTheme() {
