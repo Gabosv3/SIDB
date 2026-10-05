@@ -449,7 +449,16 @@
                 <div style="grid-column:1/-1;">
                     <label>Tipo de empleado <span style="font-weight:400;color:var(--muted,#6b7280);">(puede marcar varios — ej. vendedor y cobrador a la vez)</span></label>
                     <div style="display:flex; flex-wrap:wrap; gap:1rem; margin-top:.35rem;">
-                        @php $tiposActuales = old('tipo_empleado', $employeeProfile?->tipo_empleado ?? []); @endphp
+                        {{-- Además de lo guardado en la ficha, se marcan los tipos que ya tienen registro operativo
+                             activo (ej. un Supervisor creado desde Supervisores). Si no, al guardar se desactivaba
+                             en silencio y las rutas supervisadas no se podían cambiar. --}}
+                        @php
+                            $tiposActuales = old('tipo_empleado', collect($employeeProfile?->tipo_empleado ?? [])
+                                ->merge($empleado->vendedor?->activo ? ['vendedor'] : [])
+                                ->merge($empleado->cobrador?->activo ? ['cobrador'] : [])
+                                ->merge($empleado->supervisor?->activo ? ['supervisor'] : [])
+                                ->unique()->values()->all());
+                        @endphp
                         @foreach(['vendedor'=>'Vendedor','cobrador'=>'Cobrador','supervisor'=>'Supervisor'] as $val => $lbl)
                             <label style="display:flex; align-items:center; gap:.4rem; font-weight:400;">
                                 <input type="checkbox" name="tipo_empleado[]" value="{{ $val }}" {{ in_array($val, $tiposActuales) ? 'checked' : '' }}>
