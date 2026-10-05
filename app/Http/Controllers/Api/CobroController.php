@@ -598,7 +598,11 @@ class CobroController extends Controller
         $cliente = $this->clienteDeRuta($id, $this->rutasIdsAccesibles($request, $cobrador));
 
         if (! $cliente) {
-            return response()->json(['mensaje' => 'Este cliente no pertenece a tus rutas.'], 403);
+            // La app lee "message" (no "mensaje") para mostrar el texto del servidor.
+            return response()->json([
+                'mensaje' => 'Este cliente no pertenece a tus rutas.',
+                'message' => 'Este cliente ya no está en tus rutas.',
+            ], 403);
         }
 
         // Gestiones agrupadas por venta
@@ -609,7 +613,14 @@ class CobroController extends Controller
             ])
             ->orderBy('venta_id')
             ->orderBy('numero_cuota')
-            ->get();
+            ->get()
+            // Al cancelar o devolver una venta, sus cuotas NO se borran de
+            // gestion_cobros, y una venta eliminada deja la cuota con venta
+            // null. Sin este filtro, la cancelada aparecía como cuenta
+            // activa (con botón de cobrar) y la eliminada reventaba el
+            // endpoint con un 500, que la app toma como "sin conexión".
+            ->filter(fn ($g) => $g->venta && ! in_array($g->venta->estado, ['cancelada', 'devuelta'], true))
+            ->values();
 
         $ventas = $gestiones->groupBy('venta_id')->map(function ($cuotas) {
             $venta    = $cuotas->first()->venta;
