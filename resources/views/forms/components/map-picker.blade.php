@@ -37,7 +37,10 @@
         if (typeof L === 'undefined') { setTimeout(boot, 150); return; }
 
         var el = document.getElementById(MAP_ID);
-        if (!el || el._mapBooted) return;
+        /* _leaflet_id lo pone Leaflet en el contenedor ya inicializado: Livewire dispara
+           "livewire:navigated" también en la carga inicial, y crear el mapa dos veces
+           sobre el mismo contenedor lanza "Map container is already initialized". */
+        if (!el || el._mapBooted || el._leaflet_id) return;
         el._mapBooted = true;
 
         delete L.Icon.Default.prototype._getIconUrl;
@@ -113,7 +116,8 @@
            (morphdom), lo que no dispara eventos "input" en el DOM — se
            revisa por polling si cambiaron para recentrar el mapa. */
         var lastLat = initLat, lastLng = initLng;
-        setInterval(function () {
+        var timer = setInterval(function () {
+            if (!document.getElementById(MAP_ID)) { clearInterval(timer); return; }
             var lat = parseFloat(getVal(LAT_PATH));
             var lng = parseFloat(getVal(LNG_PATH));
             if (isNaN(lat) || isNaN(lng)) return;
@@ -130,11 +134,7 @@
         boot();
     }
 
-    document.addEventListener('livewire:navigated', function () {
-        var el = document.getElementById(MAP_ID);
-        if (el) { el._mapBooted = false; }
-        boot();
-    });
+    document.addEventListener('livewire:navigated', boot);
 })();
 </script>
 

@@ -412,6 +412,11 @@ class VentaController extends Controller
             ]);
         });
 
+        // El saldo del cliente es la suma del saldo pendiente de sus ventas:
+        // crear una venta a crédito lo cambia, y sin esto el listado de
+        // Clientes por Ruta mostraba "Saldo $0.00" hasta el primer pago.
+        \App\Models\Cliente::recalcularSaldo((int) $venta->cliente_id);
+
         if ($request->user()->alias) {
             self::aplicarAliasVendedor($venta, $request->user()->alias);
         }

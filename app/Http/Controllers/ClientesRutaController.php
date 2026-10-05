@@ -320,7 +320,11 @@ class ClientesRutaController extends Controller
                     'total' => (float) $v->total,
                     'saldo_pendiente' => (float) $v->saldo_pendiente,
                     'monto_pagado' => (float) $v->monto_pagado,
-                    'abono_inicial' => $v->abono_inicial !== null ? (float) $v->abono_inicial : null,
+                    // El abono inicial de una venta de la app es su "prima" (vive en la
+                    // venta, no en un pago); los importados de papel sí son un pago.
+                    'abono_inicial' => $v->abono_inicial !== null
+                        ? (float) $v->abono_inicial
+                        : ((float) $v->prima > 0 ? (float) $v->prima : null),
                 ])->values();
 
                 $fechaPago = $c->ultimo_pago_fecha ? \Carbon\Carbon::parse($c->ultimo_pago_fecha) : null;
@@ -1324,6 +1328,11 @@ class ClientesRutaController extends Controller
 
             if ($pagoInicial) {
                 $pagoInicial->update(['monto' => $data['monto']]);
+            } elseif ((float) $venta->prima > 0) {
+                // Sin pagos, el abono inicial mostrado es la prima de la venta: se corrige
+                // ahí para no contarlo dos veces (prima + un pago nuevo).
+                $venta->prima = $data['monto'];
+                $venta->save();
             } else {
                 PagoVenta::create([
                     'venta_id' => $venta->id,
