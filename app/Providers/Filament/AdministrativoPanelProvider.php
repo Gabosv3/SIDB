@@ -72,6 +72,11 @@ class AdministrativoPanelProvider extends PanelProvider
                 'panels::scripts.after',
                 fn (): string => '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
             )
+            // ── Tutoriales guiados por pantalla ──────────────────────────────────
+            ->renderHook(
+                'panels::body.end',
+                fn (): string => auth()->check() ? view('filament.tutoriales')->render() : '',
+            )
             // ── Botón Monitor POS en el sidebar ──────────────────────────────────
             ->renderHook(
                 'panels::sidebar.nav.end',

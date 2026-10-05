@@ -202,6 +202,9 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 @yield('scripts')
+@auth
+    @include('filament.tutoriales')
+@endauth
 <script>
     function toggleTheme() {
         var isDark = document.documentElement.classList.toggle('dark');
