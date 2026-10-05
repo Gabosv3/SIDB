@@ -136,7 +136,8 @@ class AdministrativoPanelProvider extends PanelProvider
             // ── Plugins ───────────────────────────────────────────────────────
             ->plugins([
                 FilamentShieldPlugin::make()
-                    ->scopeToTenant(false),
+                    ->scopeToTenant(false)
+                    ->globallySearchable(false),
             ])
             ->middleware([
                 EncryptCookies::class,

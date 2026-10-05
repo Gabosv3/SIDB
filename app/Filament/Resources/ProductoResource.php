@@ -22,6 +22,23 @@ class ProductoResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Producto::class;
 
+    protected static ?string $recordTitleAttribute = 'nombre';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['nombre', 'codigo'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return $record->nombre;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Código' => $record->codigo, 'Stock' => $record->stock, 'Precio' => '$' . number_format((float) $record->precio_venta, 2)], fn ($v) => filled($v));
+    }
+
     // Productos son por sucursal (isScopedToTenant = true por defecto)
 
     // ── Shield ────────────────────────────────────────────────────────────────

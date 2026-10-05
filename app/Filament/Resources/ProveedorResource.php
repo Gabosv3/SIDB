@@ -18,6 +18,23 @@ class ProveedorResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Proveedor::class;
 
+    protected static ?string $recordTitleAttribute = 'nombre';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['nombre', 'codigo', 'email', 'telefono'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return $record->nombre;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Código' => $record->codigo, 'Teléfono' => $record->telefono], fn ($v) => filled($v));
+    }
+
     // Proveedores son globales: visibles en todas las sucursales
     protected static bool $isScopedToTenant = false;
 

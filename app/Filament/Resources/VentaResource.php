@@ -29,6 +29,28 @@ class VentaResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Venta::class;
 
+    protected static ?string $recordTitleAttribute = 'numero_venta';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['numero_venta', 'cliente.nombre', 'cliente.apellido'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return 'Venta ' . $record->numero_venta;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Cliente' => $record->cliente ? trim($record->cliente->nombre . ' ' . $record->cliente->apellido) : null, 'Total' => '$' . number_format((float) $record->total, 2), 'Estado' => $record->estado], fn ($v) => filled($v));
+    }
+
+    public static function getGlobalSearchEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with('cliente');
+    }
+
     // â”€â”€ Shield â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public static function getPermissionPrefixes(): array

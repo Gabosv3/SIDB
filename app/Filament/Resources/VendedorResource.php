@@ -18,6 +18,23 @@ class VendedorResource extends Resource
 {
     protected static ?string $model = Vendedor::class;
 
+    protected static ?string $recordTitleAttribute = 'nombre';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['nombre', 'apellido', 'codigo', 'email', 'telefono'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return trim($record->nombre . ' ' . $record->apellido);
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Código' => $record->codigo, 'Teléfono' => $record->telefono], fn ($v) => filled($v));
+    }
+
     // Centralizado: la gestión de vendedores ahora se hace desde el perfil
     // del empleado (Usuarios → Ver perfil → pestaña Laboral), no desde este
     // módulo aparte. Se mantiene registrado (rutas, permisos, relaciones)

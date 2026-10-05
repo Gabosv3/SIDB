@@ -26,6 +26,23 @@ class ClienteResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Cliente::class;
 
+    protected static ?string $recordTitleAttribute = 'nombre';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['nombre', 'apellido', 'codigo', 'codigo_anterior', 'dui', 'telefono_normal', 'telefono_whatsapp', 'email'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return trim($record->nombre . ' ' . $record->apellido);
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Código' => $record->codigo_anterior ?: $record->codigo, 'Teléfono' => $record->telefono_normal ?: $record->telefono_whatsapp, 'Saldo' => '$' . number_format((float) $record->saldo, 2)], fn ($v) => filled($v));
+    }
+
     // ── Shield ────────────────────────────────────────────────────────────────
 
     public static function getPermissionPrefixes(): array

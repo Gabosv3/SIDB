@@ -21,6 +21,28 @@ use Illuminate\Database\Eloquent\Builder;
 class CompraResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = Compra::class;
+
+    protected static ?string $recordTitleAttribute = 'numero_compra';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['numero_compra', 'proveedor.nombre'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return 'Compra ' . $record->numero_compra;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Proveedor' => $record->proveedor?->nombre, 'Total' => '$' . number_format((float) $record->total, 2)], fn ($v) => filled($v));
+    }
+
+    public static function getGlobalSearchEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with('proveedor');
+    }
     // Compras son globales: no están asociadas a una sucursal específica
     protected static bool $isScopedToTenant = false;
     // â”€â”€ Shield â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

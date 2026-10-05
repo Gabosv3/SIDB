@@ -20,6 +20,23 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = RutaCobro::class;
 
+    protected static ?string $recordTitleAttribute = 'nombre';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['nombre'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return $record->nombre;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Día' => $record->dia_semana], fn ($v) => filled($v));
+    }
+
     // ── Shield ────────────────────────────────────────────────────────────────
 
     public static function getPermissionPrefixes(): array

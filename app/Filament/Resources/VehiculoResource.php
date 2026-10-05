@@ -18,6 +18,23 @@ class VehiculoResource extends Resource
 {
     protected static ?string $model = Vehiculo::class;
 
+    protected static ?string $recordTitleAttribute = 'placa';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['placa', 'marca', 'modelo'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return 'Vehículo ' . $record->placa;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Marca' => trim($record->marca . ' ' . $record->modelo)], fn ($v) => filled($v));
+    }
+
     public static function getNavigationIcon(): string|\BackedEnum|null
     {
         return 'heroicon-o-truck';

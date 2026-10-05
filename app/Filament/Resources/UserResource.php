@@ -21,6 +21,23 @@ class UserResource extends Resource implements HasShieldPermissions
 {
     protected static ?string $model = User::class;
 
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'email'];
+    }
+
+    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string|\Illuminate\Contracts\Support\Htmlable
+    {
+        return $record->name;
+    }
+
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        return array_filter(['Correo' => $record->email], fn ($v) => filled($v));
+    }
+
     // Usuarios son globales: gestionados por super_admin independiente de sucursal
     protected static bool $isScopedToTenant = false;
 
