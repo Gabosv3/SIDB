@@ -170,8 +170,31 @@ class AsignacionDiariaController extends Controller
             'observaciones' => $request->observaciones ?? '',
         ]);
 
-        $asignacion->detalles()->delete();
+        // Se actualizan las líneas en su lugar (no se borran y recrean en bloque):
+        // el stock se ajusta en los eventos del modelo DetalleAsignacion, y un
+        // delete() masivo no los dispara -- se devolvía nada al borrar y se
+        // volvía a descontar todo al recrear, así cada edición bajaba el stock
+        // otra vez. Además así se conserva cantidad_vendida de cada línea.
+        $productosNuevos = collect($validated['detalles'])->pluck('producto_id')->map(fn ($id) => (int) $id);
+
+        foreach ($asignacion->detalles()->get() as $existente) {
+            if (! $productosNuevos->contains((int) $existente->producto_id)) {
+                $existente->delete();
+            }
+        }
+
         foreach ($validated['detalles'] as $detalle) {
+            $existente = $asignacion->detalles()->where('producto_id', $detalle['producto_id'])->first();
+
+            if ($existente) {
+                $existente->update([
+                    'cantidad_asignada' => $detalle['cantidad_asignada'],
+                    'precio_venta' => $detalle['precio_venta'],
+                ]);
+
+                continue;
+            }
+
             DetalleAsignacion::create([
                 'asignacion_id' => $asignacion->id,
                 'producto_id' => $detalle['producto_id'],

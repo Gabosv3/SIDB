@@ -84,6 +84,74 @@ class Compra extends Model
         return $this->hasMany(DetalleCompra::class, 'compra_id');
     }
 
+    /** Unidades de este producto que esta compra ya dejó en el inventario (entradas menos reversiones). */
+    private function netoIngresado(int $productoId): int
+    {
+        $base = MovimientoStock::where('referencia', $this->numero_compra)->where('producto_id', $productoId);
+
+        return (int) (clone $base)->where('tipo', 'entrada')->sum('cantidad')
+            - (int) (clone $base)->where('tipo', 'salida')->sum('cantidad');
+    }
+
+    /**
+     * Sube al inventario lo que esta compra trae. Es seguro llamarlo más de
+     * una vez (marcar Recibida, volver atrás y marcar otra vez): solo ingresa
+     * lo que todavía no esté ingresado con esta compra como referencia, así el
+     * stock no se duplica. MovimientoStock::boot() suma el stock al crear una
+     * 'entrada' y lo resta con una 'salida'.
+     */
+    public function ingresarStock(): void
+    {
+        foreach ($this->detalles()->with('producto')->get()->groupBy('producto_id') as $productoId => $lineas) {
+            $faltante = (int) $lineas->sum('cantidad') - $this->netoIngresado((int) $productoId);
+
+            if ($faltante <= 0) {
+                continue;
+            }
+
+            $primera = $lineas->first();
+
+            MovimientoStock::create([
+                'producto_id' => $productoId,
+                'user_id' => auth()->id() ?? $this->usuario_id,
+                'sucursal_id' => $primera->producto->sucursal_id,
+                'tipo' => 'entrada',
+                'cantidad' => $faltante,
+                'precio_unitario' => $primera->precio_unitario,
+                'referencia' => $this->numero_compra,
+                'observaciones' => "Compra {$this->numero_compra}",
+            ]);
+        }
+    }
+
+    /**
+     * Quita del inventario lo que esta compra había subido (compra cancelada
+     * o devuelta al proveedor). Idempotente: si ya se revirtió, no hace nada.
+     */
+    public function revertirStock(string $motivo = 'cancelada'): void
+    {
+        foreach ($this->detalles()->with('producto')->get()->groupBy('producto_id') as $productoId => $lineas) {
+            $neto = $this->netoIngresado((int) $productoId);
+
+            if ($neto <= 0) {
+                continue;
+            }
+
+            $primera = $lineas->first();
+
+            MovimientoStock::create([
+                'producto_id' => $productoId,
+                'user_id' => auth()->id() ?? $this->usuario_id,
+                'sucursal_id' => $primera->producto->sucursal_id,
+                'tipo' => 'salida',
+                'cantidad' => $neto,
+                'precio_unitario' => $primera->precio_unitario,
+                'referencia' => $this->numero_compra,
+                'observaciones' => "Compra {$this->numero_compra} {$motivo}: se descuenta lo que había ingresado",
+            ]);
+        }
+    }
+
     /**
      * Pagos realizados
      */

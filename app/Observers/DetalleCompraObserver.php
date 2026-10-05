@@ -48,11 +48,15 @@ class DetalleCompraObserver
         $impuestoMonto = ($subtotalConDescuento * $impuestoPorcentaje) / 100;
         $total = $subtotalConDescuento + $impuestoMonto;
 
+        // El saldo respeta los pagos ya registrados (antes se igualaba al total
+        // y borraba el efecto de los pagos al editar las líneas).
+        $pagado = (float) $compra->pagos()->sum('monto');
+
         $compra->update([
             'subtotal' => $subtotal,
             'impuesto_monto' => $impuestoMonto,
             'total' => $total,
-            'saldo_pendiente' => $total,
+            'saldo_pendiente' => max(0, round($total - $pagado, 2)),
         ]);
     }
 }

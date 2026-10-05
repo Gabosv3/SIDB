@@ -473,6 +473,12 @@ class CompraResource extends Resource implements HasShieldPermissions
             ->actions([
                 Actions\ViewAction::make(),
                 Actions\EditAction::make(),
+                // Cancelar o devolver una compra: quita del inventario lo que ya había subido
+                // (lo hace CompraObserver) y deja el motivo en las observaciones.
+                static::accionAnular('cancelar', 'Cancelar compra', 'cancelada', 'heroicon-m-x-circle', 'danger',
+                    'Se marca la compra como cancelada y se descuenta del inventario lo que ya había ingresado.'),
+                static::accionAnular('devolver', 'Devolver al proveedor', 'devuelta', 'heroicon-m-arrow-uturn-left', 'warning',
+                    'Se marca la compra como devuelta al proveedor y se descuenta del inventario lo que ya había ingresado.'),
                 // Se deja el bloqueo también en el soft delete: ocultar una
                 // compra con pagos rompería $pago->compra en reportes viejos.
                 Actions\DeleteAction::make()
@@ -540,6 +546,46 @@ class CompraResource extends Resource implements HasShieldPermissions
     }
 
     // â”€â”€ Pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    private static function accionAnular(string $nombre, string $etiqueta, string $estadoNuevo, string $icono, string $color, string $descripcion): Actions\Action
+    {
+        return Actions\Action::make($nombre)
+            ->label($etiqueta)
+            ->icon($icono)
+            ->color($color)
+            ->visible(fn (\App\Models\Compra $record) => ! in_array($record->estado, ['cancelada', 'devuelta'], true))
+            ->requiresConfirmation()
+            ->modalHeading($etiqueta)
+            ->modalDescription($descripcion)
+            ->schema([
+                Forms\Components\Textarea::make('motivo')->label('Motivo')->required()->rows(2),
+            ])
+            ->action(function (array $data, \App\Models\Compra $record) use ($estadoNuevo, $etiqueta): void {
+                if (\App\Models\PagoCompra::where('compra_id', $record->id)->exists()) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('No se puede ' . strtolower($etiqueta))
+                        ->body('Esta compra ya tiene pagos registrados al proveedor. Elimina primero esos pagos (solo el super administrador) o corrige la compra.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $record->update([
+                    'estado' => $estadoNuevo,
+                    'observaciones' => trim(($record->observaciones ? $record->observaciones . ' | ' : '') . $etiqueta . ': ' . $data['motivo']),
+                ]);
+
+                \Filament\Notifications\Notification::make()->title($etiqueta . ': listo')->success()->send();
+            });
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            \App\Filament\Resources\CompraResource\RelationManagers\PagosRelationManager::class,
+        ];
+    }
 
     public static function getPages(): array
     {

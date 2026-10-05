@@ -21,6 +21,14 @@ class CreateCompra extends CreateRecord
 
     protected static ?string $title = 'Nueva Compra';
 
+    /** Una compra creada ya como Recibida/Completada también debe subir el stock (antes solo lo hacía al cambiar de estado). */
+    protected function afterCreate(): void
+    {
+        if (in_array($this->record->estado, ['recibida', 'completada'], true)) {
+            $this->record->ingresarStock();
+        }
+    }
+
     public function getSteps(): array
     {
         return [

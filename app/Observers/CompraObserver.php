@@ -3,7 +3,6 @@
 namespace App\Observers;
 
 use App\Models\Compra;
-use App\Models\MovimientoStock;
 
 class CompraObserver
 {
@@ -17,46 +16,23 @@ class CompraObserver
     }
 
     /**
-     * Ejecutarse cuando se actualiza el estado de la compra
+     * Cuando la compra pasa a recibida (o directo a completada, que también
+     * implica que la mercadería llegó) sube el stock. Ingresar es idempotente:
+     * volver a marcar Recibida no duplica lo ya ingresado.
      */
     public function updated(Compra $compra): void
     {
-        // Si la compra cambió a recibida, actualizar stock
-        if ($compra->isDirty('estado') && $compra->estado === 'recibida') {
-            $this->registrarMovimientoStock($compra);
-        }
-    }
-
-    /**
-     * Registrar movimientos de stock de la compra
-     */
-    private function registrarMovimientoStock(Compra $compra): void
-    {
-        foreach ($compra->detalles as $detalle) {
-            // El stock se actualiza solo -- MovimientoStock::boot() ya lo suma
-            // al crearse un registro con tipo 'entrada'. Antes se sumaba acá
-            // A MANO además, porque el campo 'tipo' se mandaba mal nombrado
-            // ('tipo_movimiento') y el hook del modelo nunca disparaba; ahora
-            // que el nombre está bien, sumarlo también acá lo duplicaría.
-
-            // Registrar movimiento. user_id y sucursal_id son obligatorios en
-            // la tabla (sin default) -- auth()->id() cubre el caso normal (un
-            // admin cambia el estado desde el panel); usuario_id de la compra
-            // es el respaldo si esto llega a correr fuera de una sesión web
-            // (cola, comando, etc.).
-            MovimientoStock::create([
-                'producto_id' => $detalle->producto_id,
-                'user_id' => auth()->id() ?? $compra->usuario_id,
-                'sucursal_id' => $detalle->producto->sucursal_id,
-                'tipo' => 'entrada',
-                'cantidad' => $detalle->cantidad,
-                'precio_unitario' => $detalle->precio_unitario,
-                'referencia' => $compra->numero_compra,
-                'observaciones' => "Compra {$compra->numero_compra}",
-            ]);
+        if (! $compra->isDirty('estado')) {
+            return;
         }
 
-        \Log::info("Stock actualizado para compra: {$compra->numero_compra}");
+        if (in_array($compra->estado, ['recibida', 'completada'], true)) {
+            $compra->ingresarStock();
+            \Log::info("Stock actualizado para compra: {$compra->numero_compra}");
+        } elseif (in_array($compra->estado, ['cancelada', 'devuelta'], true)) {
+            $compra->revertirStock($compra->estado);
+            \Log::info("Stock revertido para compra {$compra->estado}: {$compra->numero_compra}");
+        }
     }
 
     /**
