@@ -99,6 +99,13 @@ class PagoVentaController extends Controller
             // sobre-cobro si dos pagos llegan casi al mismo tiempo).
             $ventaLock = Venta::where('id', $v->id)->lockForUpdate()->first();
 
+            // Cancelar o devolver solo cambia el estado (el saldo queda), así
+            // que hay que bloquear el pago aquí o se registraría contra una
+            // venta que ya no cuenta.
+            if (in_array($ventaLock->estado, ['cancelada', 'devuelta'], true)) {
+                return ['error' => 'Esta venta está cancelada o devuelta y no admite pagos.'];
+            }
+
             $monto = (float) $data['monto'];
             $saldoVenta = (float) $ventaLock->saldo_pendiente;
 

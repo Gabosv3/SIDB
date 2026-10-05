@@ -1049,6 +1049,16 @@ class CobroController extends Controller
                 ->lockForUpdate()
                 ->first();
 
+            // Cancelar o devolver una venta solo cambia su estado: el saldo y
+            // las cuotas quedan como estaban, así que sin esta revisión el
+            // pago se aceptaba y quedaba registrado contra una venta que ya
+            // no existe para el negocio.
+            if (in_array($venta->estado, ['cancelada', 'devuelta'], true)) {
+                throw ValidationException::withMessages([
+                    'venta_id' => 'Esta venta está cancelada o devuelta y no admite pagos.',
+                ]);
+            }
+
             $saldoVenta = (float) $venta->saldo_pendiente;
             if ($monto > $saldoVenta) {
                 throw ValidationException::withMessages([
