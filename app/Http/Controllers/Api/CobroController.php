@@ -175,7 +175,7 @@ class CobroController extends Controller
             ->withCount('clientes')
             ->with([
                 'clientes' => fn ($q) => $q
-                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'latitud', 'longitud', 'ruta_cobro_id', 'orden')
+                    ->select('id', 'nombre', 'apellido', 'dui', 'codigo_anterior', 'telefono_normal', 'saldo', 'latitud', 'longitud', 'ruta_cobro_id', 'orden', 'foto_casa')
                     ->orderByRaw('orden IS NULL, orden')
                     ->with(['ventas' => fn ($v) => $v
                         ->select('id', 'cliente_id', 'numero_venta', 'total', 'monto_pagado', 'saldo_pendiente', 'estado', 'fecha_venta')
@@ -222,6 +222,9 @@ class CobroController extends Controller
                     'dui' => $c->dui,
                     'codigo_anterior' => $c->codigo_anterior,
                     'telefono' => $c->telefono_normal,
+                    // Solo si tiene foto de la casa (la URL se pide en el detalle) — para
+                    // poder filtrar "con foto" en la lista sin cargar imágenes.
+                    'tiene_foto_casa' => ! empty($c->foto_casa),
                     'saldo_total' => (float) $c->saldo,
                     'cuotas_vencidas' => (int) $c->cuotas_vencidas,
                     'para_estar_al_dia' => round((float) $c->para_estar_al_dia, 2),
@@ -681,6 +684,7 @@ class CobroController extends Controller
                 'ruta'           => $cliente->rutaCobro?->nombre,
                 'latitud'        => $cliente->latitud !== null ? (float) $cliente->latitud : null,
                 'longitud'       => $cliente->longitud !== null ? (float) $cliente->longitud : null,
+                'foto_casa'      => $cliente->foto_casa ? asset('storage/' . $cliente->foto_casa) : null,
                 'ultimo_pago'    => $ultimoPago,
             ],
             'resumen' => [
