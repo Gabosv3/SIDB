@@ -48,6 +48,9 @@ class ConfiguracionSistema extends Model
         'patrono_nit',
         'patrono_actividad_economica',
         'contrato_clausulas_generales',
+        'notarial_distrito',
+        'notarial_municipio',
+        'notarial_departamento',
     ];
 
     protected $casts = [

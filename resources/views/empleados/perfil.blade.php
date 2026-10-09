@@ -507,9 +507,22 @@
                         @endforeach
                     </select>
                 </div>
+                <div>
+                    <label>Periodicidad de pago <span style="font-weight:400;color:var(--muted,#6b7280);">(para el contrato)</span></label>
+                    <select name="forma_pago_periodo" class="pe-input">
+                        <option value="">—</option>
+                        @foreach(['semanal'=>'Semanal','quincenal'=>'Quincenal','mensual'=>'Mensual'] as $val => $lbl)
+                            <option value="{{ $val }}" {{ old('forma_pago_periodo', $employeeProfile?->forma_pago_periodo) === $val ? 'selected' : '' }}>{{ $lbl }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div style="grid-column:1/-1;">
                     <label>Herramientas y materiales que se le entregan <span style="font-weight:400;color:var(--muted,#6b7280);">(opcional, para el contrato)</span></label>
                     <textarea name="herramientas_material" rows="2" class="pe-input">{{ old('herramientas_material', $employeeProfile?->herramientas_material) }}</textarea>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label>Lugar de entrega de esas herramientas <span style="font-weight:400;color:var(--muted,#6b7280);">(opcional, para el contrato)</span></label>
+                    <input type="text" name="lugar_entrega_herramientas" value="{{ old('lugar_entrega_herramientas', $employeeProfile?->lugar_entrega_herramientas) }}" class="pe-input">
                 </div>
                 <div style="grid-column:1/-1;">
                     <label>Personas que dependen económicamente del trabajador <span style="font-weight:400;color:var(--muted,#6b7280);">(opcional, para el contrato)</span></label>

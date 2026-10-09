@@ -146,8 +146,8 @@
 <div class="page pagebreak notarial">
 
     <p>
-        En el Distrito de <span class="blanco">&nbsp;</span>, Municipio de <span class="blanco">&nbsp;</span>,
-        Departamento de <span class="blanco">&nbsp;</span>, a las <span class="blanco">&nbsp;</span> horas del
+        En el Distrito de {{ $config->notarial_distrito ?: '____________' }}, Municipio de {{ $config->notarial_municipio ?: '____________' }},
+        Departamento de {{ $config->notarial_departamento ?: '____________' }}, a las <span class="blanco">&nbsp;</span> horas del
         día <span class="blanco">&nbsp;</span> de <span class="blanco">&nbsp;</span> del año
         <span class="blanco">&nbsp;</span>, Ante Mí; <span class="blanco" style="min-width:220px;">&nbsp;</span>,
         Notario(a) de este domicilio, comparecen los Señores:

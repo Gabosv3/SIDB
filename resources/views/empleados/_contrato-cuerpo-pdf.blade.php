@@ -25,13 +25,13 @@ El lugar de prestación de los servicios será: {{ $lugar ?: '____________' }}
 Y de __________________, a ________________. El día _____________________ de ______________ a __________________.
 De las ___________________ a las _____________________, para la toma de alimentos. Cumpliendo con la semana Laboral ________________________ horas.@endif {{ '' }}
 <strong>E) SALARIO: FORMA, PERÍODO Y LUGAR DEL PAGO</strong>: El salario que recibirá el trabajador, por sus servicios, será la suma de
-{!! $remuneracionTexto !!}. Se pagará en dólares de los Estados Unidos de América de la siguiente forma: ____________; El pago se efectuará por
+{!! $remuneracionTexto !!}. Se pagará en dólares de los Estados Unidos de América de la siguiente forma: {{ ['semanal'=>'Semanal','quincenal'=>'Quincenal','mensual'=>'Mensual'][$perfil->forma_pago_periodo] ?? '____________' }}; El pago se efectuará por
 medio de: {{ $medioPagoTxt }}. En la Dirección: {{ $lugar ?: '____________' }}. Dicho pago se efectuará de la manera siguiente: ____________. La
 operación del pago principiará y se continuará sin interrupción, a más tardar a la Terminación de la jornada de trabajo correspondiente
 a la respectiva fecha, en caso de reclamo de la persona trabajadora, se estará a lo dispuesto en el artículo seiscientos trece del Código
 de Trabajo.
 <strong>F) HERRAMIENTAS Y MATERIALES</strong>: El patrono suministrará al trabajador las herramientas y materiales siguientes: {{ rtrim($perfil->herramientas_material ?: '____________', '.') }}.
-Que se entregan en ___________________________ y deben ser devueltos así por el trabajador, cuando sea requerida al efecto por sus
+Que se entregan en {{ $perfil->lugar_entrega_herramientas ?: '___________________________' }} y deben ser devueltos así por el trabajador, cuando sea requerida al efecto por sus
 jefes inmediatos, salvo la disminución o deterioro causados por caso fortuito o fuerza mayor, o por la acción del tiempo o por el
 consumo y uso normal de los mismos.
 <strong>G) PERSONAS QUE DEPENDEN ECONÓMICAMENTE DEL TRABAJADOR</strong>: {{ rtrim($perfil->personas_dependientes ?: '____________', '.') }}.

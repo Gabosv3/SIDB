@@ -23,7 +23,8 @@ class EmployeeProfile extends Model
         'hora_entrada_esperada', 'hora_salida_esperada', 'estado_laboral',
         'supervisor_id', 'puede_usar_pos_movil',
         'residencia', 'dui_lugar_expedicion', 'dui_fecha_expedicion',
-        'medio_pago', 'herramientas_material', 'personas_dependientes', 'otras_estipulaciones',
+        'medio_pago', 'forma_pago_periodo', 'herramientas_material', 'lugar_entrega_herramientas',
+        'personas_dependientes', 'otras_estipulaciones',
     ];
 
     protected $casts = [

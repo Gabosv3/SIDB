@@ -468,6 +468,25 @@ class PersonalizacionSistema extends Page
                             ->columnSpanFull(),
                     ]),
 
+                // ── Lugar de la certificación notarial ───────────────────────────
+                Section::make('Lugar de la certificación notarial')
+                    ->description('Distrito, municipio y departamento donde normalmente se hace la firma notarial de los contratos. Se deja aparte del domicilio del patrono porque puede ser distinto (otro notario, otra oficina, etc.). Si lo dejas en blanco, esos datos quedan en blanco en el PDF para que el notario los complete a mano.')
+                    ->icon('heroicon-m-map-pin')
+                    ->columns(3)
+                    ->components([
+                        Forms\Components\TextInput::make('notarial_distrito')
+                            ->label('Distrito')
+                            ->maxLength(150),
+
+                        Forms\Components\TextInput::make('notarial_municipio')
+                            ->label('Municipio')
+                            ->maxLength(150),
+
+                        Forms\Components\TextInput::make('notarial_departamento')
+                            ->label('Departamento')
+                            ->maxLength(150),
+                    ]),
+
                 // ── Ciclo quincenal de rutas ────────────────────────────────────
                 Section::make('Ciclo quincenal de rutas (Semana 1 / Semana 2)')
                     ->description('Fecha de referencia desde la que se alternan la semana 1 y la semana 2 cada 7 días. El POS solo muestra a cada cobrador las rutas clasificadas en la semana que corresponda a la fecha de hoy.')
