@@ -30,7 +30,7 @@ class CuentasPorCobrarWidget extends TableWidget
             ->columns([
                 Tables\Columns\TextColumn::make('cliente.nombre_completo')
                     ->label('Cliente')
-                    ->searchable(['clientes.nombre', 'clientes.apellido'])
+                    ->searchable(['nombre', 'apellido'])
                     ->weight('semibold'),
 
                 Tables\Columns\TextColumn::make('concepto')

@@ -49,7 +49,7 @@ class ClienteExportController extends Controller
             'Activo',
         ];
 
-        fputcsv($handle, $headers, ';');
+        fputcsv($handle, $headers, ';', '"', '\\');
 
         foreach ($ventas as $venta) {
             $cliente = $venta->cliente;
@@ -74,7 +74,7 @@ class ClienteExportController extends Controller
                 ucfirst($venta->estado),
                 $cliente->activo ? 'Sí' : 'No',
             ];
-            fputcsv($handle, $row, ';');
+            fputcsv($handle, $row, ';', '"', '\\');
         }
 
         fclose($handle);

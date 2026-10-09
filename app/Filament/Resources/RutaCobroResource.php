@@ -196,7 +196,7 @@ class RutaCobroResource extends Resource implements HasShieldPermissions
 
                 Tables\Columns\TextColumn::make('cobrador.nombre_completo')
                     ->label('Cobrador')
-                    ->searchable(['cobrador.nombre', 'cobrador.apellido'])
+                    ->searchable(['nombre', 'apellido'])
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy(
                             Cobrador::select('nombre')

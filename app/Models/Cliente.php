@@ -49,12 +49,15 @@ class Cliente extends Model
             // que arranca en 10,001, independiente del "codigo" interno.
             if (empty($cliente->codigo_anterior)) {
                 $cliente->codigo_anterior = (string) \Illuminate\Support\Facades\DB::transaction(function () {
+                    // Se filtra en PHP (no con REGEXP/CAST de MySQL) para que funcione igual en
+                    // cualquier base, incluida SQLite de las pruebas automáticas.
                     $ultimo = static::withTrashed()
-                        ->whereRaw('codigo_anterior REGEXP "^[0-9]+$"')
-                        ->whereRaw('CAST(codigo_anterior AS UNSIGNED) >= 10000')
+                        ->whereRaw('LENGTH(codigo_anterior) >= 5')
                         ->lockForUpdate()
-                        ->selectRaw('MAX(CAST(codigo_anterior AS UNSIGNED)) as maximo')
-                        ->value('maximo') ?? 10000;
+                        ->pluck('codigo_anterior')
+                        ->filter(fn ($v) => ctype_digit((string) $v) && (int) $v >= 10000)
+                        ->map(fn ($v) => (int) $v)
+                        ->max() ?? 10000;
 
                     return $ultimo + 1;
                 });

@@ -35,7 +35,7 @@ class VentasRecientesWidget extends TableWidget
 
                 Tables\Columns\TextColumn::make('cliente.nombre_completo')
                     ->label('Cliente')
-                    ->searchable(['clientes.nombre', 'clientes.apellido'])
+                    ->searchable(['nombre', 'apellido'])
                     ->limit(25),
 
                 Tables\Columns\TextColumn::make('fecha_venta')

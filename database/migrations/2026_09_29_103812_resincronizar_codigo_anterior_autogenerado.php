@@ -20,6 +20,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Corrección de datos solo para MySQL (usa REGEXP/CAST); una base nueva (p. ej. SQLite de pruebas) no tiene qué corregir.
+        if (! in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            return;
+        }
+
         DB::table('clientes')
             ->whereRaw('codigo_anterior REGEXP "^[0-9]+$"')
             ->whereRaw('CAST(codigo_anterior AS UNSIGNED) >= 10000')
