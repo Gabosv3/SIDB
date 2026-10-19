@@ -54,7 +54,6 @@ class ReporteComisionesService
             $pct = (float) ($perfil->porcentaje_comision ?? 0);
 
             $baseVendido = 0.0;
-            $baseProductos = 0.0;
             $baseCobrado = 0.0;
             $comisionVendedor = 0.0;
 
@@ -68,15 +67,12 @@ class ReporteComisionesService
                         ->get();
 
                     $baseVendido = (float) $ventas->sum('total');
-                    $baseProductos = (float) $ventas->flatMap->detalles->sum('subtotal');
 
                     // El tramo de comisión se aplica por cada PRODUCTO (el
                     // subtotal de esa línea), no por el total de la venta ni
                     // por un % fijo del perfil -- igual que en la Liquidación
                     // Semanal de Ventas y en "Confirmar prima".
-                    $comisionVendedor = round($ventas->flatMap->detalles->sum(
-                        fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
-                    ), 2);
+                    $comisionVendedor = round($ventas->sum(fn (Venta $v) => $v->comisionVendedor()), 2);
                 }
             }
 
@@ -101,8 +97,7 @@ class ReporteComisionesService
 
             // % efectivo solo para mostrar en pantalla; para vendedores cada
             // venta ya pagó el tramo de su propio producto por separado.
-            $baseParaPct = $baseProductos + $baseCobrado;
-            $pctEfectivo = $baseParaPct > 0 ? round($comision / $baseParaPct * 100, 2) : $pct;
+            $pctEfectivo = $baseComision > 0 ? round($comision / $baseComision * 100, 2) : $pct;
 
             return [
                 'empleado' => trim(($perfil->user->name ?? $perfil->codigo_empleado ?? 'Sin nombre')),

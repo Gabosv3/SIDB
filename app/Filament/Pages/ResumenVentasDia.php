@@ -364,9 +364,7 @@ class ResumenVentasDia extends Page
      */
     private function comisionDeVenta(Venta $venta): float
     {
-        return round($venta->detalles->sum(
-            fn ($d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
-        ), 2);
+        return $venta->comisionVendedor();
     }
 
     /**

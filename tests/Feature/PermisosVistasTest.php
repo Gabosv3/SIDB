@@ -133,3 +133,16 @@ test('los tramos de comision se leen una sola vez y se refrescan al editarlos', 
     $t->update(['porcentaje' => 15]);
     expect(App\Models\ComisionTramo::porcentajePara(50))->toBe(15.0);
 });
+
+test('la comision del vendedor se calcula sobre lo cobrado (total con descuento), por producto', function () {
+    App\Models\ComisionTramo::query()->delete();
+    App\Models\ComisionTramo::olvidarCache();
+    App\Models\ComisionTramo::create(['desde' => 0, 'hasta' => 135, 'porcentaje' => 10]);
+    App\Models\ComisionTramo::create(['desde' => 136, 'hasta' => null, 'porcentaje' => 5]);
+
+    $venta = new App\Models\Venta(['total' => 130]);
+    $venta->setRelation('detalles', collect([new App\Models\DetalleVenta(['subtotal' => 140])]));
+
+    // Producto $140 cobrado en $130: cae en el tramo de $130 (10%) = 13.00, no en el de $140 (5%).
+    expect($venta->comisionVendedor())->toBe(13.0);
+});

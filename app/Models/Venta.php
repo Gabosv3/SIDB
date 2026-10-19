@@ -227,6 +227,30 @@ class Venta extends Model
         return $this->hasMany(DetalleVenta::class, 'venta_id');
     }
 
+    /**
+     * Comisión del vendedor por esta venta. El tramo se aplica por cada
+     * producto, pero sobre lo que realmente se cobró: el subtotal de cada
+     * línea se ajusta proporcionalmente al total de la venta (que ya trae el
+     * descuento/prima), así una venta de producto $140 cobrada en $130 paga
+     * el tramo de $130, no de $140. Requiere los detalles cargados.
+     */
+    public function comisionVendedor(): float
+    {
+        $base = (float) $this->detalles->sum('subtotal');
+
+        if ($base <= 0) {
+            return 0.0;
+        }
+
+        $factor = (float) $this->total / $base;
+
+        return round($this->detalles->sum(function ($d) use ($factor) {
+            $neto = (float) $d->subtotal * $factor;
+
+            return $neto * ComisionTramo::porcentajePara($neto) / 100;
+        }), 2);
+    }
+
     public function anticipoVendedor(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(AnticipoVendedor::class, 'venta_id');
