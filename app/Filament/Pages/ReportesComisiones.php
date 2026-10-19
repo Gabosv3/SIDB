@@ -6,9 +6,12 @@ use App\Services\ReporteComisionesService;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ReportesComisiones extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Reportes de Comisiones';
     protected static ?string $title = 'Reportes de Comisiones y Nómina';
     protected static ?int $navigationSort = 9;

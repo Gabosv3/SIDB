@@ -10,9 +10,12 @@ use App\Services\ResumenReintegrosService;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ResumenReintegros extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Reintegros del Día';
     protected static ?string $title = 'Resumen de Reintegros del Día';
     protected string $view = 'filament.pages.resumen-reintegros';

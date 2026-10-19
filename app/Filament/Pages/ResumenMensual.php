@@ -7,9 +7,12 @@ use Filament\Facades\Filament;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ResumenMensual extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Resumen del Mes';
     protected static ?string $title = 'Resumen Mensual';
     protected string $view = 'filament.pages.resumen-mensual';

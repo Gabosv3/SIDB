@@ -10,9 +10,11 @@ use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class FrasesAsistente extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static ?string $navigationLabel = 'Frases del Asistente';
@@ -70,10 +72,5 @@ class FrasesAsistente extends Page implements HasTable
             ->defaultSort('created_at', 'desc')
             ->striped()
             ->paginated([25, 50, 100]);
-    }
-
-    public static function canAccess(): bool
-    {
-        return auth()->user()?->hasRole('super_admin') ?? false;
     }
 }

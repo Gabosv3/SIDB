@@ -58,7 +58,7 @@ Route::post('asistente/no-entendida', 'App\Http\Controllers\AsistenteController@
     ->middleware(['web', 'auth', 'throttle:30,1'])
     ->name('asistente.no-entendida');
 
-Route::middleware(['web', 'auth'])->prefix('productos')->name('productos.')->group(function () {
+Route::middleware(['web', 'auth', 'can:ViewAny:Producto'])->prefix('productos')->name('productos.')->group(function () {
     Route::get('{tenant}/conteo-inventario', 'App\Http\Controllers\ProductoController@generarConteoInventario')
         ->name('conteo-inventario')
         ->where('tenant', '[0-9]+');
@@ -112,17 +112,17 @@ Route::middleware(['web', 'auth', 'can:View:Reportes'])->prefix('reportes')->nam
 });
 
 Route::get('reportes/clientes-inactivos/{tenant}', 'App\Http\Controllers\ReporteController@reporteClientesInactivos')
-    ->middleware(['web', 'auth'])
+    ->middleware(['web', 'auth', 'can:View:ClientesInactivos'])
     ->name('reporte.clientes-inactivos')
     ->where('tenant', '[0-9]+');
 
 Route::get('reportes/resumen-mensual/{tenant}', 'App\Http\Controllers\ReporteController@resumenMensual')
-    ->middleware(['web', 'auth'])
+    ->middleware(['web', 'auth', 'can:View:ResumenMensual'])
     ->name('reporte.resumen-mensual')
     ->where('tenant', '[0-9]+');
 
 Route::get('reportes/clientes-seleccionados/{tenant}', 'App\Http\Controllers\ReporteController@reporteClientesSeleccionados')
-    ->middleware(['web', 'auth'])
+    ->middleware(['web', 'auth', 'can:View:ResumenVentasDia'])
     ->name('reporte.clientes-seleccionados')
     ->where('tenant', '[0-9]+');
 

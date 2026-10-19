@@ -9,9 +9,12 @@ use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ClientesInactivos extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Clientes Inactivos';
     protected static ?string $title = 'Clientes sin visita ni abono';
     protected string $view = 'filament.pages.clientes-inactivos';

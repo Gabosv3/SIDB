@@ -16,9 +16,11 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class LiquidacionSemanal extends Page
 {
+    use HasPageShield;
     use InteractsWithForms;
 
     protected static ?string $navigationLabel = 'Liquidación Semanal';

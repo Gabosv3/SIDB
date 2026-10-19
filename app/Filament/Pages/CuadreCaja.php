@@ -10,9 +10,12 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class CuadreCaja extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Cuadre de Caja';
     protected static ?string $title = 'Cuadre de Caja';
     protected string $view = 'filament.pages.cuadre-caja';

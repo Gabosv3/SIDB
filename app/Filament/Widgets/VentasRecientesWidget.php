@@ -9,9 +9,12 @@ use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class VentasRecientesWidget extends TableWidget
 {
+    use HasWidgetShield;
+
     protected static ?string $heading = 'Ventas Recientes';
     protected static ?int $sort = 4;
     protected int|string|array $columnSpan = 'full';

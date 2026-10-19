@@ -5,9 +5,12 @@ namespace App\Filament\Pages;
 use App\Services\ReporteInventarioService;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ReportesInventario extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Reportes de Inventario';
     protected static ?string $title = 'Reportes de Inventario';
     protected static ?int $navigationSort = 6;

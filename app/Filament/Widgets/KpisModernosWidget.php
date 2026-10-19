@@ -9,9 +9,12 @@ use App\Models\PagoVenta;
 use App\Models\Producto;
 use App\Models\Venta;
 use Filament\Widgets\Widget;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class KpisModernosWidget extends Widget
 {
+    use HasWidgetShield;
+
     protected static ?int $sort = 0;
     protected int|string|array $columnSpan = 'full';
     protected ?string $pollingInterval = '30s';

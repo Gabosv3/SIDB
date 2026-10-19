@@ -4,10 +4,13 @@ namespace App\Filament\Widgets;
 
 use App\Models\Venta;
 use Filament\Widgets\ChartWidget;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Illuminate\Support\Carbon;
 
 class VentasMensualesChart extends ChartWidget
 {
+    use HasWidgetShield;
+
     protected ?string $heading = 'Ventas de los Últimos 30 Días';
     protected static ?int $sort = 1;
     protected int|string|array $columnSpan = 2;

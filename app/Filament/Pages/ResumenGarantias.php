@@ -9,9 +9,12 @@ use App\Services\ResumenGarantiasService;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ResumenGarantias extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Garantías del Día';
     protected static ?string $title = 'Resumen de Garantías del Día';
     protected string $view = 'filament.pages.resumen-garantias';

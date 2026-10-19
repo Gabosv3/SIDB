@@ -5,9 +5,12 @@ namespace App\Filament\Pages;
 use App\Services\AsistenteService;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class PalabrasAsistente extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Palabras del Asistente';
     protected static ?int $navigationSort = 6;
     protected static ?string $title = 'Qué puedes pedirle al asistente';

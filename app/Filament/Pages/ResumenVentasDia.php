@@ -18,9 +18,12 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ResumenVentasDia extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Ventas del Día';
     protected static ?string $title = 'Resumen de Ventas del Día';
     protected string $view = 'filament.pages.resumen-ventas-dia';

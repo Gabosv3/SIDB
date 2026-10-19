@@ -5,11 +5,14 @@ namespace App\Filament\Widgets;
 use App\Models\Compra;
 use App\Models\Proveedor;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Number;
 
 class ComprasOverviewWidget extends BaseWidget
 {
+    use HasWidgetShield;
+
     protected static ?int $sort = 2;
     protected ?string $pollingInterval = '60s';
     protected function getStats(): array
