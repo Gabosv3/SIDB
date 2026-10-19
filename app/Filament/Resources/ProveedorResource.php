@@ -97,16 +97,20 @@ class ProveedorResource extends Resource implements HasShieldPermissions
                                         ->label('Nombre del Proveedor')
                                         ->required()
                                         ->maxLength(255)
+                                        ->unique(Proveedor::class, 'nombre', ignoreRecord: true)
+                                        ->validationMessages(['unique' => 'Ya existe un proveedor con ese nombre (incluye los eliminados).'])
                                         ->columnSpanFull(),
 
                                     Forms\Components\TextInput::make('codigo')
                                         ->label('Codigo')
                                         ->default(function () {
-                                            $last = Proveedor::where('codigo', 'like', 'PROV-%')
-                                                ->orderByDesc('id')
-                                                ->value('codigo');
-                                            $num = $last ? ((int) substr($last, 5)) + 1 : 1;
-                                            return 'PROV-' . str_pad($num, 3, '0', STR_PAD_LEFT);
+                                            // withTrashed: el único de la BD también cuenta a los proveedores eliminados.
+                                            $max = Proveedor::withTrashed()
+                                                ->where('codigo', 'like', 'PROV-%')
+                                                ->pluck('codigo')
+                                                ->map(fn ($codigo) => (int) substr($codigo, 5))
+                                                ->max() ?? 0;
+                                            return 'PROV-' . str_pad($max + 1, 3, '0', STR_PAD_LEFT);
                                         })
                                         ->disabled()
                                         ->dehydrated()
@@ -209,6 +213,7 @@ class ProveedorResource extends Resource implements HasShieldPermissions
                                         ->label('Dias de Credito')
                                         ->numeric()
                                         ->minValue(0)
+                                        ->maxValue(3650)
                                         ->default(0),
 
                                     Forms\Components\TextInput::make('descuento_comercial')

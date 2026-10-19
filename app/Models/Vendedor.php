@@ -39,8 +39,14 @@ class Vendedor extends Model
 
         static::creating(function (Vendedor $vendedor): void {
             if (empty($vendedor->codigo)) {
-                $ultimo = static::max('id') ?? 0;
-                $vendedor->codigo = 'VEND-' . str_pad($ultimo + 1, 3, '0', STR_PAD_LEFT);
+                // withTrashed: el único de la BD también cuenta a los vendedores eliminados;
+                // sin esto, borrar al último vendedor haría que el siguiente repita su código.
+                $numero = (static::withTrashed()->max('id') ?? 0) + 1;
+                do {
+                    $codigo = 'VEND-' . str_pad($numero++, 3, '0', STR_PAD_LEFT);
+                } while (static::withTrashed()->where('codigo', $codigo)->exists());
+
+                $vendedor->codigo = $codigo;
             }
         });
     }

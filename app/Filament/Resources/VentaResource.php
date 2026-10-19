@@ -174,6 +174,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->numeric()
                                         ->default(30)
                                         ->minValue(0)
+                                        ->maxValue(3650)
                                         ->live(onBlur: true)
                                         ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
                                         ->afterStateUpdated(function ($state, Set $set) {
@@ -227,6 +228,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                                                 ->numeric()
                                                 ->default(1)
                                                 ->minValue(1)
+                                                ->maxValue(100000)
                                                 ->required()
                                                 ->live(onBlur: true)
                                                 ->afterStateUpdated(function ($state, Get $get, Set $set) {
@@ -236,6 +238,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                                             Forms\Components\TextInput::make('precio_unitario')
                                                 ->label('Precio')
                                                 ->numeric()
+                                                ->minValue(0)
+                                                ->maxValue(99999999.99)
                                                 ->prefix('$')
                                                 ->required()
                                                 ->live(onBlur: true)
@@ -246,6 +250,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                                             Forms\Components\TextInput::make('descuento_porcentaje')
                                                 ->label('Desc. (%)')
                                                 ->numeric()
+                                                ->minValue(0)
+                                                ->maxValue(100)
                                                 ->default(0)
                                                 ->suffix('%')
                                                 ->live(onBlur: true)
@@ -297,7 +303,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->numeric()
                                         ->suffix('%')
                                         ->default(0)
-                                        ->minValue(0),
+                                        ->minValue(0)
+                                        ->maxValue(100),
 
                                     Forms\Components\TextInput::make('impuesto_monto')
                                         ->label('Monto Impuesto')
@@ -318,7 +325,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                                         ->numeric()
                                         ->prefix('$')
                                         ->default(0)
-                                        ->minValue(0),
+                                        ->minValue(0)
+                                        ->maxValue(9999999999.99),
 
                                     Forms\Components\TextInput::make('saldo_pendiente')
                                         ->label('Saldo Pendiente')
@@ -563,7 +571,8 @@ class VentaResource extends Resource implements HasShieldPermissions
                             ->numeric()
                             ->prefix('$')
                             ->required()
-                            ->minValue(0.01),
+                            ->minValue(0.01)
+                            ->maxValue(9999999999.99),
                         Forms\Components\DatePicker::make('fecha_pago')
                             ->label('Fecha de Pago')
                             ->required()
@@ -580,6 +589,7 @@ class VentaResource extends Resource implements HasShieldPermissions
                             ->required(),
                         Forms\Components\TextInput::make('referencia')
                             ->label('Referencia')
+                            ->maxLength(100)
                             ->placeholder('Número de comprobante...'),
                     ])
                     ->action(function (Venta $record, array $data): void {

@@ -134,6 +134,7 @@ class CreateVenta extends CreateRecord
                                 ->numeric()
                                 ->default(30)
                                 ->minValue(1)
+                                ->maxValue(3650)
                                 ->hidden(fn (Get $get) => $get('tipo_pago') === 'contado')
                                 ->live(onBlur: true)
                                 ->afterStateUpdated(function ($state, Get $get, Set $set) {
@@ -206,6 +207,7 @@ class CreateVenta extends CreateRecord
                                         ->numeric()
                                         ->default(1)
                                         ->minValue(1)
+                                        ->maxValue(100000)
                                         ->required()
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(function ($state, Get $get, Set $set) {
@@ -215,6 +217,8 @@ class CreateVenta extends CreateRecord
                                     Forms\Components\TextInput::make('precio_unitario')
                                         ->label('Precio')
                                         ->numeric()
+                                        ->minValue(0)
+                                        ->maxValue(99999999.99)
                                         ->prefix('$')
                                         ->required()
                                         ->live(onBlur: true)
@@ -225,6 +229,8 @@ class CreateVenta extends CreateRecord
                                     Forms\Components\TextInput::make('descuento_porcentaje')
                                         ->label('Desc. (%)')
                                         ->numeric()
+                                        ->minValue(0)
+                                        ->maxValue(100)
                                         ->default(0)
                                         ->suffix('%')
                                         ->live(onBlur: true)
@@ -260,6 +266,8 @@ class CreateVenta extends CreateRecord
                             Forms\Components\TextInput::make('descuento_porcentaje')
                                 ->label('Descuento Global (%)')
                                 ->numeric()
+                                ->minValue(0)
+                                ->maxValue(100)
                                 ->suffix('%')
                                 ->default(0),
 
@@ -273,6 +281,8 @@ class CreateVenta extends CreateRecord
                             Forms\Components\TextInput::make('impuesto_porcentaje')
                                 ->label('Impuesto (%)')
                                 ->numeric()
+                                ->minValue(0)
+                                ->maxValue(100)
                                 ->suffix('%')
                                 ->default(0),
 
@@ -296,6 +306,7 @@ class CreateVenta extends CreateRecord
                                 ->prefix('$')
                                 ->default(0)
                                 ->minValue(0)
+                                ->maxValue(9999999999.99)
                                 ->helperText('Deje en 0 si es fiado completo'),
 
                             Forms\Components\TextInput::make('saldo_pendiente')

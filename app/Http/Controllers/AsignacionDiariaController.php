@@ -99,19 +99,22 @@ class AsignacionDiariaController extends Controller
             'sucursal_id' => 'required|exists:sucursales,id',
             'fecha' => 'required|date',
             'detalles' => 'required|array',
-            'detalles.*.producto_id' => 'required|exists:productos,id',
-            'detalles.*.cantidad_asignada' => 'required|numeric|min:1',
-            'detalles.*.precio_venta' => 'required|numeric',
+            'detalles.*.producto_id' => 'required|exists:productos,id|distinct',
+            'detalles.*.cantidad_asignada' => 'required|numeric|min:1|max:100000',
+            'detalles.*.precio_venta' => 'required|numeric|min:0|max:99999999.99',
         ]);
 
         // Validación: No puede haber dos asignaciones del mismo vendedor en el mismo día
-        $vendedorYaTieneAsignacionHoy = AsignacionDiaria::where('vendedor_id', $validated['vendedor_id'])
+        // La BD tiene un único (vendedor_id, fecha): una asignación ya liquidada ese día
+        // también impide crear otra, así que se revisa sin filtrar por estado.
+        $asignacionExistente = AsignacionDiaria::where('vendedor_id', $validated['vendedor_id'])
             ->whereDate('fecha', $validated['fecha'])
-            ->where('estado', 'activa')
-            ->exists();
+            ->first();
 
-        if ($vendedorYaTieneAsignacionHoy) {
-            return redirect()->back()->with('error', 'Este vendedor ya tiene una asignación activa para esta fecha.');
+        if ($asignacionExistente) {
+            return redirect()->back()->with('error', $asignacionExistente->estado === 'activa'
+                ? 'Este vendedor ya tiene una asignación activa para esta fecha.'
+                : 'Este vendedor ya tiene una asignación (ya liquidada) para esta fecha. Elige otra fecha.');
         }
 
         $asignacion = AsignacionDiaria::create([
@@ -144,10 +147,21 @@ class AsignacionDiariaController extends Controller
             'sucursal_id' => 'required|exists:sucursales,id',
             'fecha' => 'required|date',
             'detalles' => 'required|array',
-            'detalles.*.producto_id' => 'required|exists:productos,id',
-            'detalles.*.cantidad_asignada' => 'required|numeric|min:1',
-            'detalles.*.precio_venta' => 'required|numeric',
+            'detalles.*.producto_id' => 'required|exists:productos,id|distinct',
+            'detalles.*.cantidad_asignada' => 'required|numeric|min:1|max:100000',
+            'detalles.*.precio_venta' => 'required|numeric|min:0|max:99999999.99',
         ]);
+
+        // Único (vendedor_id, fecha) en la BD: no se puede mover esta asignación a un
+        // vendedor y fecha que ya tienen otra.
+        $choca = AsignacionDiaria::where('vendedor_id', $validated['vendedor_id'])
+            ->whereDate('fecha', $validated['fecha'])
+            ->whereKeyNot($asignacion->id)
+            ->exists();
+
+        if ($choca) {
+            return redirect()->back()->with('error', 'Ese vendedor ya tiene otra asignación para esa fecha.');
+        }
 
         // Validación: No puede reducir cantidad_asignada si ya se vendió
         foreach ($validated['detalles'] as $detalle) {

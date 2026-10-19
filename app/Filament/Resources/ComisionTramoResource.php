@@ -55,6 +55,7 @@ class ComisionTramoResource extends Resource
                 ->numeric()
                 ->prefix('$')
                 ->minValue(0)
+                ->maxValue(99999999.99)
                 ->step(0.01)
                 ->required()
                 ->helperText('Monto vendido en la semana a partir del cual aplica este porcentaje.'),
@@ -64,6 +65,7 @@ class ComisionTramoResource extends Resource
                 ->numeric()
                 ->prefix('$')
                 ->minValue(0)
+                ->maxValue(99999999.99)
                 ->step(0.01)
                 ->nullable()
                 ->helperText('Dejar vacío para "sin límite superior" (el último tramo).'),

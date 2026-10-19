@@ -240,7 +240,8 @@ class LiquidacionSemanalVentas extends Page
     {
         $this->validate([
             'anticipo_vendedor_id' => 'required|exists:vendedores,id',
-            'anticipo_monto'       => 'required|numeric|min:0.01',
+            'anticipo_monto'       => 'required|numeric|min:0.01|max:99999999.99',
+            'anticipo_descripcion' => 'nullable|string|max:255',
         ]);
 
         // Semana a la que pertenece este anticipo: si se está editando uno

@@ -30,7 +30,8 @@ class CuentasCobrarRelationManager extends RelationManager
                 ->numeric()
                 ->prefix('$')
                 ->required()
-                ->minValue(0.01),
+                ->minValue(0.01)
+                ->maxValue(99999999.99),
 
             Forms\Components\DatePicker::make('fecha_vencimiento')
                 ->label('Fecha de vencimiento')

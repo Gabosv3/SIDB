@@ -90,7 +90,8 @@ class CuadreCaja extends Page
 
         $texto = trim((string) ($this->recibido[$userId] ?? ''));
 
-        if ($texto === '' || ! is_numeric($texto) || (float) $texto < 0) {
+        // cuadres_caja.recibido es decimal(12,2): máximo 9,999,999,999.99.
+        if ($texto === '' || ! is_numeric($texto) || (float) $texto < 0 || (float) $texto > 9999999999.99) {
             Notification::make()->title('Escribe el efectivo recibido (un número, 0 o más)')->warning()->send();
 
             return;

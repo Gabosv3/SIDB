@@ -80,7 +80,7 @@ class EmpleadoPerfilController extends Controller
 
         $data = $request->validate([
             'foto' => ['nullable', 'image', 'max:4096'],
-            'dui' => ['nullable', 'string', 'max:10'],
+            'dui' => ['nullable', 'string', 'max:10', \Illuminate\Validation\Rule::unique('employee_profiles', 'dui')->ignore($empleado->id, 'user_id')],
             'nit' => ['nullable', 'string', 'max:20'],
             'fecha_nacimiento' => ['nullable', 'date', 'before_or_equal:today'],
             'genero' => ['nullable', 'in:masculino,femenino,otro'],
@@ -121,9 +121,9 @@ class EmpleadoPerfilController extends Controller
             'tipo_empleado.*' => ['in:vendedor,cobrador,supervisor'],
             'fecha_ingreso' => ['nullable', 'date'],
             'fecha_salida' => ['nullable', 'date'],
-            'salario_base' => ['nullable', 'numeric', 'min:0'],
-            'meta_ventas_mensual' => ['nullable', 'numeric', 'min:0'],
-            'meta_cobros_mensual' => ['nullable', 'numeric', 'min:0'],
+            'salario_base' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'meta_ventas_mensual' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'meta_cobros_mensual' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'tipo_contrato' => ['nullable', 'in:indefinido,temporal,por_obra,practica'],
             'modalidad_pago' => ['nullable', 'in:salario_fijo,comision,mixto'],
             'porcentaje_comision' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -228,7 +228,7 @@ class EmpleadoPerfilController extends Controller
 
         $data = $request->validate([
             'mes_periodo' => ['required', 'string', 'max:100'],
-            'monto' => ['required', 'numeric', 'min:0.01'],
+            'monto' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
             'fecha_pago' => ['required', 'date'],
             'metodo_pago' => ['required', 'in:efectivo,transferencia,cheque,deposito'],
             'referencia' => ['nullable', 'string', 'max:150'],

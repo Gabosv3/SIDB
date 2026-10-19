@@ -89,7 +89,8 @@ class VendedorResource extends Resource
                             name: 'user',
                             titleAttribute: 'name',
                             modifyQueryUsing: fn ($query, $record) => $query
-                                ->whereDoesntHave('vendedor', fn ($q) => $q->when($record, fn ($q) => $q->where('id', '!=', $record?->id))),
+                                // withTrashed: el único de vendedores.user_id también cuenta a los eliminados.
+                                ->whereDoesntHave('vendedor', fn ($q) => $q->withTrashed()->when($record, fn ($q) => $q->where('id', '!=', $record?->id))),
                         )
                         ->getOptionLabelFromRecordUsing(fn (User $u) => "{$u->name} ({$u->email})".($u->cobrador ? ' — también es cobrador' : ''))
                         ->searchable()

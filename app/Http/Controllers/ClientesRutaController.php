@@ -1304,7 +1304,7 @@ class ClientesRutaController extends Controller
     {
         $data = $request->validate([
             'venta_id' => 'required|integer',
-            'monto' => 'required|numeric|min:0',
+            'monto' => 'required|numeric|min:0|max:9999999999.99',
         ]);
 
         $venta = $cliente->ventas()->where('tipo_pago', 'credito')->where('id', $data['venta_id'])->first();
@@ -1374,7 +1374,7 @@ class ClientesRutaController extends Controller
             'venta_id' => 'required|integer',
             'fecha_pago' => 'required|date',
             'numero_recibo' => 'nullable|string',
-            'monto' => 'required|numeric|min:0',
+            'monto' => 'required|numeric|min:0|max:9999999999.99',
         ]);
 
         $venta = $cliente->ventas()->where('id', $data['venta_id'])->first();
@@ -1428,7 +1428,7 @@ class ClientesRutaController extends Controller
     {
         $data = $request->validate([
             'venta_id' => 'required|integer',
-            'total' => 'required|numeric|min:0.01',
+            'total' => 'required|numeric|min:0.01|max:99999999.99',
         ]);
 
         $venta = $cliente->ventas()->where('tipo_pago', 'credito')->where('id', $data['venta_id'])->first();

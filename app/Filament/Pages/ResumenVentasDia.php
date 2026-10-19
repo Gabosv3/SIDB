@@ -182,6 +182,13 @@ class ResumenVentasDia extends Page
             return;
         }
 
+        // clientes.codigo_anterior es varchar(100).
+        if (mb_strlen($valor) > 100) {
+            Notification::make()->title('El código no puede pasar de 100 caracteres')->warning()->send();
+
+            return;
+        }
+
         $cliente = Cliente::findOrFail($clienteId);
         $cliente->update(['codigo_anterior' => $valor]);
 
@@ -469,6 +476,7 @@ class ResumenVentasDia extends Page
                             ->label('Cantidad')
                             ->numeric()
                             ->minValue(1)
+                            ->maxValue(100000)
                             ->required(),
                     ])
                     ->columns(3)
@@ -480,7 +488,8 @@ class ResumenVentasDia extends Page
                     ->label('Prima inicial')
                     ->numeric()
                     ->prefix('$')
-                    ->minValue(0),
+                    ->minValue(0)
+                    ->maxValue(9999999999.99),
                 Forms\Components\Textarea::make('motivo')
                     ->label('Motivo de la corrección')
                     ->placeholder('Ej: Se quitó una silla que sobraba, prima corregida a $10')
