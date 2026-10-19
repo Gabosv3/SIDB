@@ -251,3 +251,28 @@ test('el codigo automatico de vendedor no se repite aunque el ultimo este elimin
 
     expect($c->codigo)->not->toBe($a->codigo)->and($c->codigo)->not->toBe($b->codigo);
 });
+
+test('replicar la asignacion del dia anterior copia productos, descuenta stock y respeta el tope de stock', function () {
+    $a = ($this->producto)('R-1', 10);
+    $b = ($this->producto)('R-2', 10);
+
+    $ayer = App\Models\AsignacionDiaria::create([
+        'vendedor_id' => $this->vendedor->id, 'sucursal_id' => $this->sucursal->id, 'fecha' => today()->subDay(), 'estado' => 'liquidada',
+    ]);
+    App\Models\DetalleAsignacion::create(['asignacion_id' => $ayer->id, 'producto_id' => $a->id, 'cantidad_asignada' => 4, 'precio_venta' => 2]);
+    App\Models\DetalleAsignacion::create(['asignacion_id' => $ayer->id, 'producto_id' => $b->id, 'cantidad_asignada' => 8, 'precio_venta' => 2]);
+    // Stock tras la asignacion de ayer: a=6, b=2 -> hoy solo alcanza para 2 de b.
+
+    $r = App\Services\ReplicarAsignacionService::replicar($this->vendedor->id, today()->toDateString());
+
+    expect($r['asignacion']->estado)->toBe('activa')
+        ->and($r['asignacion']->detalles()->count())->toBe(2)
+        ->and($r['asignacion']->detalles()->where('producto_id', $b->id)->value('cantidad_asignada'))->toBe(2)
+        ->and($r['ajustes'])->toHaveCount(1)
+        ->and($a->fresh()->stock)->toBe(2)
+        ->and($b->fresh()->stock)->toBe(0);
+
+    // No se puede replicar dos veces el mismo dia.
+    expect(fn () => App\Services\ReplicarAsignacionService::replicar($this->vendedor->id, today()->toDateString()))
+        ->toThrow(RuntimeException::class);
+});
