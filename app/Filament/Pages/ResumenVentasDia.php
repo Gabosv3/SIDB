@@ -60,6 +60,14 @@ class ResumenVentasDia extends Page
         return 1;
     }
 
+    /** Corregir/cancelar ventas y confirmar primas: super_admin o permiso propio. */
+    public function puedeGestionar(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->hasRole('super_admin') || $user->can('Gestionar:ResumenVentasDia'));
+    }
+
     public function mount(): void
     {
         $this->fecha = today()->toDateString();
@@ -372,6 +380,7 @@ class ResumenVentasDia extends Page
         return Action::make('confirmarPrima')
             ->label('Confirmar')
             ->icon('heroicon-m-check-circle')
+            ->visible(fn () => $this->puedeGestionar())
             ->requiresConfirmation()
             ->modalHeading('Confirmar prima del vendedor')
             ->modalDescription(function (array $arguments): string {
@@ -388,6 +397,8 @@ class ResumenVentasDia extends Page
                 );
             })
             ->action(function (array $arguments): void {
+                abort_unless($this->puedeGestionar(), 403);
+
                 $venta = Venta::with('detalles')->findOrFail($arguments['venta_id']);
 
                 if (! $venta->vendedor_id) {
@@ -439,6 +450,7 @@ class ResumenVentasDia extends Page
         return Action::make('corregirVenta')
             ->label('Corregir')
             ->icon('heroicon-m-pencil-square')
+            ->visible(fn () => $this->puedeGestionar())
             ->color('warning')
             ->modalHeading('Corregir venta')
             ->modalDescription('Ajusta cantidades, quita un producto de más, o corrige la prima. No se pueden agregar productos nuevos aquí — para eso, usa el formulario de edición completo en Ventas.')
@@ -511,6 +523,8 @@ class ResumenVentasDia extends Page
                     }),
             ])
             ->action(function (array $data, array $arguments): void {
+                abort_unless($this->puedeGestionar(), 403);
+
                 $venta = Venta::with('detalles')->findOrFail($arguments['venta_id']);
 
                 if (empty($data['detalles'])) {
@@ -566,6 +580,7 @@ class ResumenVentasDia extends Page
         return Action::make('cancelarVenta')
             ->label('Cancelar')
             ->icon('heroicon-m-x-circle')
+            ->visible(fn () => $this->puedeGestionar())
             ->color('danger')
             ->requiresConfirmation()
             ->modalHeading('Cancelar venta')
@@ -577,6 +592,8 @@ class ResumenVentasDia extends Page
                     ->rows(2),
             ])
             ->action(function (array $data, array $arguments): void {
+                abort_unless($this->puedeGestionar(), 403);
+
                 $venta = Venta::findOrFail($arguments['venta_id']);
                 $resultado = AnularVentaService::anular($venta, $data['motivo']);
 

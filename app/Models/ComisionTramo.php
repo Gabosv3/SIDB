@@ -28,11 +28,34 @@ class ComisionTramo extends Model
      */
     public static function porcentajePara(float $totalVendido): float
     {
-        $tramo = static::where('desde', '<=', $totalVendido)
-            ->where(fn ($q) => $q->whereNull('hasta')->orWhere('hasta', '>=', $totalVendido))
-            ->orderByDesc('desde')
+        // Los tramos se leen una sola vez por petición (antes era una
+        // consulta por cada producto de cada venta).
+        $tramo = static::tramosEnMemoria()
+            ->filter(fn (self $t) => (float) $t->desde <= $totalVendido
+                && ($t->hasta === null || (float) $t->hasta >= $totalVendido))
+            ->sortByDesc(fn (self $t) => (float) $t->desde)
             ->first();
 
         return $tramo ? (float) $tramo->porcentaje : 0.0;
+    }
+
+    /** @var \Illuminate\Support\Collection<int, self>|null */
+    private static ?\Illuminate\Support\Collection $tramosCache = null;
+
+    private static function tramosEnMemoria(): \Illuminate\Support\Collection
+    {
+        return static::$tramosCache ??= static::query()->get();
+    }
+
+    public static function olvidarCache(): void
+    {
+        static::$tramosCache = null;
+    }
+
+    protected static function booted(): void
+    {
+        $olvidar = fn () => static::olvidarCache();
+        static::saved($olvidar);
+        static::deleted($olvidar);
     }
 }

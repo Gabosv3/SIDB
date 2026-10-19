@@ -63,7 +63,7 @@ class ResumenVentasDiaService
     /** @param  Collection<int, object{venta: Venta, es_cliente_nuevo: bool}>  $resumen */
     public static function totales(Collection $resumen): array
     {
-        $validas = $resumen->reject(fn ($r) => $r->venta->estado === 'cancelada');
+        $validas = $resumen->reject(fn ($r) => in_array($r->venta->estado, ['cancelada', 'devuelta'], true));
 
         return [
             'total_vendido' => (float) $validas->sum(fn ($r) => (float) $r->venta->total),

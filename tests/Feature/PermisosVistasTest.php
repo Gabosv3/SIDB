@@ -97,3 +97,39 @@ test('el Dashboard y los widgets de bienvenida siguen abiertos para cualquier us
     expect(\Filament\Pages\Dashboard::canAccess())->toBeTrue()
         ->and(\Filament\Widgets\AccountWidget::canView())->toBeTrue();
 });
+
+test('Ventas del Dia: corregir, cancelar y confirmar prima exigen permiso de gestion', function () {
+    $this->actingAs($this->usuarioSin);
+    expect((new App\Filament\Pages\ResumenVentasDia)->puedeGestionar())->toBeFalse();
+
+    $this->usuarioCon->givePermissionTo(Permission::findOrCreate('Gestionar:ResumenVentasDia', 'web'));
+    $this->actingAs($this->usuarioCon);
+    expect((new App\Filament\Pages\ResumenVentasDia)->puedeGestionar())->toBeTrue();
+
+    $admin = User::factory()->create();
+    $admin->assignRole('super_admin');
+    $this->actingAs($admin);
+    expect((new App\Filament\Pages\ResumenVentasDia)->puedeGestionar())->toBeTrue();
+});
+
+test('el total vendido no cuenta ventas canceladas ni devueltas', function () {
+    $mk = fn ($estado, $total) => (object) ['venta' => (object) ['estado' => $estado, 'total' => $total, 'cliente_id' => 1], 'es_cliente_nuevo' => false];
+    $t = App\Services\ResumenVentasDiaService::totales(collect([$mk('completada', 100), $mk('devuelta', 50), $mk('cancelada', 70)]));
+
+    expect($t['total_vendido'])->toBe(100.0)->and($t['total_ventas'])->toBe(1)->and($t['ventas_canceladas'])->toBe(2);
+});
+
+test('los tramos de comision se leen una sola vez y se refrescan al editarlos', function () {
+    App\Models\ComisionTramo::query()->delete();
+    App\Models\ComisionTramo::olvidarCache();
+    $t = App\Models\ComisionTramo::create(['desde' => 0, 'hasta' => null, 'porcentaje' => 10]);
+    expect(App\Models\ComisionTramo::porcentajePara(50))->toBe(10.0);
+
+    Illuminate\Support\Facades\DB::enableQueryLog();
+    App\Models\ComisionTramo::porcentajePara(80);
+    App\Models\ComisionTramo::porcentajePara(120);
+    expect(count(Illuminate\Support\Facades\DB::getQueryLog()))->toBe(0);
+
+    $t->update(['porcentaje' => 15]);
+    expect(App\Models\ComisionTramo::porcentajePara(50))->toBe(15.0);
+});
