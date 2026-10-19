@@ -13,6 +13,7 @@ use App\Models\PagoCompra;
 use App\Observers\CompraObserver;
 use App\Observers\DetalleCompraObserver;
 use App\Observers\PagoCompraObserver;
+use App\Support\DefaultsDeBaseDeDatos;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -42,6 +43,18 @@ class AppServiceProvider extends ServiceProvider
 
         // Registrar último login (IP/dispositivo) en el perfil de empleado
         Event::listen(Login::class, RegistrarUltimoLogin::class);
+
+        // Un campo vacío llega como null y un null explícito ignora el DEFAULT de la BD
+        // (revienta en columnas NOT NULL). Se aplica el DEFAULT antes de guardar.
+        // TEMPORAL: la API móvil (api/*) queda fuera hasta validar estos cambios con calma;
+        // para incluirla, basta con quitar el if.
+        Event::listen('eloquent.saving: *', function (string $evento, array $datos) {
+            if (request()->is('api/*')) {
+                return;
+            }
+
+            DefaultsDeBaseDeDatos::aplicar($datos[0]);
+        });
 
         $this->registrarCapturaDeErroresFatales();
     }

@@ -219,3 +219,35 @@ test('el cuadre de caja calcula lo que debe entregar una persona', function () {
 
     expect($fila['cobros'])->toBe(20.0)->and($fila['gastos'])->toBe(3.0)->and($fila['esperado'])->toBe(17.0);
 });
+
+test('una compra con impuesto o descuento vacios se guarda con 0 y no revienta', function () {
+    $prov = new Proveedor();
+    $prov->forceFill(['nombre' => 'Prov', 'codigo' => 'PR' . random_int(1, 99999), 'email' => 'p2@test.com', 'telefono' => '70000001', 'activo' => true,
+        'contacto_principal' => 'x', 'direccion' => 'x', 'ciudad' => 'x', 'departamento' => 'x', 'pais' => 'SV'])->save();
+
+    // El formulario de Compras manda null cuando se deja vacio "Impuesto (%)" o "Descuento".
+    $c = Compra::create(['numero_compra' => 'C-' . random_int(1, 99999), 'proveedor_id' => $prov->id, 'usuario_id' => $this->user->id,
+        'fecha_compra' => now(), 'estado' => 'pendiente', 'forma_pago' => 'credito', 'subtotal' => 883.2, 'total' => 883.2,
+        'saldo_pendiente' => 883.2, 'impuesto_porcentaje' => null, 'descuento_monto' => null, 'impuesto_monto' => null]);
+
+    $c->refresh();
+    expect((float) $c->impuesto_porcentaje)->toBe(0.0)
+        ->and((float) $c->descuento_monto)->toBe(0.0)
+        ->and((float) $c->impuesto_monto)->toBe(0.0)
+        ->and((float) $c->total)->toBe(883.2);
+});
+
+test('el codigo automatico de vendedor no se repite aunque el ultimo este eliminado', function () {
+    $nuevo = fn (string $email) => Vendedor::create([
+        'nombre' => 'Ana', 'apellido' => 'Lopez', 'email' => $email, 'telefono' => '+50311100000',
+        'activo' => true, 'sucursal_id' => $this->sucursal->id,
+    ]);
+
+    $a = $nuevo('a1@test.com');
+    $b = $nuevo('a2@test.com');
+    $b->delete(); // soft delete: el unico de la BD igual cuenta su codigo
+
+    $c = $nuevo('a3@test.com');
+
+    expect($c->codigo)->not->toBe($a->codigo)->and($c->codigo)->not->toBe($b->codigo);
+});
