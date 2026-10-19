@@ -103,6 +103,9 @@ class LiquidacionSemanalVentas extends Page
                 ->map(fn ($grupo) => (object) [
                     'ventas' => $grupo->count(),
                     'total' => (float) $grupo->sum('total'),
+                    // Suma de los productos (antes de descuento/prima): es la
+                    // base real sobre la que se aplica el tramo.
+                    'base_productos' => (float) $grupo->flatMap->detalles->sum('subtotal'),
                     'comision' => round($grupo->flatMap->detalles->sum(
                         fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
                     ), 2),
@@ -141,6 +144,7 @@ class LiquidacionSemanalVentas extends Page
                 $venta = $ventasPorDia->get($fechaStr);
                 $totalDia = (float) ($venta?->total ?? 0);
                 $comisionDia = (float) ($venta?->comision ?? 0);
+                $baseDia = (float) ($venta?->base_productos ?? 0);
                 $anticiposDia = (float) ($anticiposPorDia->get($fechaStr) ?? 0);
                 $valeDia = (float) ($valesPorDia->get($fechaStr) ?? 0);
 
@@ -149,10 +153,10 @@ class LiquidacionSemanalVentas extends Page
                     'ventas' => $venta?->ventas ?? 0,
                     'total' => $totalDia,
                     'comision' => $comisionDia,
-                    // % real de ese día (comisión / vendido) -- para cuadrar
+                    // % real de ese día (comisión / suma de productos) -- para cuadrar
                     // a ojo contra el tramo esperado, igual que el "% efectivo"
                     // de la semana completa arriba.
-                    'porcentaje_comision' => $totalDia > 0 ? round($comisionDia / $totalDia * 100, 2) : 0.0,
+                    'porcentaje_comision' => $baseDia > 0 ? round($comisionDia / $baseDia * 100, 2) : 0.0,
                     'anticipos' => $anticiposDia,
                     'vale_consumo' => $valeDia,
                     // Lo que todavía le falta por pagar de ese día: la
