@@ -170,11 +170,11 @@ class ClienteController extends Controller
         $data = $request->validate([
             'nombre'           => 'required|string|max:100',
             'apellido'         => 'required|string|max:100',
-            'dui'              => 'nullable|string|max:20|unique:clientes,dui',
+            'dui'              => 'nullable|string|max:15|unique:clientes,dui',
             'codigo_anterior'  => 'nullable|string|max:50',
             'telefono_normal'  => 'nullable|string|max:20|regex:/^[0-9\-\s]{8,20}$/',
             'telefono_whatsapp'=> 'nullable|string|max:20|regex:/^[0-9\-\s]{8,20}$/',
-            'email'            => 'nullable|email|max:100',
+            'email'            => 'nullable|email|max:100|unique:clientes,email',
             'direccion'        => 'nullable|string|max:255',
             'departamento'     => 'nullable|string|max:100',
             'municipio'        => 'nullable|string|max:100',
@@ -352,8 +352,11 @@ class ClienteController extends Controller
             'apellido' => 'nullable|string|max:100',
         ]);
 
+        // Un campo vacío llega como null y las columnas nombre/apellido no lo aceptan: se ignora.
+        $data = array_filter($data, fn ($valor) => filled($valor));
+
         // Validar que al menos uno de los campos esté presente
-        if (empty(array_filter($data))) {
+        if (empty($data)) {
             return response()->json([
                 'message' => 'Debe proporcionar al menos nombre o apellido.',
             ], 422);

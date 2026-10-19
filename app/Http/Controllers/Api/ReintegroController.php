@@ -257,11 +257,21 @@ class ReintegroController extends Controller
             ->selectRaw('COUNT(*) as cuotas_vencidas, COALESCE(SUM(monto_cuota - monto_pagado), 0) as monto_adeudado')
             ->first();
 
+        // reintegros.sucursal_id es NOT NULL y las ventas antiguas/importadas pueden no tenerla.
+        $sucursalId = $venta->sucursal_id
+            ?? $venta->cliente?->sucursal_id
+            ?? $request->user()->vendedor?->sucursal_id
+            ?? $request->user()->cobrador?->sucursal_id;
+
+        if (! $sucursalId) {
+            return response()->json(['mensaje' => 'No se pudo determinar la sucursal de esta venta.'], 422);
+        }
+
         $reintegro = Reintegro::create([
             'venta_id'         => $venta->id,
             'cliente_id'       => $venta->cliente_id,
             'vendedor_id'      => null,
-            'sucursal_id'      => $venta->sucursal_id,
+            'sucursal_id'      => $sucursalId,
             'asignado_por'     => $request->user()->id,
             'estado'           => 'pendiente',
             'motivo'           => $data['motivo'] ?? null,

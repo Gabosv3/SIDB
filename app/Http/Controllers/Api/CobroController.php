@@ -32,6 +32,19 @@ class CobroController extends Controller
         return $dias[now()->dayOfWeekIso];
     }
 
+    /**
+     * cobradores.email es único (cuenta también a los eliminados): si otro cobrador ya usa
+     * ese correo, el perfil se crea sin él en vez de reventar con un 500 en el primer cobro.
+     */
+    private function emailLibreParaCobrador(?string $email): ?string
+    {
+        if (blank($email)) {
+            return null;
+        }
+
+        return Cobrador::withTrashed()->where('email', $email)->exists() ? null : $email;
+    }
+
     private function cobrador(Request $request)
     {
         $user = $request->user();
@@ -47,7 +60,7 @@ class CobroController extends Controller
                         'nombre'      => $vendedor->nombre,
                         'apellido'    => $vendedor->apellido,
                         'telefono'    => $vendedor->telefono,
-                        'email'       => $vendedor->email,
+                        'email'       => $this->emailLibreParaCobrador($vendedor->email),
                         'activo'      => true,
                     ]
                 );
@@ -69,7 +82,7 @@ class CobroController extends Controller
                         'nombre'      => $supervisor->nombre,
                         'apellido'    => $supervisor->apellido,
                         'telefono'    => $supervisor->telefono,
-                        'email'       => $supervisor->email,
+                        'email'       => $this->emailLibreParaCobrador($supervisor->email),
                         'activo'      => true,
                     ]
                 );
@@ -2059,9 +2072,9 @@ class CobroController extends Controller
             'monto_frecuencia_pago' => 'nullable|string|max:1000',
             'cobrador_reportado_cliente' => 'nullable|string|max:255',
             'recibio_comprobante' => 'nullable|boolean',
-            'ultimo_pago_monto_cliente' => 'nullable|numeric|min:0',
+            'ultimo_pago_monto_cliente' => 'nullable|numeric|min:0|max:99999999.99',
             'ultimo_pago_fecha_cliente' => 'nullable|date',
-            'saldo_informado_cliente' => 'nullable|numeric|min:0',
+            'saldo_informado_cliente' => 'nullable|numeric|min:0|max:99999999.99',
             'resultado' => 'required|in:coincide,diferencia_investigar,pago_no_registrado,comprobante_inconsistente',
             'observaciones' => 'nullable|string|max:1000',
         ]);
