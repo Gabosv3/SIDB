@@ -214,7 +214,14 @@ class EmpleadoPerfilController extends Controller
         if (in_array('supervisor', $tiposEmpleado, true)) {
             $supervisor = Supervisor::updateOrCreate(
                 ['user_id' => $empleado->id],
-                ['nombre' => $nombre, 'apellido' => $apellido, 'email' => $empleado->email, 'activo' => $activo]
+                [
+                    'nombre' => $nombre,
+                    'apellido' => $apellido,
+                    'email' => $empleado->email,
+                    'activo' => $activo,
+                    // Sin sucursal el supervisor no aparece en el panel (se filtra por sucursal).
+                    'sucursal_id' => Supervisor::where('user_id', $empleado->id)->value('sucursal_id') ?? $sucursalIdAsignada,
+                ]
             );
             $supervisor->rutasSupervisadas()->sync($rutasSupervisadas);
         } else {
