@@ -173,6 +173,9 @@ Route::middleware(['auth:sanctum', CopiarMensajeAMessage::class])->group(functio
             Route::get('/clientes/buscar', [CobroController::class, 'buscarCliente']);
 
             // Detalle e historial del cliente
+            // Detalle de varios clientes en una sola petición (precarga del día)
+            Route::get('/clientes-lote', [CobroController::class, 'detalleClientesLote']);
+
             Route::get('/clientes/{id}', [CobroController::class, 'detalleCliente']);
             Route::get('/clientes/{id}/gestiones-pendientes', [CobroController::class, 'gestionesPendientes']);
 

@@ -625,6 +625,20 @@ class CobroController extends Controller
             ->filter(fn ($g) => $g->venta && ! in_array($g->venta->estado, ['cancelada', 'devuelta'], true))
             ->values();
 
+        return response()->json($this->armarDetalleCliente($cliente, $gestiones));
+    }
+
+    // Arma la respuesta de detalle de UN cliente a partir de sus gestiones ya
+    // cargadas (con venta y detalles.producto). La usan detalleCliente (un
+    // cliente) y detalleClientesLote (varios, para la precarga del día).
+    private function armarDetalleCliente(\App\Models\Cliente $cliente, $gestiones): array
+    {
+        // Al cancelar o devolver una venta, sus cuotas NO se borran de
+        // gestion_cobros, y una venta eliminada deja la cuota con venta null.
+        $gestiones = $gestiones
+            ->filter(fn ($g) => $g->venta && ! in_array($g->venta->estado, ['cancelada', 'devuelta'], true))
+            ->values();
+
         $ventas = $gestiones->groupBy('venta_id')->map(function ($cuotas) {
             $venta    = $cuotas->first()->venta;
             $vencidas = $cuotas->filter(fn ($g) => $g->fecha_vencimiento->isPast() && $g->estado !== 'cobrado');
@@ -669,9 +683,9 @@ class CobroController extends Controller
         // Último abono del cliente — el cobrador necesita verlo apenas entra
         // al detalle, para saber si ya pasó mucho tiempo sin pagar sin tener
         // que revisar cuota por cuota.
-        $ultimoPago = $this->ultimoTicketPago($id);
+        $ultimoPago = $this->ultimoTicketPago($cliente->id);
 
-        return response()->json([
+        return [
             'cliente' => [
                 'id'             => $cliente->id,
                 'nombre'         => $cliente->nombre_completo,
@@ -693,6 +707,65 @@ class CobroController extends Controller
                 'cuotas_vencidas'   => $totalVencidas,
             ],
             'ventas' => $ventas,
+        ];
+    }
+
+    // ── GET /cobros/clientes-lote?ids=1,2,3 ───────────────────────────────────
+    // Detalle de VARIOS clientes en una sola petición. La app lo usa al iniciar
+    // el día para dejar guardado el detalle de toda la ruta sin hacer una
+    // petición (y un arranque de Laravel) por cliente: con 100+ clientes eso
+    // saturaba el servidor y volvía lenta la app. Cada cliente trae exactamente
+    // lo mismo que GET /cobros/clientes/{id}. Máximo 40 ids por llamada.
+    public function detalleClientesLote(Request $request): JsonResponse
+    {
+        $cobrador = $this->cobrador($request);
+        if (! $cobrador) {
+            return response()->json(['mensaje' => 'No se encontró perfil de cobrador.'], 403);
+        }
+
+        $ids = collect(is_array($request->input('ids')) ? $request->input('ids') : explode(',', (string) $request->input('ids')))
+            ->map(fn ($v) => (int) trim((string) $v))
+            ->filter(fn ($v) => $v > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return response()->json(['mensaje' => 'Indica al menos un id de cliente.', 'message' => 'Indica al menos un id de cliente.'], 422);
+        }
+        if ($ids->count() > 40) {
+            return response()->json(['mensaje' => 'Máximo 40 clientes por petición.', 'message' => 'Máximo 40 clientes por petición.'], 422);
+        }
+
+        $clientes = \App\Models\Cliente::whereIn('id', $ids)
+            ->whereIn('ruta_cobro_id', $this->rutasIdsAccesibles($request, $cobrador))
+            ->with('rutaCobro')
+            ->get()
+            ->keyBy('id');
+
+        // UNA consulta de gestiones para todos (con sus relaciones), agrupada por cliente.
+        $gestionesPorCliente = GestionCobro::whereIn('cliente_id', $clientes->keys())
+            ->with([
+                'venta:id,numero_venta,total,fecha_venta,estado,monto_pagado,saldo_pendiente',
+                'venta.detalles.producto:id,nombre',
+            ])
+            ->orderBy('venta_id')
+            ->orderBy('numero_cuota')
+            ->get()
+            ->groupBy('cliente_id');
+
+        $detalles = [];
+        foreach ($ids as $id) {
+            $cliente = $clientes->get($id);
+            if (! $cliente) {
+                continue;
+            }
+            $detalles[] = $this->armarDetalleCliente($cliente, $gestionesPorCliente->get($id, collect()));
+        }
+
+        return response()->json([
+            'detalles' => $detalles,
+            // Ids pedidos que no pertenecen a las rutas del usuario (o no existen).
+            'omitidos' => $ids->reject(fn ($id) => $clientes->has($id))->values(),
         ]);
     }
 
