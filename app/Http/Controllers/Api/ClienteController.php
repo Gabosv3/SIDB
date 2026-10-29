@@ -109,7 +109,7 @@ class ClienteController extends Controller
             // Si todavía no ha vendido nada hoy, se deja el scope normal
             // (clientes de su sucursal) para no mostrar una lista vacía.
             $clienteIdsHoy = Venta::where('vendedor_id', $vendedor->id)
-                ->whereDate('fecha_venta', today())
+                ->whereFecha('fecha_venta', today())
                 ->pluck('cliente_id')
                 ->filter()
                 ->unique();

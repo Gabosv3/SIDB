@@ -21,7 +21,7 @@ class CreateReintegro extends CreateRecord
         if (! empty($data['venta_id'])) {
             $stats = GestionCobro::where('venta_id', $data['venta_id'])
                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                ->whereDate('fecha_vencimiento', '<=', today())
+                ->whereFecha('fecha_vencimiento', '<=', today())
                 ->selectRaw('COUNT(*) as cuotas_vencidas, COALESCE(SUM(monto_cuota - monto_pagado), 0) as monto_adeudado')
                 ->first();
 

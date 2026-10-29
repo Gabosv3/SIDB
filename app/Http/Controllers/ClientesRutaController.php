@@ -1389,7 +1389,7 @@ class ClientesRutaController extends Controller
         // Un recibo ya anulado no se puede "corregir" — primero hay que reactivarlo.
         $pagosDelGrupo = ! empty($data['numero_recibo'])
             ? $venta->pagos()->where('numero_recibo', $data['numero_recibo'])->whereNull('anulado_en')->orderBy('id')->get()
-            : $venta->pagos()->whereDate('fecha_pago', $data['fecha_pago'])->whereNull('numero_recibo')->whereNull('anulado_en')->orderBy('id')->get();
+            : $venta->pagos()->whereFecha('fecha_pago', $data['fecha_pago'])->whereNull('numero_recibo')->whereNull('anulado_en')->orderBy('id')->get();
 
         if ($pagosDelGrupo->isEmpty()) {
             return response()->json(['mensaje' => 'No se encontraron pagos vigentes para ese recibo en esta venta.'], 422);

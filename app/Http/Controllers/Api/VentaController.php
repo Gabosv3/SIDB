@@ -259,7 +259,7 @@ class VentaController extends Controller
             $cantidadVendidaHoy = DetalleVenta::where('producto_id', $productoId)
                 ->whereHas('venta', function ($query) use ($vendedor) {
                     $query->where('vendedor_id', $vendedor->id)
-                        ->whereDate('fecha_venta', today())
+                        ->whereFecha('fecha_venta', today())
                         ->whereIn('estado', ['pendiente', 'completada']);
                 })
                 ->sum('cantidad');

@@ -25,7 +25,7 @@ class VentasMensualesChart extends ChartWidget
             $fecha = Carbon::now()->subDays($i)->startOfDay();
             $dias->push($fecha->format('d/m'));
 
-            $total = Venta::whereDate('fecha_venta', $fecha)->sum('total');
+            $total = Venta::whereFecha('fecha_venta', $fecha)->sum('total');
             $totales->push((float) $total);
         }
 
