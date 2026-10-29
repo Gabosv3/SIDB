@@ -13,6 +13,7 @@ use App\Http\Controllers\HikvisionAsistenciaWebhookController;
 use App\Http\Controllers\Api\PagareController;
 use App\Http\Controllers\Api\PagoVentaController;
 use App\Http\Controllers\Api\PosController;
+use App\Http\Controllers\Api\SyncErrorController;
 use App\Http\Controllers\Api\PreventaController;
 use App\Http\Controllers\Api\ProductoController;
 use App\Http\Controllers\Api\PushTokenController;
@@ -83,6 +84,9 @@ Route::middleware(['auth:sanctum', CopiarMensajeAMessage::class])->group(functio
 
         // ── POS: heartbeat de estado del dispositivo ────────────────────────
         Route::post('/pos/heartbeat', [PosController::class, 'heartbeat']);
+
+        // ── La app reporta operaciones que no pudo subir (para el panel de monitoreo) ──
+        Route::post('/sync-errores', [SyncErrorController::class, 'store']);
 
         // ── Catálogos (cualquier perfil POS puede leer) ──────────────────────
         Route::get('/categorias', [CategoriaController::class, 'index']);

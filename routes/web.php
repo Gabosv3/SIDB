@@ -136,7 +136,14 @@ Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function 
         Route::get('{tenant}/monitor/data', 'App\Http\Controllers\PosMonitorController@data')
             ->name('monitor.data')
             ->where('tenant', '[0-9]+');
+        Route::get('{tenant}/monitor/sync-errores', 'App\Http\Controllers\PosMonitorController@syncErrores')
+            ->name('monitor.sync-errores')
+            ->where('tenant', '[0-9]+');
     });
+    Route::post('{tenant}/monitor/sync-errores/resolver', 'App\Http\Controllers\PosMonitorController@resolverSyncErrores')
+        ->middleware('can:Gestionar:DispositivosPos')
+        ->name('monitor.sync-errores.resolver')
+        ->where('tenant', '[0-9]+');
     Route::post('{tenant}/monitor/dispositivos/{device}/liberar', 'App\Http\Controllers\PosMonitorController@liberarDispositivo')
         ->middleware('can:Gestionar:DispositivosPos')
         ->name('monitor.liberar')

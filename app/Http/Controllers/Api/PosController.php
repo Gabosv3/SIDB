@@ -19,6 +19,10 @@ class PosController extends Controller
             'bateria'       => 'nullable|integer|between:0,100',
             'app_version'   => 'nullable|string|max:50',
             'error'         => 'nullable|string|max:500',
+            // Lo que el teléfono tiene sin subir (cola offline) — el panel avisa si se atasca.
+            'pendientes_sync'       => 'nullable|integer|min:0|max:65000',
+            'pendiente_antiguo_min' => 'nullable|integer|min:0',
+            'rechazados_sync'       => 'nullable|integer|min:0|max:65000',
         ]);
 
         $user = $request->user();
@@ -50,6 +54,9 @@ class PosController extends Controller
             'tiene_internet' => true,
             'app_version'    => $data['app_version'] ?? null,
             'ultimo_error'   => $data['error'] ?? null,
+            'pendientes_sync'       => $data['pendientes_sync'] ?? 0,
+            'pendiente_antiguo_min' => $data['pendiente_antiguo_min'] ?? null,
+            'rechazados_sync'       => $data['rechazados_sync'] ?? 0,
             'ultimo_ping'    => now(),
         ]);
 
