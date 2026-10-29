@@ -17,6 +17,7 @@ use App\Support\DefaultsDeBaseDeDatos;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use PragmaRX\Google2FAQRCode\Google2FA;
 
@@ -30,6 +31,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // En producción todo URL que genera Laravel (asset('storage/...') de fotos y
+        // comprobantes, paginación, etc.) debe salir como https. Sin esto, detrás
+        // de un proxy las fotos llegan a la app como http:// y Android las bloquea
+        // como contenido mixto.
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+
         // Registrar Observers
         Compra::observe(CompraObserver::class);
         DetalleCompra::observe(DetalleCompraObserver::class);
