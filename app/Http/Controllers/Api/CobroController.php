@@ -1090,7 +1090,7 @@ class CobroController extends Controller
     public function pagarCliente(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'monto'           => 'required|numeric|min:0.01',
+            'monto'           => 'required|numeric|min:0.01|max:99999999.99',
             'metodo_pago'     => 'required|in:efectivo,transferencia,cheque,deposito',
             'venta_id'        => 'required|integer|exists:ventas,id',
             'referencia'      => 'nullable|string|max:100',
@@ -1285,7 +1285,7 @@ class CobroController extends Controller
     public function pagar(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'monto' => 'required|numeric|min:0.01',
+            'monto' => 'required|numeric|min:0.01|max:99999999.99',
             'metodo_pago' => 'required|in:efectivo,transferencia,cheque,deposito',
             'referencia' => 'nullable|string|max:100',
             'observaciones' => 'nullable|string|max:500',
