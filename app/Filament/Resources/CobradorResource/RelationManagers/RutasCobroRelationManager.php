@@ -27,7 +27,15 @@ class RutasCobroRelationManager extends RelationManager
                         ->label('Nombre de la ruta')
                         ->placeholder('Ej: Ruta Centro')
                         ->required()
-                        ->maxLength(150),
+                        ->maxLength(150)
+                        // La BD tiene un único (cobrador_id, nombre) que cuenta también las rutas borradas.
+                        ->unique(
+                            'rutas_cobro',
+                            'nombre',
+                            ignoreRecord: true,
+                            modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->where('cobrador_id', $this->getOwnerRecord()->id),
+                        )
+                        ->validationMessages(['unique' => 'Este cobrador ya tiene una ruta con ese nombre (incluye las rutas eliminadas).']),
 
                     Forms\Components\TextInput::make('descripcion')
                         ->label('Descripción')

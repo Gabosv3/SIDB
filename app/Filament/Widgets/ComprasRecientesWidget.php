@@ -8,9 +8,12 @@ use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 
 class ComprasRecientesWidget extends TableWidget
 {
+    use HasWidgetShield;
+
     protected static ?string $heading = 'Compras Recientes';
     protected static ?int $sort = 7;
     protected int|string|array $columnSpan = 'full';

@@ -11,9 +11,12 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class AsistenciaEmpleados extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Asistencia de Empleados';
     protected static ?string $title = 'Asistencia de Empleados';
     protected static ?int $navigationSort = 10;

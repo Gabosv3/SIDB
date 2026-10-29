@@ -500,11 +500,14 @@ class ClienteResource extends Resource implements HasShieldPermissions
                                         ->prefix('$')
                                         ->default(0)
                                         ->minValue(0)
+                                        ->maxValue(99999999.99)
                                         ->helperText('Monto máximo de crédito autorizado'),
 
                                     Forms\Components\TextInput::make('saldo')
                                         ->label('Saldo actual')
                                         ->numeric()
+                                        ->minValue(-99999999.99)
+                                        ->maxValue(99999999.99)
                                         ->prefix('$')
                                         ->default(0)
                                         ->helperText('Saldo pendiente del cliente'),

@@ -58,7 +58,7 @@ Route::post('asistente/no-entendida', 'App\Http\Controllers\AsistenteController@
     ->middleware(['web', 'auth', 'throttle:30,1'])
     ->name('asistente.no-entendida');
 
-Route::middleware(['web', 'auth'])->prefix('productos')->name('productos.')->group(function () {
+Route::middleware(['web', 'auth', 'can:ViewAny:Producto'])->prefix('productos')->name('productos.')->group(function () {
     Route::get('{tenant}/conteo-inventario', 'App\Http\Controllers\ProductoController@generarConteoInventario')
         ->name('conteo-inventario')
         ->where('tenant', '[0-9]+');
@@ -112,17 +112,17 @@ Route::middleware(['web', 'auth', 'can:View:Reportes'])->prefix('reportes')->nam
 });
 
 Route::get('reportes/clientes-inactivos/{tenant}', 'App\Http\Controllers\ReporteController@reporteClientesInactivos')
-    ->middleware(['web', 'auth'])
+    ->middleware(['web', 'auth', 'can:View:ClientesInactivos'])
     ->name('reporte.clientes-inactivos')
     ->where('tenant', '[0-9]+');
 
 Route::get('reportes/resumen-mensual/{tenant}', 'App\Http\Controllers\ReporteController@resumenMensual')
-    ->middleware(['web', 'auth'])
+    ->middleware(['web', 'auth', 'can:View:ResumenMensual'])
     ->name('reporte.resumen-mensual')
     ->where('tenant', '[0-9]+');
 
 Route::get('reportes/clientes-seleccionados/{tenant}', 'App\Http\Controllers\ReporteController@reporteClientesSeleccionados')
-    ->middleware(['web', 'auth'])
+    ->middleware(['web', 'auth', 'can:View:ResumenVentasDia'])
     ->name('reporte.clientes-seleccionados')
     ->where('tenant', '[0-9]+');
 
@@ -136,7 +136,14 @@ Route::middleware(['web', 'auth'])->prefix('pos')->name('pos.')->group(function 
         Route::get('{tenant}/monitor/data', 'App\Http\Controllers\PosMonitorController@data')
             ->name('monitor.data')
             ->where('tenant', '[0-9]+');
+        Route::get('{tenant}/monitor/sync-errores', 'App\Http\Controllers\PosMonitorController@syncErrores')
+            ->name('monitor.sync-errores')
+            ->where('tenant', '[0-9]+');
     });
+    Route::post('{tenant}/monitor/sync-errores/resolver', 'App\Http\Controllers\PosMonitorController@resolverSyncErrores')
+        ->middleware('can:Gestionar:DispositivosPos')
+        ->name('monitor.sync-errores.resolver')
+        ->where('tenant', '[0-9]+');
     Route::post('{tenant}/monitor/dispositivos/{device}/liberar', 'App\Http\Controllers\PosMonitorController@liberarDispositivo')
         ->middleware('can:Gestionar:DispositivosPos')
         ->name('monitor.liberar')

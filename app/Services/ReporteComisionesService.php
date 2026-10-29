@@ -72,9 +72,7 @@ class ReporteComisionesService
                     // subtotal de esa línea), no por el total de la venta ni
                     // por un % fijo del perfil -- igual que en la Liquidación
                     // Semanal de Ventas y en "Confirmar prima".
-                    $comisionVendedor = round($ventas->flatMap->detalles->sum(
-                        fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
-                    ), 2);
+                    $comisionVendedor = round($ventas->sum(fn (Venta $v) => $v->comisionVendedor()), 2);
                 }
             }
 

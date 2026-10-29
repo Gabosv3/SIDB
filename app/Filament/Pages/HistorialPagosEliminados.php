@@ -10,9 +10,11 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Table;
 use Spatie\Activitylog\Models\Activity;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class HistorialPagosEliminados extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static ?string $navigationLabel = 'Pagos Eliminados';
@@ -90,10 +92,5 @@ class HistorialPagosEliminados extends Page implements HasTable
             ->defaultSort('created_at', 'desc')
             ->striped()
             ->paginated([25, 50, 100]);
-    }
-
-    public static function canAccess(): bool
-    {
-        return auth()->user()?->hasRole('super_admin') ?? false;
     }
 }

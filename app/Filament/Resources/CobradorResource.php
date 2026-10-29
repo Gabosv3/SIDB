@@ -100,7 +100,8 @@ class CobradorResource extends Resource implements HasShieldPermissions
                             name: 'user',
                             titleAttribute: 'name',
                             modifyQueryUsing: fn ($query, $record) => $query
-                                ->whereDoesntHave('cobrador', fn ($q) => $q->when($record, fn ($q) => $q->where('id', '!=', $record?->id))),
+                                // withTrashed: el único de cobradores.user_id también cuenta a los eliminados.
+                                ->whereDoesntHave('cobrador', fn ($q) => $q->withTrashed()->when($record, fn ($q) => $q->where('id', '!=', $record?->id))),
                         )
                         ->getOptionLabelFromRecordUsing(fn (User $u) => "{$u->name} ({$u->email})".($u->vendedor ? ' — también es vendedor' : ''))
                         ->searchable()

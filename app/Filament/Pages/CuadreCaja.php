@@ -10,9 +10,12 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class CuadreCaja extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Cuadre de Caja';
     protected static ?string $title = 'Cuadre de Caja';
     protected string $view = 'filament.pages.cuadre-caja';
@@ -90,7 +93,8 @@ class CuadreCaja extends Page
 
         $texto = trim((string) ($this->recibido[$userId] ?? ''));
 
-        if ($texto === '' || ! is_numeric($texto) || (float) $texto < 0) {
+        // cuadres_caja.recibido es decimal(12,2): máximo 9,999,999,999.99.
+        if ($texto === '' || ! is_numeric($texto) || (float) $texto < 0 || (float) $texto > 9999999999.99) {
             Notification::make()->title('Escribe el efectivo recibido (un número, 0 o más)')->warning()->send();
 
             return;

@@ -7,9 +7,12 @@ use App\Services\ReporteCobrosService;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ReportesCobros extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Reportes de Cobros';
     protected static ?string $title = 'Reportes de Cobros';
     protected static ?int $navigationSort = 4;

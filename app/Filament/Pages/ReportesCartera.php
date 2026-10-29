@@ -5,9 +5,12 @@ namespace App\Filament\Pages;
 use App\Services\ReporteCarteraService;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ReportesCartera extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Reportes de Cartera';
     protected static ?string $title = 'Reportes de Cartera y Morosidad';
     protected static ?int $navigationSort = 7;

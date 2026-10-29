@@ -32,9 +32,7 @@ class ConfirmarPrimasPendientes extends Command
         $confirmadas = 0;
 
         foreach ($ventas as $venta) {
-            $tope = round($venta->detalles->sum(
-                fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
-            ), 2);
+            $tope = $venta->comisionVendedor();
             $monto = min((float) $venta->prima, $tope);
 
             $inicioSemana = Carbon::parse($venta->fecha_venta)->startOfWeek(Carbon::MONDAY);

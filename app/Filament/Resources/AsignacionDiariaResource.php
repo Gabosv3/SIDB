@@ -95,6 +95,14 @@ class AsignacionDiariaResource extends Resource
                         ->searchable()
                         ->preload()
                         ->required()
+                        // Único (vendedor_id, fecha) en la BD: un vendedor no puede tener dos asignaciones el mismo día.
+                        ->unique(
+                            table: 'asignaciones_diarias',
+                            column: 'vendedor_id',
+                            ignoreRecord: true,
+                            modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule, \Filament\Schemas\Components\Utilities\Get $get) => $rule->where('fecha', $get('fecha')),
+                        )
+                        ->validationMessages(['unique' => 'Este vendedor ya tiene una asignación para esa fecha.'])
                         ->helperText('Solo aparecen vendedores activos con usuario del sistema vinculado.')
                         ->live()
                         ->afterStateUpdated(function ($state, Set $set) {
@@ -149,6 +157,9 @@ class AsignacionDiariaResource extends Resource
                                 ->searchable()
                                 ->preload()
                                 ->required()
+                                // Único (asignacion_id, producto_id): el mismo producto no puede repetirse.
+                                ->distinct()
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                                 ->live()
                                 ->afterStateUpdated(function ($state, Set $set) {
                                     if ($state) {

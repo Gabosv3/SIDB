@@ -31,6 +31,7 @@ class MantenimientosRelationManager extends RelationManager
                         ->label('Kilometraje')
                         ->numeric()
                         ->minValue(0)
+                        ->maxValue(9999999)
                         ->suffix('km')
                         ->required(),
 
@@ -55,12 +56,14 @@ class MantenimientosRelationManager extends RelationManager
                         ->label('Costo')
                         ->prefix('$')
                         ->numeric()
-                        ->minValue(0),
+                        ->minValue(0)
+                        ->maxValue(99999999.99),
 
                     Forms\Components\TextInput::make('proximo_cambio_km')
                         ->label('Próximo cambio sugerido')
                         ->numeric()
                         ->minValue(0)
+                        ->maxValue(9999999)
                         ->suffix('km')
                         ->helperText('Kilometraje al que debería hacerse el siguiente cambio de este tipo.'),
 

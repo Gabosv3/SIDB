@@ -73,6 +73,7 @@ class GestionCobroResource extends Resource
                         ->label('Estado')
                         ->options([
                             'pendiente' => 'Pendiente',
+                            'parcialmente_cobrado' => 'Parcialmente cobrado',
                             'cobrado' => 'Cobrado',
                             'vencido' => 'Vencido',
                         ])
@@ -151,6 +152,7 @@ class GestionCobroResource extends Resource
                 Tables\Filters\SelectFilter::make('estado')
                     ->options([
                         'pendiente' => 'Pendiente',
+                        'parcialmente_cobrado' => 'Parcialmente cobrado',
                         'cobrado' => 'Cobrado',
                         'vencido' => 'Vencido',
                     ]),

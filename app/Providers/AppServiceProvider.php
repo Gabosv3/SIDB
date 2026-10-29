@@ -13,9 +13,11 @@ use App\Models\PagoCompra;
 use App\Observers\CompraObserver;
 use App\Observers\DetalleCompraObserver;
 use App\Observers\PagoCompraObserver;
+use App\Support\DefaultsDeBaseDeDatos;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use PragmaRX\Google2FAQRCode\Google2FA;
 
@@ -29,6 +31,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // En producción todo URL que genera Laravel (asset('storage/...') de fotos y
+        // comprobantes, paginación, etc.) debe salir como https. Sin esto, detrás
+        // de un proxy las fotos llegan a la app como http:// y Android las bloquea
+        // como contenido mixto.
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
+
         // Registrar Observers
         Compra::observe(CompraObserver::class);
         DetalleCompra::observe(DetalleCompraObserver::class);
@@ -42,6 +52,18 @@ class AppServiceProvider extends ServiceProvider
 
         // Registrar último login (IP/dispositivo) en el perfil de empleado
         Event::listen(Login::class, RegistrarUltimoLogin::class);
+
+        // Un campo vacío llega como null y un null explícito ignora el DEFAULT de la BD
+        // (revienta en columnas NOT NULL). Se aplica el DEFAULT antes de guardar.
+        // TEMPORAL: la API móvil (api/*) queda fuera hasta validar estos cambios con calma;
+        // para incluirla, basta con quitar el if.
+        Event::listen('eloquent.saving: *', function (string $evento, array $datos) {
+            if (request()->is('api/*')) {
+                return;
+            }
+
+            DefaultsDeBaseDeDatos::aplicar($datos[0]);
+        });
 
         $this->registrarCapturaDeErroresFatales();
     }

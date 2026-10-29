@@ -240,6 +240,7 @@ return [
         'View:WhatsAppCenter' => 'Ver WhatsApp Center',
         'Publicar:AppUpdate' => 'Publicar actualizaciones de la app móvil (APK)',
         'Gestionar:DispositivosPos' => 'Liberar dispositivos POS (Monitor POS)',
+        'Gestionar:ResumenVentasDia' => 'Corregir/cancelar ventas y confirmar primas (Ventas del Día)',
     ],
 
     /*

@@ -16,9 +16,12 @@ use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Illuminate\Validation\Rules\File;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class PersonalizacionSistema extends Page
 {
+    use HasPageShield;
+
     public ?array $data = [];
 
     protected Width | string | null $maxContentWidth = Width::FourExtraLarge;
@@ -41,11 +44,6 @@ class PersonalizacionSistema extends Page
     public static function getNavigationSort(): ?int
     {
         return 92;
-    }
-
-    public static function canAccess(): bool
-    {
-        return auth()->user()?->hasRole('super_admin');
     }
 
     // ── Ciclo de vida ─────────────────────────────────────────────────────────

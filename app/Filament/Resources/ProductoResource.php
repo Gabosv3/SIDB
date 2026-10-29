@@ -134,7 +134,14 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                 ->label('Nombre de la categoría')
                                                 ->required()
                                                 ->minLength(2)
-                                                ->maxLength(100),
+                                                ->maxLength(100)
+                                                // Único (sucursal_id, nombre) en la BD.
+                                                ->unique(
+                                                    'categorias',
+                                                    'nombre',
+                                                    modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->where('sucursal_id', \Filament\Facades\Filament::getTenant()?->getKey()),
+                                                )
+                                                ->validationMessages(['unique' => 'Ya existe una categoría con ese nombre en esta sucursal.']),
                                             Forms\Components\Textarea::make('descripcion')
                                                 ->label('Descripción')
                                                 ->rows(2)
@@ -212,6 +219,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->prefix('$')
                                         ->default(0)
                                         ->minValue(0)
+                                        ->maxValue(99999999.99)
                                         ->required()
                                         ->step(0.01)
                                         ->rules(['required', 'numeric', 'min:0'])
@@ -223,6 +231,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->prefix('$')
                                         ->default(0)
                                         ->minValue(0)
+                                        ->maxValue(99999999.99)
                                         ->required()
                                         ->step(0.01)
                                         ->gte('precio_compra')
@@ -233,6 +242,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->numeric()
                                         ->prefix('$')
                                         ->minValue(0)
+                                        ->maxValue(99999999.99)
                                         ->step(0.01)
                                         ->nullable()
                                         ->gte('precio_compra')
@@ -351,6 +361,9 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                     ->get()
                                                     ->mapWithKeys(fn (Producto $p) => [(string) $p->id => "{$p->nombre} (stock: {$p->stock})"]))
                                                 ->searchable()
+                                                // Único (producto_combo_id, producto_componente_id): un mismo producto no puede repetirse.
+                                                ->distinct()
+                                                ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                                                 ->required(),
 
                                             Forms\Components\TextInput::make('cantidad')
@@ -358,6 +371,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                                 ->numeric()
                                                 ->integer()
                                                 ->minValue(1)
+                                                ->maxValue(100000)
                                                 ->default(1)
                                                 ->required(),
                                         ])
@@ -375,6 +389,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->integer()
                                         ->default(0)
                                         ->minValue(0)
+                                        ->maxValue(10000000)
                                         ->required()
                                         ->disabled(fn (Get $get) => (bool) $get('es_combo'))
                                         ->dehydrated(fn (Get $get) => ! $get('es_combo'))
@@ -388,6 +403,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->integer()
                                         ->default(0)
                                         ->minValue(0)
+                                        ->maxValue(10000000)
                                         ->required()
                                         ->helperText('Se generará alerta cuando el stock sea menor o igual a este valor.'),
 
@@ -412,6 +428,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                         ->numeric()
                                         ->step(0.001)
                                         ->minValue(0)
+                                        ->maxValue(99999.999)
                                         ->placeholder('Ej: 0.500')
                                         ->helperText('Peso en kilogramos. Opcional, usado para cálculo de flete.'),
 
@@ -736,6 +753,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->numeric()
                                 ->prefix('$')
                                 ->minValue(0)
+                                ->maxValue(99999999.99)
                                 ->step(0.01)
                                 ->helperText('Dejar vacío para no cambiarlo.'),
 
@@ -744,6 +762,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->numeric()
                                 ->prefix('$')
                                 ->minValue(0)
+                                ->maxValue(99999999.99)
                                 ->step(0.01)
                                 ->helperText('Dejar vacío para no cambiarlo.'),
 
@@ -752,6 +771,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->numeric()
                                 ->prefix('$')
                                 ->minValue(0)
+                                ->maxValue(99999999.99)
                                 ->step(0.01)
                                 ->helperText('Dejar vacío para no cambiarlo.'),
                         ])
@@ -784,6 +804,7 @@ class ProductoResource extends Resource implements HasShieldPermissions
                                 ->numeric()
                                 ->integer()
                                 ->minValue(0)
+                                ->maxValue(10000000)
                                 ->required(),
                         ])
                         ->modalDescription('Los combos seleccionados se ignoran -- su stock se calcula solo a partir de sus componentes.')

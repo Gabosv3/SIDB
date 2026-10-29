@@ -99,6 +99,7 @@
     $estadoLabels = ['pendiente' => 'Pendiente', 'completada' => 'Completada', 'cancelada' => 'Cancelada', 'devuelta' => 'Devuelta'];
     $primasConfirmadas = $this->getPrimasConfirmadas($resumen);
     $entregaPorVendedor = $this->getEntregaPorVendedor($resumen);
+    $puedeGestionar = $this->puedeGestionar();
 @endphp
 
 {{-- Filtros --}}
@@ -392,7 +393,7 @@
                                 @if((float) $v->prima > 0 && $v->vendedor_id)
                                     @if($primasConfirmadas->has($v->id))
                                         <br><span style="color:#16a34a;font-size:0.72rem;font-weight:600">Confirmada: ${{ number_format((float) $primasConfirmadas[$v->id], 2) }}</span>
-                                    @else
+                                    @elseif($puedeGestionar)
                                         <br>
                                         <button
                                             type="button"
@@ -420,7 +421,7 @@
                                 {{ $v->tipo_pago === 'contado' ? '$'.number_format($this->entregaDeVenta($v), 2) : '—' }}
                             </td>
                             <td class="rv-td">
-                                @if(! in_array($v->estado, ['cancelada', 'devuelta']))
+                                @if($puedeGestionar && ! in_array($v->estado, ['cancelada', 'devuelta']))
                                     <button
                                         type="button"
                                         wire:click="mountAction('corregirVenta', {{ Illuminate\Support\Js::from(['venta_id' => $v->id]) }})"

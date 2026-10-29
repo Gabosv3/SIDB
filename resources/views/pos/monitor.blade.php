@@ -339,6 +339,15 @@
             </div>
         </div>
 
+        {{-- Datos sin subir (errores de sincronización de la app) --}}
+        <div class="pm-card" id="pm-sync-card">
+            <div class="pm-card-header">
+                <span class="pm-card-title">Datos sin subir</span>
+                <span id="pm-sync-badge"><span class="pm-badge" style="background:#f3f4f6;color:#6b7280;">…</span></span>
+            </div>
+            <div id="pm-sync-panel"><div class="pm-empty">Cargando…</div></div>
+        </div>
+
         {{-- Conexiones por hora --}}
         <div class="pm-card">
             <div class="pm-card-header">
@@ -769,5 +778,69 @@ function poll() {
 // Primera actualización a los 2s (para no esperar 10s completos), luego cada POLL_MS
 setTimeout(poll, 2000);
 setInterval(poll, POLL_MS);
+
+// ── Datos sin subir: errores que la app reporta de operaciones que no logró subir ──
+var SYNC_URL = '{{ route('pos.monitor.sync-errores', $tenant) }}';
+var SYNC_RESOLVER_URL = '{{ route('pos.monitor.sync-errores.resolver', $tenant) }}';
+
+function syncEsc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function renderSync(d) {
+    var badge = document.getElementById('pm-sync-badge');
+    var panel = document.getElementById('pm-sync-panel');
+    if (!badge || !panel) return;
+    if (!d.total) {
+        badge.innerHTML = '<span class="pm-badge" style="background:#dcfce7;color:#166534;">Todo subido</span>';
+        panel.innerHTML = '<div class="pm-empty">Nada pendiente: todo lo que registraron los teléfonos llegó al servidor.</div>';
+        return;
+    }
+    badge.innerHTML = '<span class="pm-badge" style="background:#fee2e2;color:#991b1b;">' + d.total + '</span>';
+    var h = '';
+    d.atascados.forEach(function (a) {
+        h += '<div class="pm-alert-item"><div style="flex:1;min-width:0;">'
+          + '<div class="pm-alert-name">' + syncEsc(a.dispositivo) + (a.usuario ? ' · ' + syncEsc(a.usuario) : '') + '</div>'
+          + '<div class="pm-alert-desc">' + a.pendientes + ' operación(es) sin subir desde hace ' + a.antiguo_min + ' min</div></div>'
+          + '<span class="pm-alert-time">' + syncEsc(a.ultimo_ping) + '</span></div>';
+    });
+    d.errores.forEach(function (e) {
+        h += '<div class="pm-alert-item"><div style="flex:1;min-width:0;">'
+          + '<div class="pm-alert-name">' + syncEsc(e.etiqueta) + '</div>'
+          + '<div class="pm-alert-desc">' + syncEsc(e.usuario) + (e.dispositivo ? ' · ' + syncEsc(e.dispositivo) : '')
+          + (e.http_status ? ' · HTTP ' + e.http_status : '') + '<br>' + syncEsc(e.motivo || 'sin detalle') + '</div></div>'
+          + '<span class="pm-alert-time">' + syncEsc(e.hace) + '</span></div>';
+    });
+    if (PUEDE_LIBERAR && d.errores.length) {
+        h += '<div style="padding:.6rem 1rem;"><button type="button" onclick="resolverSync()" style="padding:.35rem .8rem;border:1px solid #d1d5db;border-radius:.4rem;background:#fff;cursor:pointer;">Marcar como revisados</button></div>';
+    }
+    panel.innerHTML = h;
+}
+
+function pollSync() {
+    fetch(SYNC_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(renderSync)
+        .catch(function () {
+            var p = document.getElementById('pm-sync-panel');
+            if (p) p.innerHTML = '<div class="pm-empty">No se pudo consultar los datos sin subir.</div>';
+        });
+}
+
+function resolverSync() {
+    if (!confirm('¿Marcar estos errores como revisados? Dejarán de aparecer como alerta.')) return;
+    fetch(SYNC_RESOLVER_URL, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+    })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(pollSync)
+        .catch(function () { alert('No se pudo marcar como revisados.'); });
+}
+
+pollSync();
+setInterval(pollSync, POLL_MS);
 </script>
 @endsection

@@ -8,9 +8,12 @@ use App\Services\ResumenEncuestasClienteService;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ResumenEncuestasCliente extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Encuestas de Cliente';
     protected static ?string $title = 'Resumen de Encuestas de Cliente';
     protected string $view = 'filament.pages.resumen-encuestas-cliente';

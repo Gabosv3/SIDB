@@ -107,21 +107,26 @@ class EncuestaClienteResource extends Resource
                         ->label('Monto/frecuencia que dice pagar el cliente'),
 
                     Forms\Components\TextInput::make('cobrador_reportado_cliente')
-                        ->label('Cobrador que el cliente dice que lo visita'),
+                        ->label('Cobrador que el cliente dice que lo visita')
+                        ->maxLength(255),
 
                     Forms\Components\Toggle::make('recibio_comprobante')
                         ->label('¿El cliente dice que recibe comprobante?'),
 
                     Forms\Components\TextInput::make('ultimo_pago_monto_cliente')
                         ->label('Último pago según el cliente')
-                        ->numeric()->prefix('$'),
+                        ->numeric()->prefix('$')
+                        ->minValue(0)
+                        ->maxValue(99999999.99),
 
                     Forms\Components\DatePicker::make('ultimo_pago_fecha_cliente')
                         ->label('Fecha de ese pago según el cliente'),
 
                     Forms\Components\TextInput::make('saldo_informado_cliente')
                         ->label('Saldo que el cliente cree tener')
-                        ->numeric()->prefix('$'),
+                        ->numeric()->prefix('$')
+                        ->minValue(0)
+                        ->maxValue(99999999.99),
                 ]),
 
             Section::make('Verificación interna BM (no editable)')

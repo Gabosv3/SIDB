@@ -14,9 +14,11 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class LiquidacionSemanalVentas extends Page
 {
+    use HasPageShield;
     use InteractsWithForms;
 
     protected static ?string $navigationLabel = 'Liquidación Semanal';
@@ -101,9 +103,7 @@ class LiquidacionSemanalVentas extends Page
                 ->map(fn ($grupo) => (object) [
                     'ventas' => $grupo->count(),
                     'total' => (float) $grupo->sum('total'),
-                    'comision' => round($grupo->flatMap->detalles->sum(
-                        fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
-                    ), 2),
+                    'comision' => round($grupo->sum(fn (Venta $v) => $v->comisionVendedor()), 2),
                 ]);
 
             // Anticipos de la semana -- excluye los que vienen de "Confirmar
@@ -213,9 +213,7 @@ class LiquidacionSemanalVentas extends Page
             ->get();
 
         $totalVendido = (float) $ventasSemana->sum('total');
-        $comision = round($ventasSemana->flatMap->detalles->sum(
-            fn (DetalleVenta $d) => (float) $d->subtotal * ComisionTramo::porcentajePara((float) $d->subtotal) / 100
-        ), 2);
+        $comision = round($ventasSemana->sum(fn (Venta $v) => $v->comisionVendedor()), 2);
 
         $perfil = $vendedor->employeeProfile;
         $modalidad = $perfil?->modalidad_pago ?? 'comision';
@@ -240,7 +238,8 @@ class LiquidacionSemanalVentas extends Page
     {
         $this->validate([
             'anticipo_vendedor_id' => 'required|exists:vendedores,id',
-            'anticipo_monto'       => 'required|numeric|min:0.01',
+            'anticipo_monto'       => 'required|numeric|min:0.01|max:99999999.99',
+            'anticipo_descripcion' => 'nullable|string|max:255',
         ]);
 
         // Semana a la que pertenece este anticipo: si se está editando uno

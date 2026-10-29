@@ -10,9 +10,12 @@ use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Number;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class Backups extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Backups';
     protected static ?int    $navigationSort  = 91;
     protected static ?string $title           = 'Gestión de Backups';
@@ -184,10 +187,5 @@ class Backups extends Page
             ->title('Backup eliminado')
             ->success()
             ->send();
-    }
-
-    public static function canAccess(): bool
-    {
-        return auth()->user()?->hasRole('super_admin');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cobrador;
 use App\Models\PagoVenta;
 use App\Models\PosDevice;
+use App\Models\SyncError;
 use App\Models\VisitaCobro;
 use App\Services\ResumenCobrosDiaService;
 use Illuminate\Http\Request;
@@ -119,6 +120,67 @@ class PosMonitorController extends Controller
             'ok' => true,
             'mensaje' => 'Dispositivo actualizado.',
         ]);
+    }
+
+    /**
+     * GET monitor/sync-errores — datos sin subir al servidor, para el panel.
+     * Une dos señales que reporta la app: operaciones que el servidor RECHAZÓ
+     * (sync_errores) y teléfonos con pendientes ATASCADOS en su cola (heartbeat).
+     */
+    public function syncErrores(Request $request, $tenant)
+    {
+        $errores = SyncError::pendientes()
+            ->with(['user:id,name', 'dispositivo:id,nombre'])
+            ->latest('ocurrido_en')
+            ->limit(50)
+            ->get()
+            ->map(fn ($e) => [
+                'id'          => $e->id,
+                'tipo'        => $e->tipo,
+                'usuario'     => $e->user?->name ?? 'Usuario desconocido',
+                'dispositivo' => $e->dispositivo?->nombre,
+                'etiqueta'    => $e->etiqueta ?: ($e->metodo . ' ' . $e->endpoint),
+                'endpoint'    => trim(($e->metodo ?? '') . ' ' . ($e->endpoint ?? '')),
+                'monto'       => $e->monto,
+                'http_status' => $e->http_status,
+                'motivo'      => $e->motivo,
+                'hace'        => $e->ocurrido_en?->diffForHumans() ?? '',
+            ]);
+
+        $atascados = PosDevice::with('user:id,name')
+            ->where('activo', true)
+            ->where('pendientes_sync', '>', 0)
+            ->where('pendiente_antiguo_min', '>=', PosDevice::MIN_COLA_ATASCADA)
+            ->orderByDesc('pendiente_antiguo_min')
+            ->get()
+            ->map(fn ($d) => [
+                'dispositivo'   => $d->nombre,
+                'usuario'       => $d->user?->name,
+                'pendientes'    => $d->pendientes_sync,
+                'antiguo_min'   => $d->pendiente_antiguo_min,
+                'ultimo_ping'   => $d->ultimo_ping?->diffForHumans() ?? 'Nunca',
+            ]);
+
+        return response()->json([
+            'total'     => $errores->count() + $atascados->count(),
+            'errores'   => $errores->values(),
+            'atascados' => $atascados->values(),
+        ]);
+    }
+
+    /**
+     * POST monitor/sync-errores/resolver — marca como revisados los errores
+     * (todos, o solo los ids indicados) para que dejen de alertar.
+     */
+    public function resolverSyncErrores(Request $request, $tenant)
+    {
+        $ids = collect($request->input('ids', []))->map(fn ($i) => (int) $i)->filter()->values();
+
+        $n = SyncError::pendientes()
+            ->when($ids->isNotEmpty(), fn ($q) => $q->whereIn('id', $ids))
+            ->update(['resuelto_en' => now(), 'resuelto_por' => $request->user()?->id]);
+
+        return response()->json(['ok' => true, 'resueltos' => $n]);
     }
 
     public function data(Request $request, $tenant)

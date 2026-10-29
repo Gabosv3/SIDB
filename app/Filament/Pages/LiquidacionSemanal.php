@@ -16,9 +16,11 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class LiquidacionSemanal extends Page
 {
+    use HasPageShield;
     use InteractsWithForms;
 
     protected static ?string $navigationLabel = 'Liquidación Semanal';
@@ -135,7 +137,8 @@ class LiquidacionSemanal extends Page
     {
         $this->validate([
             'anticipo_cobrador_id' => 'required|exists:cobradores,id',
-            'anticipo_monto'       => 'required|numeric|min:0.01',
+            'anticipo_monto'       => 'required|numeric|min:0.01|max:99999999.99',
+            'anticipo_descripcion' => 'nullable|string|max:255',
         ]);
 
         $inicio = Carbon::parse($this->semana_inicio)->startOfWeek(Carbon::MONDAY);

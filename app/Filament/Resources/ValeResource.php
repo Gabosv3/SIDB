@@ -110,6 +110,7 @@ class ValeResource extends Resource
                         ->prefix('$')
                         ->numeric()
                         ->minValue(0.01)
+                        ->maxValue(99999999.99)
                         ->required(),
 
                     Forms\Components\DatePicker::make('fecha_gasto')

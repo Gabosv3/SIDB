@@ -5,10 +5,13 @@ namespace App\Filament\Widgets;
 use App\Models\Compra;
 use App\Models\Proveedor;
 use Filament\Widgets\ChartWidget;
+use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Illuminate\Support\Facades\DB;
 
 class ComprasPorProveedorChart extends ChartWidget
 {
+    use HasWidgetShield;
+
     protected ?string $heading = 'Top Proveedores (Últimos 30 días)';
     protected static ?int $sort = 3;
 

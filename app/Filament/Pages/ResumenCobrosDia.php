@@ -13,9 +13,12 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Enums\Width;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 class ResumenCobrosDia extends Page
 {
+    use HasPageShield;
+
     protected static ?string $navigationLabel = 'Cobros del Día';
     protected static ?string $title = 'Resumen de Cobros del Día';
     protected static ?int $navigationSort = 5;
