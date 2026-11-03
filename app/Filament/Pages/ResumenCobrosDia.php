@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Cobrador;
 use App\Models\Venta;
 use App\Services\EliminarPagoVentaService;
+use App\Services\MoverPagoVentaService;
 use App\Services\RegistrarCobroManualService;
 use App\Services\ResumenCobrosDiaService;
 use Filament\Actions\Action;
@@ -156,7 +157,7 @@ class ResumenCobrosDia extends Page
         ];
     }
 
-    private function puedeGestionarCobros(): bool
+    public function puedeGestionarCobros(): bool
     {
         return auth()->user()?->hasRole('super_admin') ?? false;
     }
@@ -321,6 +322,78 @@ class ResumenCobrosDia extends Page
                 } catch (\Throwable $e) {
                     Notification::make()
                         ->title('No se pudo eliminar el pago')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    public function moverPagoAction(): Action
+    {
+        return Action::make('moverPago')
+            ->label('Mover pago')
+            ->icon('heroicon-m-arrows-right-left')
+            ->color('warning')
+            ->visible(fn () => $this->puedeGestionarCobros())
+            ->modalHeading('Mover pago a otro cobrador o fecha')
+            ->modalDescription(fn (array $arguments) => sprintf(
+                'Se moverá el pago de %s por $%s. No cambia cuotas ni saldos ni el número de recibo: solo a qué cobrador y a qué día se le cuenta.',
+                $arguments['cliente'] ?? 'este cliente',
+                number_format((float) ($arguments['monto'] ?? 0), 2)
+            ))
+            ->modalSubmitActionLabel('Mover pago')
+            ->fillForm(fn (array $arguments) => [
+                'cobrador_id' => $arguments['cobrador_id'] ?? null,
+                'fecha' => $arguments['fecha'] ?? $this->fecha,
+            ])
+            ->schema([
+                Forms\Components\Select::make('cobrador_id')
+                    ->label('Cobrador')
+                    ->options(fn () => Cobrador::where('activo', true)
+                        ->whereNotNull('user_id')
+                        ->orderBy('nombre')
+                        ->get()
+                        ->mapWithKeys(fn (Cobrador $c) => [$c->id => $c->nombre_completo]))
+                    ->searchable()
+                    ->required(),
+                Forms\Components\DatePicker::make('fecha')
+                    ->label('Fecha del pago')
+                    ->native(false)
+                    ->maxDate(today())
+                    ->required(),
+                Forms\Components\Textarea::make('motivo')
+                    ->label('Motivo (opcional)')
+                    ->placeholder('Ej: el pago lo hizo otro cobrador / se registró con otra fecha')
+                    ->rows(2)
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('password')
+                    ->label('Confirma tu contraseña')
+                    ->password()
+                    ->revealable()
+                    ->required()
+                    ->currentPassword(),
+            ])
+            ->action(function (array $data, array $arguments): void {
+                try {
+                    abort_unless($this->puedeGestionarCobros(), 403);
+
+                    $resultado = MoverPagoVentaService::mover(
+                        pagoVentaIds: $arguments['ids'] ?? [],
+                        cobradorId: (int) $data['cobrador_id'],
+                        fecha: $data['fecha'],
+                        movidoPorUserId: auth()->id(),
+                        motivo: $data['motivo'] ?? null,
+                    );
+
+                    Notification::make()
+                        ->title('Pago movido')
+                        ->body(sprintf('Se movió %d pago(s) por $%s.', $resultado['cantidad'], number_format($resultado['monto_total'], 2)))
+                        ->success()
+                        ->send();
+                } catch (\Throwable $e) {
+                    Notification::make()
+                        ->title('No se pudo mover el pago')
                         ->body($e->getMessage())
                         ->danger()
                         ->send();

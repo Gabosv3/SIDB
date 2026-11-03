@@ -459,7 +459,18 @@
                                 <td class="rc-td" style="text-align:right;color:{{ (float) $fila['saldo'] > 0 ? '#dc2626' : '#16a34a' }};font-weight:600">
                                     {{ $fila['saldo'] === null ? '—' : '$'.number_format((float) $fila['saldo'], 2) }}
                                 </td>
-                                <td class="rc-td" style="text-align:right;padding-right:1.25rem">
+                                <td class="rc-td" style="text-align:right;padding-right:1.25rem;white-space:nowrap">
+                                    @if($this->puedeGestionarCobros())
+                                        <button
+                                            type="button"
+                                            title="Mover a otro cobrador o fecha"
+                                            wire:click="mountAction('moverPago', {{ Illuminate\Support\Js::from(['ids' => $fila['ids'], 'cliente' => $fila['cliente'], 'monto' => $fila['total'], 'cobrador_id' => $c->id, 'fecha' => $this->fecha]) }})"
+                                            style="display:inline-flex;align-items:center;justify-content:center;width:1.75rem;height:1.75rem;margin-right:0.25rem;border-radius:0.375rem;border:1px solid #fde68a;background:#fffbeb;color:#b45309;cursor:pointer"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/>
+                                            </svg>
+                                        </button>
                                     <button
                                         type="button"
                                         title="Eliminar pago"
@@ -470,6 +481,7 @@
                                             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z"/>
                                         </svg>
                                     </button>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
