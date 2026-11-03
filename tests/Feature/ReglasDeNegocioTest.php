@@ -276,3 +276,40 @@ test('replicar la asignacion del dia anterior copia productos, descuenta stock y
     expect(fn () => App\Services\ReplicarAsignacionService::replicar($this->vendedor->id, today()->toDateString()))
         ->toThrow(RuntimeException::class);
 });
+
+test('mover pago: cambia cobrador y fecha sin tocar el recibo ni el saldo, y valida fecha y cobrador', function () {
+    $c = ($this->cliente)();
+    $v = ($this->venta)($c, ['fecha_venta' => today()->subDays(10)]);
+    $pago = \App\Models\PagoVenta::create([
+        'venta_id' => $v->id, 'cliente_id' => $c->id, 'user_id' => $this->user->id, 'monto' => 20,
+        'fecha_pago' => today(), 'metodo_pago' => 'efectivo', 'numero_recibo' => 'REC-9-000001',
+    ]);
+    $saldoAntes = $v->fresh()->saldo_pendiente;
+
+    $otroUser = User::factory()->create();
+    $otro = App\Models\Cobrador::create([
+        'codigo' => 'C-2', 'nombre' => 'Otro', 'apellido' => 'Cobrador', 'email' => 'otro@test.com',
+        'telefono' => '+50311122244', 'activo' => true, 'sucursal_id' => $this->sucursal->id, 'user_id' => $otroUser->id,
+    ]);
+    $sinUsuario = App\Models\Cobrador::create([
+        'codigo' => 'C-3', 'nombre' => 'Sin', 'apellido' => 'Usuario', 'email' => 'sin@test.com',
+        'telefono' => '+50311122255', 'activo' => true, 'sucursal_id' => $this->sucursal->id,
+    ]);
+
+    $dia = today()->subDays(3)->toDateString();
+    $r = App\Services\MoverPagoVentaService::mover([$pago->id], $otro->id, $dia, $this->user->id, 'se registró con otro cobrador');
+
+    $pago->refresh();
+    expect($r['cantidad'])->toBe(1)
+        ->and($pago->user_id)->toBe($otroUser->id)
+        ->and($pago->fecha_pago->toDateString())->toBe($dia)
+        ->and($pago->numero_recibo)->toBe('REC-9-000001')
+        ->and($v->fresh()->saldo_pendiente)->toBe($saldoAntes)
+        ->and(DB::table('activity_log')->where('log_name', 'pagos_movidos')->count())->toBe(1);
+
+    // Fecha futura, anterior a la venta, o cobrador sin usuario: se rechaza y no cambia nada.
+    expect(fn () => App\Services\MoverPagoVentaService::mover([$pago->id], $otro->id, today()->addDay()->toDateString(), null))->toThrow(RuntimeException::class)
+        ->and(fn () => App\Services\MoverPagoVentaService::mover([$pago->id], $otro->id, today()->subDays(30)->toDateString(), null))->toThrow(RuntimeException::class)
+        ->and(fn () => App\Services\MoverPagoVentaService::mover([$pago->id], $sinUsuario->id, $dia, null))->toThrow(RuntimeException::class);
+    expect($pago->fresh()->fecha_pago->toDateString())->toBe($dia);
+});
