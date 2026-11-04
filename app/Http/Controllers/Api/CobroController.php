@@ -1214,6 +1214,27 @@ class CobroController extends Controller
                 $restante = round($restante - $aplicar, 2);
             }
 
+            // Si sobró dinero sin cuota donde aplicarlo, el saldo de la venta es MAYOR
+            // que la suma de sus cuotas pendientes (datos inconsistentes). Antes el
+            // pago se guardaba solo hasta donde alcanzaban las cuotas, pero la respuesta
+            // decía "Pago registrado" con el monto completo: el cobrador entregaba un
+            // recibo de $90 y el servidor tenía $37 — la diferencia desaparecía en
+            // silencio. Ahora se rechaza TODO el pago (la transacción se revierte) y se
+            // pide corregir las cuotas de la venta.
+            if ($restante > 0.004) {
+                throw ValidationException::withMessages([
+                    'monto' => sprintf(
+                        'No se pudo aplicar todo el monto: $%s no tienen cuota pendiente donde aplicarse. '
+                        . 'La venta %s tiene saldo $%s pero sus cuotas pendientes suman solo $%s. '
+                        . 'No se registró ningún pago; avisa a la oficina para corregir las cuotas de esta venta antes de cobrar.',
+                        number_format($restante, 2),
+                        $venta->numero_venta ?? $ventaId,
+                        number_format($saldoVenta, 2),
+                        number_format($monto - $restante, 2)
+                    ),
+                ]);
+            }
+
             $proxima = GestionCobro::where('cliente_id', $id)
                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
                 ->orderBy('fecha_vencimiento')
@@ -1242,6 +1263,9 @@ class CobroController extends Controller
             ],
             'producto'      => $producto,
             'monto_total'   => $monto,
+            // Lo que REALMENTE quedó guardado (suma de lo aplicado a las cuotas). 'monto_total' es
+            // lo que se recibió; si algún día difieren, la app lo detecta al instante.
+            'monto_aplicado' => round(array_sum(array_column($result['cuotasPagadas'], 'monto_aplicado')), 2),
             'cuotas_pagadas' => $result['cuotasPagadas'],
             'proxima_cuota' => $result['proxima'] ? [
                 'id'               => $result['proxima']->id,

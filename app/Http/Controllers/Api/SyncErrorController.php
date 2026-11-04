@@ -26,7 +26,9 @@ class SyncErrorController extends Controller
             'app_version'            => 'nullable|string|max:50',
             'errores'                => 'required|array|min:1|max:50',
             'errores.*.client_id'    => 'required|string|max:64',
-            'errores.*.tipo'         => 'nullable|in:rechazado,atascado',
+            // diferencia = el monto que registró la app no coincide con el que quedó en el
+            // servidor (ej. cobro de $90 que el servidor guardó como $37).
+            'errores.*.tipo'         => 'nullable|in:rechazado,atascado,diferencia',
             'errores.*.metodo'       => 'nullable|string|max:10',
             'errores.*.endpoint'     => 'nullable|string|max:255',
             'errores.*.etiqueta'     => 'nullable|string|max:255',
