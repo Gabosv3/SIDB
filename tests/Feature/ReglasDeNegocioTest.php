@@ -384,3 +384,43 @@ test('excluir de reportes: el cobrador excluido no sale en los filtros ni en los
     // Si se elige al excluido a proposito, si se ve.
     expect(App\Services\ResumenEncuestasClienteService::resumen(today()->toDateString(), [$prueba->id])->pluck('cobrador_id')->all())->toBe([$prueba->id]);
 });
+
+test('perfil de empleado: el interruptor Excluir de reportes se guarda en el cobrador y no cambia si el formulario no lo trae', function () {
+    \Illuminate\Support\Facades\Gate::before(fn () => true);
+    $admin = User::factory()->create();
+    $this->actingAs($admin);
+
+    $empleado = User::factory()->create();
+    $cobrador = App\Models\Cobrador::create([
+        'codigo' => 'EX1', 'nombre' => 'Per', 'apellido' => 'Fil', 'email' => 'perfil@test.com', 'telefono' => '+50311122211',
+        'activo' => true, 'sucursal_id' => $this->sucursal->id, 'user_id' => $empleado->id, 'excluir_reportes' => false,
+    ]);
+    $url = route('empleados.actualizarLaboral', [$this->sucursal->id, $empleado->id]);
+    $base = ['tipo_empleado' => ['cobrador'], 'estado_laboral' => 'activo'];
+
+    $this->post($url, $base + ['excluir_reportes_presente' => '1', 'excluir_reportes' => '1'])->assertRedirect();
+    expect($cobrador->fresh()->excluir_reportes)->toBeTrue();
+
+    // Formulario sin el interruptor (p. ej. otra pantalla): no toca el valor guardado.
+    $this->post($url, $base)->assertRedirect();
+    expect($cobrador->fresh()->excluir_reportes)->toBeTrue();
+
+    // Interruptor presente y apagado: se desmarca.
+    $this->post($url, $base + ['excluir_reportes_presente' => '1'])->assertRedirect();
+    expect($cobrador->fresh()->excluir_reportes)->toBeFalse();
+});
+
+test('perfil de empleado: el interruptor Excluir de reportes aparece solo si la persona es cobrador', function () {
+    \Illuminate\Support\Facades\Gate::before(fn () => true);
+    $this->actingAs(User::factory()->create());
+
+    $conCobrador = User::factory()->create();
+    App\Models\Cobrador::create([
+        'codigo' => 'EX2', 'nombre' => 'Con', 'apellido' => 'Cob', 'email' => 'con@test.com', 'telefono' => '+50311122212',
+        'activo' => true, 'sucursal_id' => $this->sucursal->id, 'user_id' => $conCobrador->id,
+    ]);
+    $sinCobrador = User::factory()->create();
+
+    $this->get(route('empleados.show', [$this->sucursal->id, $conCobrador->id]))->assertOk()->assertSee('Excluir de reportes y estadísticas');
+    $this->get(route('empleados.show', [$this->sucursal->id, $sinCobrador->id]))->assertOk()->assertDontSee('Excluir de reportes y estadísticas');
+});

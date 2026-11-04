@@ -565,6 +565,17 @@
                     <input type="checkbox" name="puede_usar_pos_movil" id="puede_usar_pos_movil" value="1" {{ old('puede_usar_pos_movil', $employeeProfile?->puede_usar_pos_movil ?? true) ? 'checked' : '' }}>
                     <label for="puede_usar_pos_movil" style="margin:0;">Permitir uso del POS móvil</label>
                 </div>
+                @if($empleado->cobrador)
+                    <div style="grid-column:1/-1;display:flex;align-items:flex-start;gap:.5rem;">
+                        <input type="hidden" name="excluir_reportes_presente" value="1">
+                        <input type="checkbox" name="excluir_reportes" id="excluir_reportes" value="1" style="margin-top:.2rem;"
+                            {{ (old('excluir_reportes_presente') ? old('excluir_reportes') : $empleado->cobrador->excluir_reportes) ? 'checked' : '' }}>
+                        <label for="excluir_reportes" style="margin:0;">
+                            Excluir de reportes y estadísticas
+                            <span style="display:block;font-weight:400;color:var(--muted,#6b7280);">Para perfiles administrativos o de prueba: no aparece en resúmenes, liquidaciones, reportes ni filtros de cobrador.</span>
+                        </label>
+                    </div>
+                @endif
                 <div style="grid-column:1/-1;">
                     <label>Rutas supervisadas <span style="font-weight:400;color:var(--muted,#6b7280);">(solo aplica si el tipo de empleado es Supervisor)</span></label>
                     <select name="rutas_supervisadas[]" id="pe-rutas-supervisadas" class="pe-input" multiple>

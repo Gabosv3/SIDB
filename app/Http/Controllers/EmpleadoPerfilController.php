@@ -150,7 +150,14 @@ class EmpleadoPerfilController extends Controller
 
         EmployeeProfile::updateOrCreate(['user_id' => $empleado->id], $data);
 
-        $this->sincronizarPerfilOperativo($empleado, $data['tipo_empleado'] ?? [], $data['estado_laboral'], $rutasSupervisadas);
+        $this->sincronizarPerfilOperativo(
+            $empleado,
+            $data['tipo_empleado'] ?? [],
+            $data['estado_laboral'],
+            $rutasSupervisadas,
+            // El interruptor solo viene en el formulario si la persona ya es cobrador; sin él, no se toca el valor guardado.
+            $request->has('excluir_reportes_presente') ? $request->boolean('excluir_reportes') : null,
+        );
 
         return redirect()->back()->with('success', 'Información laboral actualizada.');
     }
@@ -165,7 +172,7 @@ class EmpleadoPerfilController extends Controller
      * que ya no aplica se desactiva (nunca se borra — otras tablas lo
      * referencian por FK, como ventas.vendedor_id o rutas_cobro.cobrador_id).
      */
-    private function sincronizarPerfilOperativo(User $empleado, array $tiposEmpleado, string $estadoLaboral, array $rutasSupervisadas = []): void
+    private function sincronizarPerfilOperativo(User $empleado, array $tiposEmpleado, string $estadoLaboral, array $rutasSupervisadas = [], ?bool $excluirReportes = null): void
     {
         $partes = preg_split('/\s+/', trim($empleado->name), 2);
         $nombre = $partes[0] ?? $empleado->name;
@@ -205,7 +212,7 @@ class EmpleadoPerfilController extends Controller
                     'email' => $empleado->email,
                     'activo' => $activo,
                     'sucursal_id' => Cobrador::where('user_id', $empleado->id)->value('sucursal_id') ?? $sucursalIdAsignada,
-                ]
+                ] + ($excluirReportes === null ? [] : ['excluir_reportes' => $excluirReportes])
             );
         } else {
             Cobrador::where('user_id', $empleado->id)->update(['activo' => false]);
