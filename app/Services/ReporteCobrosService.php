@@ -96,7 +96,7 @@ class ReporteCobrosService
 
             $rutaIds = $cobrador->rutasCobro()->pluck('id');
             $moraQuery = GestionCobro::whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                ->whereDate('fecha_vencimiento', '<', today())
+                ->whereFecha('fecha_vencimiento', '<', today())
                 ->whereHas('cliente', fn ($q) => $q->whereIn('ruta_cobro_id', $rutaIds));
 
             return [

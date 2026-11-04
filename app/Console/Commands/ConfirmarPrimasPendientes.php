@@ -21,7 +21,7 @@ class ConfirmarPrimasPendientes extends Command
 
     public function handle(): int
     {
-        $ventas = Venta::whereDate('fecha_venta', today())
+        $ventas = Venta::whereFecha('fecha_venta', today())
             ->where('prima', '>', 0)
             ->whereNotNull('vendedor_id')
             ->whereNotIn('estado', ['cancelada', 'devuelta'])

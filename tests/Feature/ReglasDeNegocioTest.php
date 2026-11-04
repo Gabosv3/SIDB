@@ -277,6 +277,48 @@ test('replicar la asignacion del dia anterior copia productos, descuenta stock y
         ->toThrow(RuntimeException::class);
 });
 
+test('corregir fechas: invierte dia/mes de la venta, mueve sus cuotas y deja registro; sin --aplicar no escribe', function () {
+    $cliente = ($this->cliente)();
+    // Registrada el 15-jul pero con fecha 03-dic (en realidad 12-mar): dia y mes invertidos.
+    $venta = ($this->venta)($cliente, ['fecha_venta' => '2026-12-03 00:00:00']);
+    DB::table('ventas')->where('id', $venta->id)->update(['created_at' => '2026-07-15 10:00:00']);
+    foreach ([1, 2] as $n) {
+        App\Models\GestionCobro::create([
+            'venta_id' => $venta->id, 'cliente_id' => $cliente->id, 'numero_cuota' => $n, 'total_cuotas' => 2,
+            'monto_cuota' => 50, 'monto_pagado' => 0, 'estado' => 'pendiente',
+            'fecha_vencimiento' => \Illuminate\Support\Carbon::parse('2026-12-03')->addDays(14 * $n)->toDateString(),
+        ]);
+    }
+    // Una venta normal no se toca.
+    $normal = ($this->venta)($cliente, ['fecha_venta' => '2026-07-01 09:00:00']);
+
+    $this->artisan('ventas:corregir-fechas')->assertSuccessful();
+    expect(DB::table('ventas')->where('id', $venta->id)->value('fecha_venta'))->toStartWith('2026-12-03');
+
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true])->assertSuccessful();
+
+    expect(DB::table('ventas')->where('id', $venta->id)->value('fecha_venta'))->toStartWith('2026-03-12')
+        ->and(DB::table('gestion_cobros')->where('venta_id', $venta->id)->orderBy('numero_cuota')->pluck('fecha_vencimiento')->map(fn ($f) => substr($f, 0, 10))->all())
+        ->toBe(['2026-03-26', '2026-04-09'])
+        ->and(DB::table('ventas')->where('id', $normal->id)->value('fecha_venta'))->toStartWith('2026-07-01')
+        ->and(DB::table('activity_log')->where('log_name', 'fechas_corregidas')->count())->toBe(1);
+});
+
+test('corregir fechas: una venta sin propuesta automatica solo se corrige con --manual', function () {
+    $cliente = ($this->cliente)();
+    $venta = ($this->venta)($cliente, ['fecha_venta' => '2059-02-20 00:00:00']);
+    DB::table('ventas')->where('id', $venta->id)->update(['created_at' => '2026-07-26 10:00:00']);
+
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true])->assertSuccessful();
+    expect(DB::table('ventas')->where('id', $venta->id)->value('fecha_venta'))->toStartWith('2059-02-20');
+
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true, '--manual' => ["{$venta->id}:2026-07-25"]])->assertSuccessful();
+    expect(DB::table('ventas')->where('id', $venta->id)->value('fecha_venta'))->toStartWith('2026-07-25');
+
+    $this->artisan('ventas:corregir-fechas', ['--manual' => ['mal']])->assertFailed();
+});
+
+
 test('mover pago: cambia cobrador y fecha sin tocar el recibo ni el saldo, y valida fecha y cobrador', function () {
     $c = ($this->cliente)();
     $v = ($this->venta)($c, ['fecha_venta' => today()->subDays(10)]);

@@ -62,7 +62,7 @@ class AsignacionDiaria extends Model
         $this->detalles->each(function (DetalleAsignacion $detalle) {
             $vendidas = DetalleVenta::whereHas('venta', function ($q) {
                 $q->where('vendedor_id', $this->vendedor_id)
-                  ->whereDate('fecha_venta', $this->fecha)
+                  ->whereFecha('fecha_venta', $this->fecha)
                   ->whereIn('estado', ['completada', 'pendiente']);
             })
             ->where('producto_id', $detalle->producto_id)

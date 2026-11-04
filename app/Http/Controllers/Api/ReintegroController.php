@@ -81,12 +81,12 @@ class ReintegroController extends Controller
             ->where('saldo_pendiente', '>', 0)
             ->whereHas('gestionesCobro', fn ($g) =>
                 $g->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                  ->whereDate('fecha_vencimiento', '<=', $corte)
+                  ->whereFecha('fecha_vencimiento', '<=', $corte)
             )
             ->withCount([
                 'gestionesCobro as cuotas_vencidas' => fn ($g) =>
                     $g->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                      ->whereDate('fecha_vencimiento', '<=', $corte),
+                      ->whereFecha('fecha_vencimiento', '<=', $corte),
             ])
             ->selectRaw('ventas.*, (
                 SELECT COALESCE(SUM(monto_cuota - monto_pagado), 0)
@@ -98,7 +98,13 @@ class ReintegroController extends Controller
             ->orderByDesc('cuotas_vencidas')
             ->paginate($request->integer('per_page', 30));
 
-        $ventas->getCollection()->transform(function ($v) {
+        // Una sola consulta para toda la página (antes era una por cada venta).
+        $conReintegro = Reintegro::whereIn('venta_id', $ventas->getCollection()->pluck('id'))
+            ->whereIn('estado', ['pendiente', 'en_proceso'])
+            ->pluck('venta_id')
+            ->flip();
+
+        $ventas->getCollection()->transform(function ($v) use ($conReintegro) {
             return [
                 'venta_id'      => $v->id,
                 'numero_venta'  => $v->numero_venta,
@@ -106,9 +112,7 @@ class ReintegroController extends Controller
                 'saldo_pendiente' => (float) $v->saldo_pendiente,
                 'cuotas_vencidas' => (int) $v->cuotas_vencidas,
                 'monto_adeudado_vencido' => round((float) $v->monto_adeudado_vencido, 2),
-                'ya_en_reintegro' => Reintegro::where('venta_id', $v->id)
-                    ->whereIn('estado', ['pendiente', 'en_proceso'])
-                    ->exists(),
+                'ya_en_reintegro' => $conReintegro->has($v->id),
                 'cliente' => $v->cliente ? [
                     'id'              => $v->cliente->id,
                     'nombre'          => $v->cliente->nombre_completo,
@@ -253,15 +257,25 @@ class ReintegroController extends Controller
         $corte = now()->toDateString();
         $stats = GestionCobro::where('venta_id', $venta->id)
             ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-            ->whereDate('fecha_vencimiento', '<=', $corte)
+            ->whereFecha('fecha_vencimiento', '<=', $corte)
             ->selectRaw('COUNT(*) as cuotas_vencidas, COALESCE(SUM(monto_cuota - monto_pagado), 0) as monto_adeudado')
             ->first();
+
+        // reintegros.sucursal_id es NOT NULL y las ventas antiguas/importadas pueden no tenerla.
+        $sucursalId = $venta->sucursal_id
+            ?? $venta->cliente?->sucursal_id
+            ?? $request->user()->vendedor?->sucursal_id
+            ?? $request->user()->cobrador?->sucursal_id;
+
+        if (! $sucursalId) {
+            return response()->json(['mensaje' => 'No se pudo determinar la sucursal de esta venta.'], 422);
+        }
 
         $reintegro = Reintegro::create([
             'venta_id'         => $venta->id,
             'cliente_id'       => $venta->cliente_id,
             'vendedor_id'      => null,
-            'sucursal_id'      => $venta->sucursal_id,
+            'sucursal_id'      => $sucursalId,
             'asignado_por'     => $request->user()->id,
             'estado'           => 'pendiente',
             'motivo'           => $data['motivo'] ?? null,

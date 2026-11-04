@@ -31,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        \App\Support\FiltroPorFecha::registrar();
+
         // En producción todo URL que genera Laravel (asset('storage/...') de fotos y
         // comprobantes, paginación, etc.) debe salir como https. Sin esto, detrás
         // de un proxy las fotos llegan a la app como http:// y Android las bloquea

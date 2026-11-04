@@ -197,18 +197,18 @@ class VentaController extends Controller
             // es ese caso especial.
             'cliente_id'                     => 'required|integer|min:0',
             'sucursal_id'                    => 'required|exists:sucursales,id',
-            'prima'                          => 'nullable|numeric|min:0',
-            'dias_credito'                   => 'nullable|integer|min:1',
+            'prima'                          => 'nullable|numeric|min:0|max:9999999999.99',
+            'dias_credito'                   => 'nullable|integer|min:1|max:3650',
             'descuento_porcentaje'           => 'nullable|numeric|min:0|max:100',
             'observaciones'                  => 'nullable|string|max:500',
             'detalles'                       => 'required|array|min:1',
             'detalles.*.producto_id'         => 'required|exists:productos,id',
-            'detalles.*.cantidad'            => 'required|integer|min:1',
-            'detalles.*.precio_unitario'     => 'required|numeric|min:0',
+            'detalles.*.cantidad'            => 'required|integer|min:1|max:100000',
+            'detalles.*.precio_unitario'     => 'required|numeric|min:0|max:99999999.99',
             'detalles.*.descuento_porcentaje'=> 'nullable|numeric|min:0|max:100',
             'detalles.*.tipo_pago'           => 'nullable|in:contado,credito',
-            'detalles.*.cuotas'              => 'nullable|integer|min:2',
-            'detalles.*.precio_cuota'        => 'nullable|numeric|min:0',
+            'detalles.*.cuotas'              => 'nullable|integer|min:2|max:120',
+            'detalles.*.precio_cuota'        => 'nullable|numeric|min:0|max:9999999999.99',
             'idempotency_key'                => 'nullable|string|max:80',
         ]);
 
@@ -259,7 +259,7 @@ class VentaController extends Controller
             $cantidadVendidaHoy = DetalleVenta::where('producto_id', $productoId)
                 ->whereHas('venta', function ($query) use ($vendedor) {
                     $query->where('vendedor_id', $vendedor->id)
-                        ->whereDate('fecha_venta', today())
+                        ->whereFecha('fecha_venta', today())
                         ->whereIn('estado', ['pendiente', 'completada']);
                 })
                 ->sum('cantidad');
@@ -468,16 +468,16 @@ class VentaController extends Controller
         $data = $request->validate([
             'motivo'                          => 'required|string|max:500',
             'cliente_id'                       => 'sometimes|integer|exists:clientes,id',
-            'prima'                            => 'nullable|numeric|min:0',
+            'prima'                            => 'nullable|numeric|min:0|max:9999999999.99',
             'descuento_porcentaje'             => 'nullable|numeric|min:0|max:100',
             'detalles'                         => 'sometimes|array|min:1',
             'detalles.*.producto_id'           => 'required_with:detalles|integer|exists:productos,id',
-            'detalles.*.cantidad'              => 'required_with:detalles|integer|min:1',
-            'detalles.*.precio_unitario'       => 'required_with:detalles|numeric|min:0',
+            'detalles.*.cantidad'              => 'required_with:detalles|integer|min:1|max:100000',
+            'detalles.*.precio_unitario'       => 'required_with:detalles|numeric|min:0|max:99999999.99',
             'detalles.*.descuento_porcentaje'  => 'nullable|numeric|min:0|max:100',
             'detalles.*.tipo_pago'             => 'nullable|in:contado,credito',
-            'detalles.*.cuotas'                => 'nullable|integer|min:2',
-            'detalles.*.precio_cuota'          => 'nullable|numeric|min:0',
+            'detalles.*.cuotas'                => 'nullable|integer|min:2|max:120',
+            'detalles.*.precio_cuota'          => 'nullable|numeric|min:0|max:9999999999.99',
         ]);
 
         $vendedor = $request->user()->vendedor;

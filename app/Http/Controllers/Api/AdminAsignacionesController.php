@@ -179,8 +179,8 @@ class AdminAsignacionesController extends Controller
             'fecha'                            => 'nullable|date',
             'observaciones'                    => 'nullable|string|max:500',
             'detalles'                         => 'required|array|min:1',
-            'detalles.*.producto_id'           => 'required|exists:productos,id',
-            'detalles.*.cantidad_asignada'     => 'required|numeric|min:1',
+            'detalles.*.producto_id'           => 'required|exists:productos,id|distinct',
+            'detalles.*.cantidad_asignada'     => 'required|numeric|min:1|max:100000',
         ]);
 
         $fecha = $data['fecha'] ?? today()->toDateString();
@@ -188,14 +188,17 @@ class AdminAsignacionesController extends Controller
         // Misma regla que el panel web: no se puede crear una segunda
         // asignación activa para el mismo vendedor el mismo día — primero
         // hay que liquidar la anterior.
-        $yaActiva = AsignacionDiaria::where('vendedor_id', $data['vendedor_id'])
+        // La BD tiene un único (vendedor_id, fecha): una asignación ya liquidada ese día
+        // también impide crear otra, así que se revisa sin filtrar por estado.
+        $existente = AsignacionDiaria::where('vendedor_id', $data['vendedor_id'])
             ->whereDate('fecha', $fecha)
-            ->where('estado', 'activa')
-            ->exists();
+            ->first();
 
-        if ($yaActiva) {
+        if ($existente) {
             return response()->json([
-                'mensaje' => 'Este vendedor ya tiene una asignación activa para esa fecha. Liquídala antes de crear otra.',
+                'mensaje' => $existente->estado === 'activa'
+                    ? 'Este vendedor ya tiene una asignación activa para esa fecha. Liquídala antes de crear otra.'
+                    : 'Este vendedor ya tiene una asignación (ya liquidada) para esa fecha. Elige otra fecha.',
             ], 422);
         }
 
@@ -313,8 +316,8 @@ class AdminAsignacionesController extends Controller
         $data = $request->validate([
             'observaciones'                => 'nullable|string|max:500',
             'detalles'                     => 'required|array|min:1',
-            'detalles.*.producto_id'       => 'required|exists:productos,id',
-            'detalles.*.cantidad_asignada' => 'required|numeric|min:1',
+            'detalles.*.producto_id'       => 'required|exists:productos,id|distinct',
+            'detalles.*.cantidad_asignada' => 'required|numeric|min:1|max:100000',
             'detalles.*.precio_venta'      => 'nullable|numeric|min:0',
         ]);
 

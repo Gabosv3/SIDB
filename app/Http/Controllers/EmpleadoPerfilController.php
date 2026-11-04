@@ -52,9 +52,9 @@ class EmpleadoPerfilController extends Controller
 
         $supervisor = $employeeProfile?->supervisor;
         $ventasSemana = $this->serieUltimosDias(fn ($dia) => $empleado->vendedor
-            ? (float) Venta::where('vendedor_id', $empleado->vendedor->id)->whereDate('fecha_venta', $dia)->sum('total')
+            ? (float) Venta::where('vendedor_id', $empleado->vendedor->id)->whereFecha('fecha_venta', $dia)->sum('total')
             : 0.0);
-        $cobrosSemana = $this->serieUltimosDias(fn ($dia) => (float) PagoVenta::where('user_id', $empleado->id)->whereDate('fecha_pago', $dia)->whereNull('anulado_en')->sum('monto'));
+        $cobrosSemana = $this->serieUltimosDias(fn ($dia) => (float) PagoVenta::where('user_id', $empleado->id)->whereFecha('fecha_pago', $dia)->whereNull('anulado_en')->sum('monto'));
 
         // Solo aplica si este empleado es supervisor — se muestra en la pestaña
         // Laboral para que asignar rutas supervisadas no requiera ir a un

@@ -29,7 +29,7 @@ class CuadreCajaService
         $cobros = PagoVenta::query()
             ->whereNull('anulado_en')
             ->where('metodo_pago', 'efectivo')
-            ->whereDate('fecha_pago', $dia)
+            ->whereFecha('fecha_pago', $dia)
             ->when($sucursalId, fn ($q) => $q->whereHas('venta', fn ($v) => $v->withoutGlobalScopes()->where('sucursal_id', $sucursalId)))
             ->selectRaw('user_id, SUM(monto) as total')->groupBy('user_id')->pluck('total', 'user_id');
 
@@ -75,7 +75,7 @@ class CuadreCajaService
         };
 
         $ventas = Venta::withoutGlobalScopes()
-            ->whereDate('fecha_venta', $dia)
+            ->whereFecha('fecha_venta', $dia)
             ->where('tipo_pago', 'contado')
             ->whereNotIn('estado', ['cancelada', 'devuelta'])
             ->whereNotNull('vendedor_id')

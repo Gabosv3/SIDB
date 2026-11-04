@@ -25,17 +25,17 @@ class KpisModernosWidget extends Widget
         $hoy = today();
         $inicioMes = $hoy->copy()->startOfMonth();
 
-        $ventasHoy = (float) Venta::whereDate('fecha_venta', $hoy)->sum('total');
-        $ventasAyer = (float) Venta::whereDate('fecha_venta', $hoy->copy()->subDay())->sum('total');
+        $ventasHoy = (float) Venta::whereFecha('fecha_venta', $hoy)->sum('total');
+        $ventasAyer = (float) Venta::whereFecha('fecha_venta', $hoy->copy()->subDay())->sum('total');
         $ventasMes = (float) Venta::where('fecha_venta', '>=', $inicioMes)->sum('total');
 
-        $cobradoHoy = (float) PagoVenta::whereDate('fecha_pago', $hoy)->whereNull('anulado_en')->sum('monto');
-        $cobradoAyer = (float) PagoVenta::whereDate('fecha_pago', $hoy->copy()->subDay())->whereNull('anulado_en')->sum('monto');
+        $cobradoHoy = (float) PagoVenta::whereFecha('fecha_pago', $hoy)->whereNull('anulado_en')->sum('monto');
+        $cobradoAyer = (float) PagoVenta::whereFecha('fecha_pago', $hoy->copy()->subDay())->whereNull('anulado_en')->sum('monto');
 
         $cuentasPorCobrar = (float) CuentaCobrar::whereIn('estado', ['pendiente', 'vencido'])->sum('monto');
 
         $moraQuery = GestionCobro::whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-            ->whereDate('fecha_vencimiento', '<', $hoy);
+            ->whereFecha('fecha_vencimiento', '<', $hoy);
         $morosidadMonto = (float) (clone $moraQuery)->selectRaw('SUM(monto_cuota - monto_pagado) AS total')->value('total');
         $morosidadCuotas = (clone $moraQuery)->count();
 

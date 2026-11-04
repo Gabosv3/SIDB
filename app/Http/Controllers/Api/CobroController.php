@@ -32,6 +32,19 @@ class CobroController extends Controller
         return $dias[now()->dayOfWeekIso];
     }
 
+    /**
+     * cobradores.email es único (cuenta también a los eliminados): si otro cobrador ya usa
+     * ese correo, el perfil se crea sin él en vez de reventar con un 500 en el primer cobro.
+     */
+    private function emailLibreParaCobrador(?string $email): ?string
+    {
+        if (blank($email)) {
+            return null;
+        }
+
+        return Cobrador::withTrashed()->where('email', $email)->exists() ? null : $email;
+    }
+
     private function cobrador(Request $request)
     {
         $user = $request->user();
@@ -47,7 +60,7 @@ class CobroController extends Controller
                         'nombre'      => $vendedor->nombre,
                         'apellido'    => $vendedor->apellido,
                         'telefono'    => $vendedor->telefono,
-                        'email'       => $vendedor->email,
+                        'email'       => $this->emailLibreParaCobrador($vendedor->email),
                         'activo'      => true,
                     ]
                 );
@@ -69,7 +82,7 @@ class CobroController extends Controller
                         'nombre'      => $supervisor->nombre,
                         'apellido'    => $supervisor->apellido,
                         'telefono'    => $supervisor->telefono,
-                        'email'       => $supervisor->email,
+                        'email'       => $this->emailLibreParaCobrador($supervisor->email),
                         'activo'      => true,
                     ]
                 );
@@ -185,18 +198,18 @@ class CobroController extends Controller
                                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado']),
                             'gestionesCobro as cuotas_vencidas' => fn ($g) => $g
                                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                                ->whereDate('fecha_vencimiento', '<', today()),
+                                ->whereFecha('fecha_vencimiento', '<', today()),
                         ])
                     ])
                     ->addSelect([
                         'cuotas_vencidas' => GestionCobro::selectRaw('COUNT(*)')
                             ->whereColumn('cliente_id', 'clientes.id')
                             ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                            ->whereDate('fecha_vencimiento', '<', today()),
+                            ->whereFecha('fecha_vencimiento', '<', today()),
                         'para_estar_al_dia' => GestionCobro::selectRaw('COALESCE(SUM(monto_cuota - monto_pagado), 0)')
                             ->whereColumn('cliente_id', 'clientes.id')
                             ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                            ->whereDate('fecha_vencimiento', '<', today()),
+                            ->whereFecha('fecha_vencimiento', '<', today()),
                     ]),
             ])
             ->get();
@@ -362,18 +375,18 @@ class CobroController extends Controller
                         ->whereIn('estado', ['pendiente', 'parcialmente_cobrado']),
                     'gestionesCobro as cuotas_vencidas' => fn ($g) => $g
                         ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                        ->whereDate('fecha_vencimiento', '<', today()),
+                        ->whereFecha('fecha_vencimiento', '<', today()),
                 ])
             ])
             ->addSelect([
                 'cuotas_vencidas' => GestionCobro::selectRaw('COUNT(*)')
                     ->whereColumn('cliente_id', 'clientes.id')
                     ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                    ->whereDate('fecha_vencimiento', '<', today()),
+                    ->whereFecha('fecha_vencimiento', '<', today()),
                 'para_estar_al_dia' => GestionCobro::selectRaw('COALESCE(SUM(monto_cuota - monto_pagado), 0)')
                     ->whereColumn('cliente_id', 'clientes.id')
                     ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
-                    ->whereDate('fecha_vencimiento', '<', today()),
+                    ->whereFecha('fecha_vencimiento', '<', today()),
             ])
             ->get()
             ->map(fn ($c) => [
@@ -1077,7 +1090,7 @@ class CobroController extends Controller
     public function pagarCliente(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'monto'           => 'required|numeric|min:0.01',
+            'monto'           => 'required|numeric|min:0.01|max:99999999.99',
             'metodo_pago'     => 'required|in:efectivo,transferencia,cheque,deposito',
             'venta_id'        => 'required|integer|exists:ventas,id',
             'referencia'      => 'nullable|string|max:100',
@@ -1272,7 +1285,7 @@ class CobroController extends Controller
     public function pagar(Request $request, int $id): JsonResponse
     {
         $data = $request->validate([
-            'monto' => 'required|numeric|min:0.01',
+            'monto' => 'required|numeric|min:0.01|max:99999999.99',
             'metodo_pago' => 'required|in:efectivo,transferencia,cheque,deposito',
             'referencia' => 'nullable|string|max:100',
             'observaciones' => 'nullable|string|max:500',
@@ -1423,7 +1436,7 @@ class CobroController extends Controller
             // Pagos del día registrados por el user de este cobrador — los
             // recibos anulados no cuentan en ningún total.
             $pagos = PagoVenta::where('user_id', $cobrador->user_id)
-                ->whereDate('fecha_pago', $fecha)
+                ->whereFecha('fecha_pago', $fecha)
                 ->whereNull('anulado_en')
                 ->selectRaw('
                     COUNT(DISTINCT cliente_id)  AS total_pagos,
@@ -1434,7 +1447,7 @@ class CobroController extends Controller
 
             // Desglose por método de pago
             $porMetodo = PagoVenta::where('user_id', $cobrador->user_id)
-                ->whereDate('fecha_pago', $fecha)
+                ->whereFecha('fecha_pago', $fecha)
                 ->whereNull('anulado_en')
                 ->selectRaw('metodo_pago, COUNT(*) AS cantidad, SUM(monto) AS monto')
                 ->groupBy('metodo_pago')
@@ -1448,7 +1461,7 @@ class CobroController extends Controller
 
             // Detalle de cada pago
             $detalle = PagoVenta::where('user_id', $cobrador->user_id)
-                ->whereDate('fecha_pago', $fecha)
+                ->whereFecha('fecha_pago', $fecha)
                 ->whereNull('anulado_en')
                 ->with('cliente:id,nombre,apellido', 'venta:id,numero_venta')
                 ->orderBy('created_at')
@@ -1543,7 +1556,7 @@ class CobroController extends Controller
         // en el historial — los registros antiguos, sin numero_recibo, quedan
         // cada uno como su propio grupo (no se mezclan entre sí).
         $pagos = PagoVenta::where('user_id', $cobrador->user_id)
-            ->whereDate('fecha_pago', $fecha)
+            ->whereFecha('fecha_pago', $fecha)
             ->whereNull('anulado_en')
             ->with(['cliente:id,nombre,apellido,codigo_anterior,telefono_whatsapp', 'venta:id,numero_venta', 'venta.detalles.producto:id,nombre,codigo'])
             ->orderBy('created_at')
@@ -1810,7 +1823,7 @@ class CobroController extends Controller
         $gestionadosHoy = collect()
             ->merge(
                 PagoVenta::where('user_id', $userId)->whereNull('anulado_en')
-                    ->whereDate('fecha_pago', $hoy)->pluck('cliente_id')
+                    ->whereFecha('fecha_pago', $hoy)->pluck('cliente_id')
             )
             ->merge(
                 VisitaCobro::where('user_id', $userId)
@@ -1911,7 +1924,7 @@ class CobroController extends Controller
         $clientesIds = Cliente::where('ruta_cobro_id', $rutaId)->pluck('id');
 
         $pagos = PagoVenta::whereIn('cliente_id', $clientesIds)
-            ->whereDate('fecha_pago', $fecha)
+            ->whereFecha('fecha_pago', $fecha)
             ->whereNull('anulado_en')
             ->with(['cliente:id,nombre,apellido', 'user:id,name'])
             ->orderBy('created_at')
@@ -1975,16 +1988,15 @@ class CobroController extends Controller
 
         $resumen = $cobradores->map(function (Cobrador $c) use ($hoy, $inicioSemana) {
             $rutasIds = $c->rutasCobro()->pluck('id');
-            $clientesIds = Cliente::whereIn('ruta_cobro_id', $rutasIds)->pluck('id');
 
             return [
                 'cobrador_id' => $c->id,
                 'nombre' => $c->nombre_completo,
                 'cobrado_hoy' => (float) PagoVenta::where('user_id', $c->user_id)
-                    ->whereNull('anulado_en')->whereDate('fecha_pago', $hoy)->sum('monto'),
+                    ->whereNull('anulado_en')->whereFecha('fecha_pago', $hoy)->sum('monto'),
                 'cobrado_semana' => (float) PagoVenta::where('user_id', $c->user_id)
                     ->whereNull('anulado_en')->whereBetween('fecha_pago', [$inicioSemana, now()])->sum('monto'),
-                'cuentas_en_mora' => Cliente::whereIn('id', $clientesIds)
+                'cuentas_en_mora' => Cliente::whereIn('ruta_cobro_id', $rutasIds)
                     ->whereHas('gestionesCobro', fn ($q) => $q->where('estado', 'pendiente')->where('fecha_vencimiento', '<', $hoy))
                     ->count(),
             ];
@@ -2132,9 +2144,9 @@ class CobroController extends Controller
             'monto_frecuencia_pago' => 'nullable|string|max:1000',
             'cobrador_reportado_cliente' => 'nullable|string|max:255',
             'recibio_comprobante' => 'nullable|boolean',
-            'ultimo_pago_monto_cliente' => 'nullable|numeric|min:0',
+            'ultimo_pago_monto_cliente' => 'nullable|numeric|min:0|max:99999999.99',
             'ultimo_pago_fecha_cliente' => 'nullable|date',
-            'saldo_informado_cliente' => 'nullable|numeric|min:0',
+            'saldo_informado_cliente' => 'nullable|numeric|min:0|max:99999999.99',
             'resultado' => 'required|in:coincide,diferencia_investigar,pago_no_registrado,comprobante_inconsistente',
             'observaciones' => 'nullable|string|max:1000',
         ]);

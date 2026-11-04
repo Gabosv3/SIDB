@@ -47,7 +47,7 @@ class PagareController extends Controller
     {
         $data = $request->validate([
             'cliente_id'         => 'required|integer|exists:clientes,id',
-            'monto_financiado'   => 'required|numeric|min:0.01',
+            'monto_financiado'   => 'required|numeric|min:0.01|max:99999999.99',
             'nombre_deudor'      => 'nullable|string|max:150',
             'dui'                => 'nullable|string|max:20',
             'direccion'          => 'nullable|string|max:255',
@@ -65,7 +65,8 @@ class PagareController extends Controller
             'cliente_id'        => $cliente->id,
             'user_id'           => $user->id,
             'nombre_deudor'     => $data['nombre_deudor'] ?? $cliente->nombre,
-            'dui'               => $data['dui'] ?? $cliente->dui,
+            // pagares.dui es NOT NULL y muchos clientes no tienen DUI registrado.
+            'dui'               => $data['dui'] ?? $cliente->dui ?? '',
             'direccion'         => $data['direccion'] ?? null,
             'lugar_firma'       => $data['lugar_firma'] ?? null,
             'monto_financiado'  => $data['monto_financiado'],

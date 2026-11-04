@@ -162,7 +162,7 @@ class VentaCorreccionService
                     $cantidadVendidaHoy = DetalleVenta::where('producto_id', $productoId)
                         ->whereHas('venta', function ($query) use ($asignacion, $ventaIdExcluirDeValidacion) {
                             $query->where('vendedor_id', $asignacion->vendedor_id)
-                                ->whereDate('fecha_venta', today())
+                                ->whereFecha('fecha_venta', today())
                                 ->whereIn('estado', ['pendiente', 'completada'])
                                 ->when($ventaIdExcluirDeValidacion, fn ($q) => $q->where('id', '!=', $ventaIdExcluirDeValidacion));
                         })

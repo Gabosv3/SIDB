@@ -160,20 +160,20 @@ class GestionCobroResource extends Resource
                 Tables\Filters\Filter::make('vencimiento_hoy')
                     ->label('Vencen hoy')
                     ->toggle()
-                    ->query(fn ($query) => $query->whereDate('fecha_vencimiento', today())),
+                    ->query(fn ($query) => $query->whereFecha('fecha_vencimiento', today())),
 
                 Tables\Filters\Filter::make('vencimiento_proximo')
                     ->label('Vencen en los próximos 7 días')
                     ->toggle()
                     ->query(fn ($query) => $query
-                        ->whereDate('fecha_vencimiento', '>=', today())
-                        ->whereDate('fecha_vencimiento', '<=', today()->addDays(7))
+                        ->whereFecha('fecha_vencimiento', '>=', today())
+                        ->whereFecha('fecha_vencimiento', '<=', today()->addDays(7))
                     ),
 
                 Tables\Filters\Filter::make('vencidas')
                     ->label('Vencidas')
                     ->toggle()
-                    ->query(fn ($query) => $query->whereDate('fecha_vencimiento', '<', today())->where('estado', 'pendiente')),
+                    ->query(fn ($query) => $query->whereFecha('fecha_vencimiento', '<', today())->where('estado', 'pendiente')),
 
                 Tables\Filters\Filter::make('pendientes_cobrar')
                     ->label('Pendientes de cobrar')

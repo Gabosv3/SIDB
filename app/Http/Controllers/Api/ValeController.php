@@ -94,7 +94,7 @@ class ValeController extends Controller
     {
         $data = $request->validate([
             'tipo'               => 'required|in:consumo,vehiculo',
-            'monto'              => 'required|numeric|min:0.01',
+            'monto'              => 'required|numeric|min:0.01|max:99999999.99',
             // Solo vehículo exige comprobante — consumo (almuerzo, refrigerio)
             // se aprueba directo con el monto, sin foto.
             'comprobante'        => 'required_if:tipo,vehiculo|nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
