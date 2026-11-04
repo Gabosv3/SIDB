@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Cobrador;
 use App\Models\Reintegro;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -18,6 +19,9 @@ class ResumenReintegrosService
         return Reintegro::whereDate('fecha_asignacion', Carbon::parse($fecha))
             ->when($vendedorIds !== [], fn ($q) => $q->whereIn('vendedor_id', $vendedorIds))
             ->when($cobradorUserIds !== [], fn ($q) => $q->whereIn('asignado_por', $cobradorUserIds))
+            // Sin una selección explícita, no cuentan los cobradores marcados "Excluir de reportes".
+            ->when($cobradorUserIds === [] && ($excluidos = Cobrador::userIdsExcluidosDeReportes()) !== [],
+                fn ($q) => $q->where(fn ($w) => $w->whereNull('asignado_por')->orWhereNotIn('asignado_por', $excluidos)))
             ->when($rutaIds !== [], fn ($q) => $q->whereIn('ruta_cobro_id_original', $rutaIds))
             ->with(['cliente', 'vendedor', 'asignadoPor', 'rutaCobroOriginal', 'venta:id,numero_venta'])
             ->orderByDesc('created_at')

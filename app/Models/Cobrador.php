@@ -34,6 +34,18 @@ class Cobrador extends Model
 
     // ── Relationships ─────────────────────────────────────────────────────────
 
+    /** id de los cobradores marcados "Excluir de reportes" (perfiles administrativos o de prueba). */
+    public static function idsExcluidosDeReportes(): array
+    {
+        return static::where('excluir_reportes', true)->pluck('id')->all();
+    }
+
+    /** user_id de los cobradores marcados "Excluir de reportes". */
+    public static function userIdsExcluidosDeReportes(): array
+    {
+        return static::where('excluir_reportes', true)->whereNotNull('user_id')->pluck('user_id')->all();
+    }
+
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');

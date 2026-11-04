@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Cobrador;
 use App\Models\EncuestaCliente;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -13,6 +14,9 @@ class ResumenEncuestasClienteService
     {
         return EncuestaCliente::whereDate('fecha', Carbon::parse($fecha))
             ->when($cobradorIds !== [], fn ($q) => $q->whereIn('cobrador_id', $cobradorIds))
+            // Sin una selección explícita, no cuentan los cobradores marcados "Excluir de reportes".
+            ->when($cobradorIds === [] && ($excluidos = Cobrador::idsExcluidosDeReportes()) !== [],
+                fn ($q) => $q->where(fn ($w) => $w->whereNull('cobrador_id')->orWhereNotIn('cobrador_id', $excluidos)))
             ->with(['cliente', 'supervisor', 'cobrador'])
             ->orderByDesc('created_at')
             ->get();

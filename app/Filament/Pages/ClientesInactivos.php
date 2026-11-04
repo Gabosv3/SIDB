@@ -63,7 +63,7 @@ class ClientesInactivos extends Page
 
     public function getCobradores(): \Illuminate\Support\Collection
     {
-        return Cobrador::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
+        return Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get(['id', 'nombre', 'apellido']);
     }
 
     public function getClientes(): \Illuminate\Support\Collection

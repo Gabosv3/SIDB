@@ -355,3 +355,32 @@ test('mover pago: cambia cobrador y fecha sin tocar el recibo ni el saldo, y val
         ->and(fn () => App\Services\MoverPagoVentaService::mover([$pago->id], $sinUsuario->id, $dia, null))->toThrow(RuntimeException::class);
     expect($pago->fresh()->fecha_pago->toDateString())->toBe($dia);
 });
+
+test('excluir de reportes: el cobrador excluido no sale en los filtros ni en los resumenes de encuestas y reintegros', function () {
+    $mk = fn (string $codigo, bool $excluir) => App\Models\Cobrador::create([
+        'codigo' => $codigo, 'nombre' => "Nom{$codigo}", 'apellido' => 'Ape', 'email' => "{$codigo}@test.com",
+        'telefono' => '+50311122200', 'activo' => true, 'sucursal_id' => $this->sucursal->id,
+        'user_id' => User::factory()->create()->id, 'excluir_reportes' => $excluir,
+    ]);
+    $real = $mk('R1', false);
+    $prueba = $mk('R2', true);
+
+    foreach ([App\Filament\Pages\ResumenEncuestasCliente::class, App\Filament\Pages\ResumenReintegros::class, App\Filament\Pages\ClientesInactivos::class] as $pagina) {
+        $ids = (new $pagina)->getCobradores()->pluck('id')->all();
+        expect($ids)->toContain($real->id)->not->toContain($prueba->id);
+    }
+
+    $cliente = ($this->cliente)();
+    $sup = App\Models\Supervisor::create(['user_id' => User::factory()->create()->id, 'nombre' => 'Sup', 'apellido' => 'X', 'email' => 'sup@test.com', 'activo' => true, 'sucursal_id' => $this->sucursal->id]);
+    foreach ([$real, $prueba] as $c) {
+        DB::table('encuestas_cliente')->insert([
+            'supervisor_id' => $sup->id, 'cliente_id' => $cliente->id, 'cobrador_id' => $c->id, 'fecha' => today()->toDateString(),
+            'resultado' => 'coincide', 'diferencia' => 0, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+
+    $todos = App\Services\ResumenEncuestasClienteService::resumen(today()->toDateString());
+    expect($todos->pluck('cobrador_id')->all())->toBe([$real->id]);
+    // Si se elige al excluido a proposito, si se ve.
+    expect(App\Services\ResumenEncuestasClienteService::resumen(today()->toDateString(), [$prueba->id])->pluck('cobrador_id')->all())->toBe([$prueba->id]);
+});

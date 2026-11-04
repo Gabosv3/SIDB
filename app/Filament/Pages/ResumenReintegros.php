@@ -68,7 +68,7 @@ class ResumenReintegros extends Page
     /** Cobradores que mandan reintegros (campo asignado_por, que guarda el user_id). */
     public function getCobradores(): \Illuminate\Support\Collection
     {
-        return Cobrador::where('activo', true)->whereNotNull('user_id')->orderBy('nombre')->get();
+        return Cobrador::where('activo', true)->where('excluir_reportes', false)->whereNotNull('user_id')->orderBy('nombre')->get();
     }
 
     public function getRutas(): \Illuminate\Support\Collection

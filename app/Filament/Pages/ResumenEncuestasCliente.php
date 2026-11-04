@@ -56,7 +56,7 @@ class ResumenEncuestasCliente extends Page
 
     public function getCobradores(): \Illuminate\Support\Collection
     {
-        return Cobrador::where('activo', true)->orderBy('nombre')->get();
+        return Cobrador::where('activo', true)->where('excluir_reportes', false)->orderBy('nombre')->get();
     }
 
     public function getResumen(): \Illuminate\Support\Collection
