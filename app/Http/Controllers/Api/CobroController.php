@@ -1214,13 +1214,44 @@ class CobroController extends Controller
                 $restante = round($restante - $aplicar, 2);
             }
 
+            // Si sobró dinero sin cuota donde aplicarlo, el saldo de la venta es MAYOR que
+            // la suma de sus cuotas pendientes (datos inconsistentes). Antes el pago se
+            // guardaba solo hasta donde alcanzaban las cuotas, pero la respuesta decía
+            // "Pago registrado" con el monto completo: el cobrador entregaba un recibo de
+            // $90 y el servidor tenía $37, y la diferencia desaparecía en silencio.
+            // El cobro NO se rechaza (se puede cobrar cualquier monto): lo que sobra se
+            // guarda como un pago más de la venta, con el mismo recibo, para que lo
+            // registrado sea SIEMPRE lo cobrado y el saldo de la venta baje igual que lo
+            // dice el recibo. Se informa en la respuesta (monto_sin_cuota) para que la
+            // oficina corrija las cuotas de esa venta.
+            $sinCuota = 0.0;
+            if ($restante > 0.004) {
+                $sinCuota = round($restante, 2);
+
+                PagoVenta::create([
+                    'venta_id'      => $ventaId,
+                    'cliente_id'    => $id,
+                    'numero_recibo' => $numeroRecibo,
+                    'monto'         => $sinCuota,
+                    'saldo_antes'   => $saldoAntesTicket,
+                    'saldo_despues' => $saldoDespuesTicket,
+                    'fecha_pago'    => today(),
+                    'metodo_pago'   => $data['metodo_pago'],
+                    'referencia'    => $data['referencia'] ?? null,
+                    'observaciones' => trim(($data['observaciones'] ?? '')
+                        . ' [Sin cuota pendiente: $' . number_format($sinCuota, 2)
+                        . ' aplicado directo al saldo de la venta]'),
+                    'user_id'       => auth()->id(),
+                ]);
+            }
+
             $proxima = GestionCobro::where('cliente_id', $id)
                 ->whereIn('estado', ['pendiente', 'parcialmente_cobrado'])
                 ->orderBy('fecha_vencimiento')
                 ->orderBy('numero_cuota')
                 ->first();
 
-            return compact('cuotasPagadas', 'proxima', 'numeroRecibo');
+            return compact('cuotasPagadas', 'proxima', 'numeroRecibo', 'sinCuota');
         });
 
         // Nombre(s) del producto de la venta pagada, para el ticket impreso —
@@ -1234,7 +1265,10 @@ class CobroController extends Controller
             ->implode(', ');
 
         return response()->json([
-            'mensaje'       => 'Pago registrado y distribuido en ' . count($result['cuotasPagadas']) . ' cuota(s).',
+            'mensaje'       => 'Pago registrado y distribuido en ' . count($result['cuotasPagadas']) . ' cuota(s).'
+                . ($result['sinCuota'] > 0
+                    ? ' $' . number_format($result['sinCuota'], 2) . ' se aplicaron directo al saldo de la venta (no tenía cuotas pendientes para ese monto).'
+                    : ''),
             'numero_recibo' => $result['numeroRecibo'],
             'cliente'       => [
                 'id'              => $cliente->id,
@@ -1242,6 +1276,12 @@ class CobroController extends Controller
             ],
             'producto'      => $producto,
             'monto_total'   => $monto,
+            // Lo que REALMENTE quedó guardado: cuotas + excedente sin cuota. 'monto_total' es lo
+            // que se recibió; si algún día difieren, la app lo detecta al instante.
+            'monto_aplicado' => round(array_sum(array_column($result['cuotasPagadas'], 'monto_aplicado')) + $result['sinCuota'], 2),
+            // Parte del cobro que no encontró cuota pendiente (datos inconsistentes de la venta):
+            // se guardó igual, pero la oficina debe corregir las cuotas.
+            'monto_sin_cuota' => $result['sinCuota'],
             'cuotas_pagadas' => $result['cuotasPagadas'],
             'proxima_cuota' => $result['proxima'] ? [
                 'id'               => $result['proxima']->id,

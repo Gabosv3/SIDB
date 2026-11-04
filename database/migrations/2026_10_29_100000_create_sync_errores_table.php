@@ -19,6 +19,7 @@ return new class extends Migration
             // Id que genera la app por cada error: evita duplicados si reintenta el envío.
             $table->string('client_id', 64);
             // rechazado = el servidor respondió 4xx a una operación guardada offline
+            // diferencia = el monto de la app no coincide con el del servidor
             // atascado  = lleva mucho tiempo en la cola sin poder subirse
             $table->string('tipo', 20)->default('rechazado');
             $table->string('metodo', 10)->nullable();
