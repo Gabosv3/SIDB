@@ -424,3 +424,65 @@ test('perfil de empleado: el interruptor Excluir de reportes aparece solo si la 
     $this->get(route('empleados.show', [$this->sucursal->id, $conCobrador->id]))->assertOk()->assertSee('Excluir de reportes y estadísticas');
     $this->get(route('empleados.show', [$this->sucursal->id, $sinCobrador->id]))->assertOk()->assertDontSee('Excluir de reportes y estadísticas');
 });
+
+test('corregir fechas: los pagos con fecha imposible quedan en la fecha de su venta; los normales y anulados no se tocan', function () {
+    $cliente = ($this->cliente)();
+    $pago = fn ($venta, string $fecha, string $creado, array $extra = []) => tap(\App\Models\PagoVenta::create([
+        'venta_id' => $venta->id, 'cliente_id' => $cliente->id, 'user_id' => $this->user->id, 'monto' => 10,
+        'fecha_pago' => $fecha, 'metodo_pago' => 'efectivo',
+    ] + $extra), fn ($p) => DB::table('pago_ventas')->where('id', $p->id)->update(['created_at' => $creado]));
+
+    // Venta con dia/mes invertidos: 03-dic en realidad 12-mar. Su primer pago quedo con la misma fecha mala.
+    $venta = ($this->venta)($cliente, ['fecha_venta' => '2026-12-03 00:00:00']);
+    DB::table('ventas')->where('id', $venta->id)->update(['created_at' => '2026-03-12 10:00:00']);
+    $primero = $pago($venta, '2026-12-03', '2026-03-12 10:05:00');
+    $normal = $pago($venta, '2026-04-20', '2026-04-20 09:00:00');
+    $anulado = $pago($venta, '2026-12-03', '2026-03-12 10:06:00', ['anulado_en' => now()]);
+
+    // Venta correcta (sin correccion) pero con un pago en el futuro: se pone en la fecha de su venta.
+    $otra = ($this->venta)($cliente, ['fecha_venta' => today()->subDays(20)->toDateTimeString()]);
+    DB::table('ventas')->where('id', $otra->id)->update(['created_at' => today()->subDays(20)->toDateTimeString()]);
+    $futuro = $pago($otra, today()->addDays(10)->toDateString(), today()->subDays(19)->toDateTimeString());
+
+    // Vista previa: no escribe nada.
+    $this->artisan('ventas:corregir-fechas')->assertSuccessful();
+    expect(substr(DB::table('pago_ventas')->where('id', $primero->id)->value('fecha_pago'), 0, 10))->toBe('2026-12-03');
+
+    // --sin-pagos: corrige la venta pero no los pagos.
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true, '--sin-pagos' => true])->assertSuccessful();
+    expect(substr(DB::table('ventas')->where('id', $venta->id)->value('fecha_venta'), 0, 10))->toBe('2026-03-12')
+        ->and(substr(DB::table('pago_ventas')->where('id', $primero->id)->value('fecha_pago'), 0, 10))->toBe('2026-12-03');
+
+    // Con pagos (la venta ya esta corregida: la regla lee su fecha actual).
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true])->assertSuccessful();
+    $fecha = fn ($p) => substr(DB::table('pago_ventas')->where('id', $p->id)->value('fecha_pago'), 0, 10);
+    expect($fecha($primero))->toBe('2026-03-12')
+        ->and($fecha($normal))->toBe('2026-04-20')
+        ->and($fecha($anulado))->toBe('2026-12-03')
+        ->and($fecha($futuro))->toBe(today()->subDays(20)->toDateString())
+        ->and(DB::table('activity_log')->where('log_name', 'fechas_corregidas')->where('properties', 'like', '%pago_id%')->count())->toBe(2);
+
+    // Idempotente: una segunda corrida no cambia nada mas.
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true])->assertSuccessful();
+    expect(DB::table('activity_log')->where('log_name', 'fechas_corregidas')->where('properties', 'like', '%pago_id%')->count())->toBe(2);
+});
+
+test('corregir fechas: en una sola corrida corrige la venta, sus cuotas y su pago con la misma fecha mala (manual 2026-01-01)', function () {
+    $cliente = ($this->cliente)();
+    $venta = ($this->venta)($cliente, ['fecha_venta' => '2059-02-20 00:00:00']);
+    DB::table('ventas')->where('id', $venta->id)->update(['created_at' => '2026-07-26 10:00:00']);
+    $pago = \App\Models\PagoVenta::create([
+        'venta_id' => $venta->id, 'cliente_id' => $cliente->id, 'user_id' => $this->user->id, 'monto' => 10,
+        'fecha_pago' => '2059-02-20', 'metodo_pago' => 'efectivo',
+    ]);
+    DB::table('pago_ventas')->where('id', $pago->id)->update(['created_at' => '2026-07-26 10:05:00']);
+
+    // Sin fecha manual no hay salida: ni la venta ni el pago se tocan.
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true])->assertSuccessful();
+    expect(substr(DB::table('pago_ventas')->where('id', $pago->id)->value('fecha_pago'), 0, 10))->toBe('2059-02-20');
+
+    $this->artisan('ventas:corregir-fechas', ['--aplicar' => true, '--manual' => ["{$venta->id}:2026-01-01"]])->assertSuccessful();
+
+    expect(substr(DB::table('ventas')->where('id', $venta->id)->value('fecha_venta'), 0, 10))->toBe('2026-01-01')
+        ->and(substr(DB::table('pago_ventas')->where('id', $pago->id)->value('fecha_pago'), 0, 10))->toBe('2026-01-01');
+});
